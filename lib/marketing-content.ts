@@ -49,13 +49,13 @@ export const plans = [
   },
   {
     name: "Standard",
-    price: "設計中",
+    price: "¥24,800 / 月",
     note: "運用を安定化",
     points: ["Bot: 1体", "月間メッセージ: 拡張", "データ量: 中規模", "API連携: 検討中"],
   },
   {
     name: "Pro",
-    price: "設計中",
+    price: "¥100,000 / 月",
     note: "複数Botで本格運用",
     points: ["Bot: 複数", "月間メッセージ: 大容量", "データ量: 大規模", "API/LINE連携: 対応予定"],
   },

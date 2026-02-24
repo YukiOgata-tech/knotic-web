@@ -36,25 +36,13 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
    - まずは `Email` を有効化
 
 ## 4. 最小テーブル作成（SQL Editor）
-MVP開始時の最小構成例:
-
-```sql
-create table if not exists public.tenants (
-  id uuid primary key default gen_random_uuid(),
-  name text not null,
-  created_at timestamptz not null default now()
-);
-
-create table if not exists public.profiles (
-  user_id uuid primary key references auth.users(id) on delete cascade,
-  tenant_id uuid references public.tenants(id),
-  role text not null default 'owner',
-  created_at timestamptz not null default now()
-);
-
-alter table public.tenants enable row level security;
-alter table public.profiles enable row level security;
-```
+`supabase/schema.sql` の内容をSQL Editorで実行してください。  
+このスキーマには以下が含まれています。
+- マルチテナントテーブル
+- 課金テーブル（`plans / subscriptions / billing_*`）
+- Bot/RAG運用テーブル
+- RLSポリシー
+- 新規ユーザー時の初期テナント自動作成トリガー
 
 ## 5. このリポジトリで用意済みの接続基盤
 - Browser client: `lib/supabase/client.ts`
@@ -68,9 +56,10 @@ alter table public.profiles enable row level security;
 2. `GET /api/supabase/ping` にアクセス
 3. `ok: true` が返れば接続成功
 4. ログイン後に叩くと `user` が返る
+5. `signup -> メール確認 -> /auth/callback -> /app` の導線が通ることを確認
 
 ## 7. 次に実装すること（推奨順）
-1. `signup/login` ページを Supabase Auth に接続
-2. サインアップ時に `tenants` と `profiles` を初期化
-3. 管理画面ルートを `auth.getUser()` で保護
-4. RLSポリシーを `tenant_id` 境界で整備
+1. `/app` 配下にBot管理画面のCRUDを追加
+2. Stripe webhookで `subscriptions` を更新
+3. `usage_daily` によるプラン上限チェックをAPIに追加
+4. `tenant_memberships` の招待フローを実装
