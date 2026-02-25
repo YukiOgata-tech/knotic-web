@@ -1,18 +1,46 @@
+import { termsMeta, termsSections } from "@/content/terms-of-service"
+import Link from "next/link"
 import { PageFrame } from "@/components/marketing/page-frame"
+import { Button } from "@/components/ui/button"
 
 export default function TermsPage() {
   return (
     <PageFrame
       eyebrow="Terms"
-      title="利用規約（ドラフト）"
-      description="正式公開前のドラフト版です。禁止事項、免責、契約期間、解約条件などを最終確定予定です。"
+      title="利用規約"
+      description="knotic のご利用条件を定めています。契約者および利用者は、本規約に同意のうえ本サービスをご利用ください。"
     >
-      <section className="rounded-2xl border border-black/10 bg-white/90 p-6 text-sm leading-7 text-zinc-600 dark:border-white/10 dark:bg-slate-900/75 dark:text-zinc-300 sm:p-8">
-        <p>1. 本サービスは、規約に同意した利用者に提供します。</p>
-        <p>2. 利用者は、法令違反または第三者の権利侵害となる利用を行ってはなりません。</p>
-        <p>3. サービス内容は改善のため変更される場合があります。</p>
-        <p>4. 当社は、故意または重過失を除き、利用に伴う損害を保証しません。</p>
-        <p>5. 本規約に関する準拠法・裁判管轄は別途定めます。</p>
+      <section className="rounded-2xl border border-black/10 bg-white/90 p-6 dark:border-white/10 dark:bg-slate-900/75 sm:p-8">
+        <div className="mb-6 grid gap-1 text-xs text-zinc-500 dark:text-zinc-400">
+          <p>施行日: {termsMeta.effectiveDate}</p>
+          <p>最終改定日: {termsMeta.revisedAt}</p>
+        </div>
+
+        <div className="grid gap-6">
+          {termsSections.map((section) => (
+            <article key={section.id} className="grid gap-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+              <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">{section.title}</h2>
+              {section.paragraphs.map((paragraph) => (
+                <p key={paragraph} className="text-lg">{paragraph}</p>
+              ))}
+              {section.items ? (
+                <ul className="grid gap-1 text-lg">
+                  {section.items.map((item) => (
+                    <li key={item}>・{item}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="mt-4 rounded-xl border border-black/10 bg-white/80 p-4 text-xs text-zinc-600 dark:border-white/10 dark:bg-slate-900/65 dark:text-zinc-300 sm:p-5">
+        <p className="font-medium text-zinc-800 dark:text-zinc-100">関連ページ</p>
+        <p className="mt-1">情報の取扱い方針はプライバシーポリシーをご確認ください。</p>
+        <Button asChild variant="outline" size="sm" className="mt-3 rounded-full">
+          <Link href="/privacy">プライバシーポリシーを見る</Link>
+        </Button>
       </section>
     </PageFrame>
   )

@@ -1,26 +1,19 @@
 import Link from "next/link"
 
+import { faqs } from "@/content/faqs"
+import { FaqAccordion } from "@/components/marketing/faq-accordion"
 import { CTASection, PageFrame } from "@/components/marketing/page-frame"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { faqs } from "@/lib/marketing-content"
 
 export default function FaqPage() {
   return (
     <PageFrame
       eyebrow="FAQ"
       title="よくある質問"
-      description="仕様は初期段階のため、実運用のフィードバックを反映して順次更新していきます。"
+      description="埋め込み方法、共有URL公開、主な活用用途、料金感など、導入前によくいただく質問をまとめています。"
     >
-      <section className="grid gap-3">
-        {faqs.map((item) => (
-          <Card key={item.q} className="gap-3 border-black/10 bg-white/90 py-4 dark:border-white/10 dark:bg-slate-900/75">
-            <CardHeader className="pb-0">
-              <CardTitle className="text-base leading-7">{item.q}</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm leading-7 text-zinc-600 dark:text-zinc-300">{item.a}</CardContent>
-          </Card>
-        ))}
+      <section className="rounded-3xl border border-black/10 bg-white/70 p-4 dark:border-white/10 dark:bg-slate-900/45 sm:p-6">
+        <FaqAccordion items={faqs} />
       </section>
 
       <section className="mt-8 rounded-2xl border border-black/10 bg-white/80 p-6 dark:border-white/10 dark:bg-slate-900/70 sm:p-8">

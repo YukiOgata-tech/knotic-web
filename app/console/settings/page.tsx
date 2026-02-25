@@ -37,7 +37,7 @@ export default async function ConsoleSettingsPage({ searchParams }: PageProps) {
         <CardContent className="grid gap-3 text-sm">
           {data.aiSettingsError && (
             <p className="text-amber-700 dark:text-amber-400">
-              tenant_ai_settings テーブル未適用です。追加パッチSQL適用後に保存可能になります。
+              tenants のAI設定カラムが未適用です。table-consolidation patch適用後に保存可能になります。
             </p>
           )}
           <form action={saveAiSettingsAction} className="grid gap-3">
@@ -105,3 +105,4 @@ export default async function ConsoleSettingsPage({ searchParams }: PageProps) {
     </div>
   )
 }
+

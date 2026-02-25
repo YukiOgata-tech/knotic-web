@@ -11,6 +11,7 @@ import {
 import { createEmbeddings } from "@/lib/indexing/embeddings"
 import { generateAnswer, type ConversationTurn } from "@/lib/llm/responses"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { createClient } from "@/lib/supabase/server"
 
 const ALLOWED_MODELS = new Set(["5-nano", "5-mini", "5", "4o-mini", "4o"])
 
@@ -30,6 +31,16 @@ type BotRow = {
   name: string
   status: string
   is_public: boolean
+  access_mode: "public" | "internal" | null
+  require_auth_for_hosted: boolean | null
+}
+
+type SourceRow = {
+  id: string
+  type: "url" | "pdf" | "file"
+  url: string | null
+  file_name: string | null
+  file_path: string | null
 }
 
 function sha256(value: string) {
@@ -88,7 +99,7 @@ export async function POST(request: NextRequest) {
 
   let botQuery = admin
     .from("bots")
-    .select("id, tenant_id, public_id, name, status, is_public")
+    .select("id, tenant_id, public_id, name, status, is_public, access_mode, require_auth_for_hosted")
     .limit(1)
   if (botPublicId) {
     botQuery = botQuery.eq("public_id", botPublicId)
@@ -112,7 +123,25 @@ export async function POST(request: NextRequest) {
   const widgetToken = extractWidgetToken(request, body.widgetToken)
   const origin = parseOriginHost(request.headers.get("origin"))
 
-  let authMode: "api_key" | "widget" | "public" | null = null
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  const { data: membership } = user
+    ? await admin
+        .from("tenant_memberships")
+        .select("tenant_id")
+        .eq("tenant_id", bot.tenant_id)
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .maybeSingle()
+    : { data: null as { tenant_id: string } | null }
+
+  const internalUser = Boolean(membership)
+  const requiresInternalAuth = bot.access_mode === "internal" || Boolean(bot.require_auth_for_hosted)
+
+  let authMode: "api_key" | "widget" | "public" | "internal_user" | null = null
   if (apiKey) {
     const keyHash = sha256(apiKey)
     const { data: keyRow } = await admin
@@ -147,7 +176,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "origin not allowed" }, { status: 403 })
     }
     authMode = "widget"
+  } else if (internalUser) {
+    authMode = "internal_user"
   } else {
+    if (requiresInternalAuth) {
+      return NextResponse.json({ error: "authentication required" }, { status: 401 })
+    }
     if (!bot.is_public) {
       return NextResponse.json({ error: "authentication required" }, { status: 401 })
     }
@@ -164,13 +198,13 @@ export async function POST(request: NextRequest) {
   }
 
   const { data: aiSettings } = await admin
-    .from("tenant_ai_settings")
-    .select("default_model, fallback_model, allow_model_override, max_output_tokens")
-    .eq("tenant_id", bot.tenant_id)
+    .from("tenants")
+    .select("ai_default_model, ai_fallback_model, ai_allow_model_override, ai_max_output_tokens")
+    .eq("id", bot.tenant_id)
     .maybeSingle()
 
-  const configuredDefaultModel = aiSettings?.default_model as string | undefined
-  const configuredFallbackModel = aiSettings?.fallback_model as string | undefined
+  const configuredDefaultModel = aiSettings?.ai_default_model as string | undefined
+  const configuredFallbackModel = aiSettings?.ai_fallback_model as string | undefined
   const defaultModel =
     configuredDefaultModel && ALLOWED_MODELS.has(configuredDefaultModel)
       ? configuredDefaultModel
@@ -179,11 +213,11 @@ export async function POST(request: NextRequest) {
     configuredFallbackModel && ALLOWED_MODELS.has(configuredFallbackModel)
       ? configuredFallbackModel
       : null
-  const allowOverride = Boolean(aiSettings?.allow_model_override)
+  const allowOverride = Boolean(aiSettings?.ai_allow_model_override)
   const selectedModel = allowOverride
     ? normalizeModel(body.model, defaultModel)
     : defaultModel
-  const maxOutputTokens = Number(aiSettings?.max_output_tokens ?? 900)
+  const maxOutputTokens = Number(aiSettings?.ai_max_output_tokens ?? 900)
 
   const [queryEmbedding] = await createEmbeddings([message])
   const vector = `[${queryEmbedding.join(",")}]`
@@ -225,7 +259,8 @@ export async function POST(request: NextRequest) {
   const systemPrompt = [
     "あなたは企業向けサポートAIです。",
     "必ず与えられたコンテキストのみで回答し、不明な場合は不明と答えてください。",
-    "回答末尾に根拠を [1], [2] 形式で示してください。",
+    "回答は簡潔に要点をまとめ、該当根拠番号 [n] を本文中に付けてください。",
+    "案内可能な情報源がある場合は『URLはこちら』または『PDF資料はこちら』の形で案内してください。",
   ].join("\n")
 
   const userPrompt = [
@@ -244,14 +279,56 @@ export async function POST(request: NextRequest) {
     maxOutputTokens: Number.isFinite(maxOutputTokens) ? maxOutputTokens : 900,
   })
 
-  const citations = chunks.slice(0, 5).map((chunk, index) => ({
-    rank: index + 1,
-    sourceId: chunk.source_id,
-    score: chunk.score,
-    url: chunk.meta?.source_url ?? null,
-    title: chunk.meta?.source_title ?? null,
-    excerpt: chunk.text.slice(0, 180),
-  }))
+  const topChunks = chunks.slice(0, 5)
+  const sourceIds = [...new Set(topChunks.map((chunk) => chunk.source_id))]
+  const { data: sourceRows } = await admin
+    .from("sources")
+    .select("id, type, url, file_name, file_path")
+    .in("id", sourceIds)
+
+  const sourceById = new Map<string, SourceRow>()
+  for (const row of sourceRows ?? []) {
+    sourceById.set(row.id as string, row as SourceRow)
+  }
+
+  const citations = [] as Array<{
+    rank: number
+    sourceId: string
+    score: number
+    url: string | null
+    title: string | null
+    excerpt: string
+    sourceType: "url" | "pdf" | "file"
+    linkLabel: string
+  }>
+
+  for (let i = 0; i < topChunks.length; i += 1) {
+    const chunk = topChunks[i]
+    const source = sourceById.get(chunk.source_id)
+    const sourceType = source?.type ?? "url"
+    let link: string | null = chunk.meta?.source_url ?? null
+    let linkLabel = "URLはこちら"
+
+    if (sourceType === "url") {
+      link = source?.url ?? link
+      linkLabel = "URLはこちら"
+    } else if ((sourceType === "pdf" || sourceType === "file") && source?.file_path) {
+      const signed = await admin.storage.from("source-files").createSignedUrl(source.file_path, 60 * 60)
+      link = signed.data?.signedUrl ?? null
+      linkLabel = "PDF資料はこちら"
+    }
+
+    citations.push({
+      rank: i + 1,
+      sourceId: chunk.source_id,
+      score: chunk.score,
+      url: link,
+      title: source?.file_name ?? (chunk.meta?.source_title as string | undefined) ?? null,
+      excerpt: chunk.text.slice(0, 180),
+      sourceType,
+      linkLabel,
+    })
+  }
 
   const inputTokens = Number(answer.usage.input_tokens ?? estimateTokens(message + context))
   const outputTokens = Number(answer.usage.output_tokens ?? estimateTokens(answer.text))

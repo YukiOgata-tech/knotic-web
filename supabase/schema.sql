@@ -133,7 +133,7 @@ insert into public.plans (
 )
 values
   ('lite', 'Lite', 10000, 1, 1000, 100, false, false, true, false, false, 50, false),
-  ('standard', 'Standard', 24800, 1, 5000, 1024, true, true, true, true, false, 50, false),
+  ('standard', 'Standard', 24800, 2, 5000, 1024, true, true, true, true, false, 50, false),
   ('pro', 'Pro', 100000, 50, 20000, 10240, true, true, true, true, true, 50, false)
 on conflict (code) do update
 set
@@ -741,3 +741,362 @@ $$;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure app.handle_new_user();
+
+-- ------------------------------------------------------------
+-- consolidated from patch files (2026-02-24 / 2026-02-25)
+-- this block keeps schema.sql as single source of truth for fresh setup.
+-- ------------------------------------------------------------
+
+-- A) management tables
+create table if not exists public.tenant_api_keys (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references public.tenants(id) on delete cascade,
+  name text not null,
+  key_prefix text not null,
+  key_last4 text not null,
+  key_hash text not null unique,
+  scopes text[] not null default '{"chat:invoke"}',
+  is_active boolean not null default true,
+  last_used_at timestamptz,
+  expires_at timestamptz,
+  created_by uuid references auth.users(id),
+  revoked_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.indexing_jobs (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references public.tenants(id) on delete cascade,
+  bot_id uuid references public.bots(id) on delete cascade,
+  source_id uuid references public.sources(id) on delete set null,
+  status text not null default 'queued',
+  job_type text not null default 'manual',
+  requested_by uuid references auth.users(id),
+  requested_at timestamptz not null default now(),
+  started_at timestamptz,
+  finished_at timestamptz,
+  pages_discovered integer not null default 0,
+  pages_indexed integer not null default 0,
+  error_message text
+);
+
+alter table public.indexing_jobs
+  add column if not exists options jsonb not null default '{}'::jsonb,
+  add column if not exists embedding_model text not null default 'text-embedding-3-small',
+  add column if not exists chunks_created integer not null default 0,
+  add column if not exists tokens_embedded integer not null default 0,
+  add column if not exists lock_expires_at timestamptz,
+  add column if not exists worker_id text;
+
+create table if not exists public.source_pages (
+  id uuid primary key default gen_random_uuid(),
+  source_id uuid not null references public.sources(id) on delete cascade,
+  tenant_id uuid not null references public.tenants(id) on delete cascade,
+  bot_id uuid not null references public.bots(id) on delete cascade,
+  canonical_url text not null,
+  title text,
+  status_code integer,
+  content_hash text,
+  raw_path text,
+  text_path text,
+  fetched_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (source_id, canonical_url)
+);
+
+create table if not exists public.tenant_notifications (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references public.tenants(id) on delete cascade,
+  level text not null check (level in ('info', 'warning', 'critical')),
+  kind text not null,
+  title text not null,
+  message text not null,
+  dedupe_key text unique,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  read_at timestamptz
+);
+
+-- B) consolidated columns (from table-consolidation + ui-colors patches)
+alter table public.tenants
+  add column if not exists ai_default_model text not null default '5-mini',
+  add column if not exists ai_fallback_model text,
+  add column if not exists ai_allow_model_override boolean not null default false,
+  add column if not exists ai_max_output_tokens integer not null default 1200;
+
+alter table public.bots
+  add column if not exists chat_purpose text not null default 'customer_support',
+  add column if not exists access_mode text not null default 'public',
+  add column if not exists display_name text,
+  add column if not exists welcome_message text,
+  add column if not exists placeholder_text text,
+  add column if not exists disclaimer_text text,
+  add column if not exists show_citations boolean not null default true,
+  add column if not exists history_turn_limit integer not null default 8,
+  add column if not exists require_auth_for_hosted boolean not null default false,
+  add column if not exists ui_header_bg_color text not null default '#0f172a',
+  add column if not exists ui_header_text_color text not null default '#f8fafc',
+  add column if not exists ui_footer_bg_color text not null default '#f8fafc',
+  add column if not exists ui_footer_text_color text not null default '#0f172a';
+
+alter table public.sources
+  add column if not exists file_size_bytes bigint not null default 0;
+
+alter table public.source_pages
+  add column if not exists raw_bytes bigint not null default 0,
+  add column if not exists text_bytes bigint not null default 0;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'bots_chat_purpose_ck') then
+    alter table public.bots
+      add constraint bots_chat_purpose_ck
+      check (chat_purpose in ('customer_support', 'lead_gen', 'internal_kb', 'onboarding', 'custom'));
+  end if;
+
+  if not exists (select 1 from pg_constraint where conname = 'bots_access_mode_ck') then
+    alter table public.bots
+      add constraint bots_access_mode_ck
+      check (access_mode in ('public', 'internal'));
+  end if;
+
+  if not exists (select 1 from pg_constraint where conname = 'bots_history_turn_limit_ck') then
+    alter table public.bots
+      add constraint bots_history_turn_limit_ck
+      check (history_turn_limit between 1 and 30);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'bots_ui_header_bg_color_ck') then
+    alter table public.bots
+      add constraint bots_ui_header_bg_color_ck
+      check (ui_header_bg_color ~ '^#[0-9A-Fa-f]{6}$');
+  end if;
+
+  if not exists (select 1 from pg_constraint where conname = 'bots_ui_header_text_color_ck') then
+    alter table public.bots
+      add constraint bots_ui_header_text_color_ck
+      check (ui_header_text_color ~ '^#[0-9A-Fa-f]{6}$');
+  end if;
+
+  if not exists (select 1 from pg_constraint where conname = 'bots_ui_footer_bg_color_ck') then
+    alter table public.bots
+      add constraint bots_ui_footer_bg_color_ck
+      check (ui_footer_bg_color ~ '^#[0-9A-Fa-f]{6}$');
+  end if;
+
+  if not exists (select 1 from pg_constraint where conname = 'bots_ui_footer_text_color_ck') then
+    alter table public.bots
+      add constraint bots_ui_footer_text_color_ck
+      check (ui_footer_text_color ~ '^#[0-9A-Fa-f]{6}$');
+  end if;
+end
+$$;
+
+-- C) triggers / indexes
+create trigger set_tenant_api_keys_updated_at
+before update on public.tenant_api_keys
+for each row execute procedure app.set_updated_at();
+
+create trigger set_source_pages_updated_at
+before update on public.source_pages
+for each row execute procedure app.set_updated_at();
+
+create index if not exists idx_tenant_api_keys_tenant_id on public.tenant_api_keys(tenant_id);
+create index if not exists idx_indexing_jobs_tenant_requested on public.indexing_jobs(tenant_id, requested_at desc);
+create index if not exists idx_indexing_jobs_status_requested on public.indexing_jobs(status, requested_at);
+create index if not exists idx_source_pages_source_id on public.source_pages(source_id);
+create index if not exists idx_source_pages_tenant_bot on public.source_pages(tenant_id, bot_id);
+create index if not exists idx_source_pages_fetched_at on public.source_pages(fetched_at desc);
+create index if not exists idx_tenant_notifications_tenant_created on public.tenant_notifications(tenant_id, created_at desc);
+create index if not exists idx_tenant_notifications_unread on public.tenant_notifications(tenant_id) where read_at is null;
+create index if not exists idx_bots_access_mode on public.bots(access_mode);
+create index if not exists idx_bots_chat_purpose on public.bots(chat_purpose);
+create index if not exists idx_embeddings_vector on public.embeddings using ivfflat (embedding vector_cosine_ops) with (lists = 100);
+
+-- D) function final forms
+create or replace function app.current_user_tenant_ids()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select tenant_id
+  from public.tenant_memberships
+  where user_id = auth.uid() and is_active = true
+$$;
+
+create or replace function app.match_chunks(
+  query_embedding vector(1536),
+  target_tenant_id uuid,
+  target_bot_id uuid default null,
+  match_count integer default 8
+)
+returns table (
+  chunk_id uuid,
+  document_id uuid,
+  source_id uuid,
+  bot_id uuid,
+  score double precision,
+  text text,
+  meta jsonb
+)
+language sql
+stable
+as $$
+  select
+    c.id as chunk_id,
+    c.document_id,
+    d.source_id,
+    s.bot_id,
+    (1 - (e.embedding <=> query_embedding))::double precision as score,
+    c.text,
+    c.meta
+  from public.embeddings e
+  join public.chunks c on c.id = e.chunk_id
+  join public.documents d on d.id = c.document_id
+  join public.sources s on s.id = d.source_id
+  join public.bots b on b.id = s.bot_id
+  where b.tenant_id = target_tenant_id
+    and (target_bot_id is null or s.bot_id = target_bot_id)
+  order by e.embedding <=> query_embedding
+  limit greatest(match_count, 1);
+$$;
+
+create or replace function app.increment_usage_daily(
+  p_tenant_id uuid,
+  p_bot_id uuid,
+  p_usage_date date,
+  p_messages integer default 0,
+  p_tokens_in integer default 0,
+  p_tokens_out integer default 0
+)
+returns void
+language plpgsql
+as $$
+begin
+  insert into public.usage_daily (
+    tenant_id,
+    bot_id,
+    usage_date,
+    messages_count,
+    tokens_in,
+    tokens_out
+  )
+  values (
+    p_tenant_id,
+    p_bot_id,
+    p_usage_date,
+    greatest(p_messages, 0),
+    greatest(p_tokens_in, 0),
+    greatest(p_tokens_out, 0)
+  )
+  on conflict (tenant_id, bot_id, usage_date)
+  do update set
+    messages_count = public.usage_daily.messages_count + excluded.messages_count,
+    tokens_in = public.usage_daily.tokens_in + excluded.tokens_in,
+    tokens_out = public.usage_daily.tokens_out + excluded.tokens_out;
+end;
+$$;
+
+create or replace function app.get_tenant_storage_usage_bytes(target_tenant_id uuid)
+returns bigint
+language sql
+stable
+as $$
+  with source_sizes as (
+    select coalesce(sum(s.file_size_bytes), 0)::bigint as bytes
+    from public.bots b
+    join public.sources s on s.bot_id = b.id
+    where b.tenant_id = target_tenant_id
+      and s.status <> 'deleted'
+  ),
+  page_sizes as (
+    select coalesce(sum(sp.raw_bytes + sp.text_bytes), 0)::bigint as bytes
+    from public.source_pages sp
+    where sp.tenant_id = target_tenant_id
+  )
+  select (source_sizes.bytes + page_sizes.bytes)::bigint
+  from source_sizes, page_sizes
+$$;
+
+-- E) RLS for newly consolidated objects
+alter table public.tenant_api_keys enable row level security;
+alter table public.indexing_jobs enable row level security;
+alter table public.source_pages enable row level security;
+alter table public.tenant_notifications enable row level security;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'tenant_api_keys' and policyname = 'tenant_api_keys_select_member'
+  ) then
+    create policy "tenant_api_keys_select_member"
+    on public.tenant_api_keys for select
+    using (app.can_read_tenant(tenant_id));
+  end if;
+
+  if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'tenant_api_keys' and policyname = 'tenant_api_keys_write_editor'
+  ) then
+    create policy "tenant_api_keys_write_editor"
+    on public.tenant_api_keys for all
+    using (app.can_write_tenant(tenant_id))
+    with check (app.can_write_tenant(tenant_id));
+  end if;
+
+  if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'indexing_jobs' and policyname = 'indexing_jobs_select_member'
+  ) then
+    create policy "indexing_jobs_select_member"
+    on public.indexing_jobs for select
+    using (app.can_read_tenant(tenant_id));
+  end if;
+
+  if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'indexing_jobs' and policyname = 'indexing_jobs_write_editor'
+  ) then
+    create policy "indexing_jobs_write_editor"
+    on public.indexing_jobs for all
+    using (app.can_write_tenant(tenant_id))
+    with check (app.can_write_tenant(tenant_id));
+  end if;
+
+  if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'source_pages' and policyname = 'source_pages_select_member'
+  ) then
+    create policy "source_pages_select_member"
+    on public.source_pages for select
+    using (app.can_read_tenant(tenant_id));
+  end if;
+
+  if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'source_pages' and policyname = 'source_pages_write_editor'
+  ) then
+    create policy "source_pages_write_editor"
+    on public.source_pages for all
+    using (app.can_write_tenant(tenant_id))
+    with check (app.can_write_tenant(tenant_id));
+  end if;
+
+  if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'tenant_notifications' and policyname = 'tenant_notifications_select_member'
+  ) then
+    create policy "tenant_notifications_select_member"
+    on public.tenant_notifications for select
+    using (app.can_read_tenant(tenant_id));
+  end if;
+
+  if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'tenant_notifications' and policyname = 'tenant_notifications_write_editor'
+  ) then
+    create policy "tenant_notifications_write_editor"
+    on public.tenant_notifications for all
+    using (app.can_write_tenant(tenant_id))
+    with check (app.can_write_tenant(tenant_id));
+  end if;
+end
+$$;
+
+

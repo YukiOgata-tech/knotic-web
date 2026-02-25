@@ -1,31 +1,34 @@
 import Link from "next/link"
 import { CheckCircle2 } from "lucide-react"
 
+import { faqs } from "@/content/faqs"
 import { AuthAwareCtaButton } from "@/components/auth/auth-aware"
 import { Container } from "@/components/layout/container"
+import { FaqAccordion } from "@/components/marketing/faq-accordion"
+import { FeaturesPreview } from "@/components/marketing/features-preview"
 import { CTASection } from "@/components/marketing/page-frame"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { faqs, features, plans } from "@/lib/marketing-content"
+import { plans } from "@/lib/marketing-content"
 
 export default function Home() {
   return (
-    <div className="relative overflow-x-clip bg-[linear-gradient(180deg,#fff9ee_0%,#ffffff_32%,#f7fbff_100%)] text-zinc-900 dark:bg-[linear-gradient(180deg,#0f172a_0%,#0b1220_45%,#0a0f1a_100%)] dark:text-zinc-100">
+    <div className="font-jp relative overflow-x-clip bg-[linear-gradient(180deg,#fff9ee_0%,#ffffff_32%,#f7fbff_100%)] text-zinc-900 dark:bg-[linear-gradient(180deg,#0f172a_0%,#0b1220_45%,#0a0f1a_100%)] dark:text-zinc-100">
       <div className="pointer-events-none absolute inset-x-0 -top-24 h-80 bg-[radial-gradient(circle_at_20%_40%,rgba(255,166,0,.18),transparent_55%),radial-gradient(circle_at_78%_12%,rgba(6,182,212,.18),transparent_52%)] dark:bg-[radial-gradient(circle_at_20%_40%,rgba(250,204,21,.15),transparent_55%),radial-gradient(circle_at_78%_12%,rgba(34,211,238,.18),transparent_52%)]" />
       <Container className="flex flex-col gap-14 py-10 sm:py-14">
         <section className="relative grid gap-8 rounded-3xl border border-black/5 bg-white/85 p-6 shadow-[0_14px_45px_-30px_rgba(15,23,42,.45)] dark:border-white/10 dark:bg-slate-900/75 sm:p-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
           <div className="space-y-5">
             <Badge className="rounded-full bg-amber-500/90 px-3 text-white hover:bg-amber-500">
-              URL / PDF ナレッジ投入型AIチャット
+              Webに埋め込み、すぐ公開できるAIボット
             </Badge>
             <h1 className="text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">
-              その情報だけで答える
+              問い合わせ対応もマニュアル案内も
               <br />
-              専用AIボットを最短で公開
+              すぐ使えるAIボットに
             </h1>
             <p className="max-w-2xl text-[1.05rem] leading-8 text-zinc-600 dark:text-zinc-300 sm:text-lg">
-              knoticは、URLやPDFを投入するだけでRAGチャットボットを構築できるサービスです。公開URLでも埋め込みでも、すぐに運用を開始できます。
+              knoticは、URLやPDFを登録するだけで、Web埋め込みや共有URL公開ができるAIボット作成サービスです。まずは低コストで導入し、運用しながら応答品質を育てていけます。
             </p>
             <div className="flex flex-col gap-3 sm:flex-row">
               <AuthAwareCtaButton
@@ -62,35 +65,12 @@ export default function Home() {
           </Card>
         </section>
 
-        <section className="space-y-5">
-          <div className="space-y-2">
-            <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">主要機能</h2>
-            <p className="text-zinc-600 dark:text-zinc-300">
-              MVP公開に向けて、運用性と信頼性を重視した機能から実装します。
-            </p>
-          </div>
-          <div className="grid gap-4 md:grid-cols-3">
-            {features.slice(0, 3).map((item) => (
-              <Card key={item.title} className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/75">
-                <CardHeader>
-                  <div className="mb-2 inline-flex size-11 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
-                    <item.icon className="size-5" />
-                  </div>
-                  <CardTitle>{item.title}</CardTitle>
-                </CardHeader>
-                <CardContent className="text-sm leading-7 text-zinc-600 dark:text-zinc-300">{item.description}</CardContent>
-              </Card>
-            ))}
-          </div>
-          <Button asChild variant="outline" className="rounded-full">
-            <Link href="/features">機能一覧を見る</Link>
-          </Button>
-        </section>
+        <FeaturesPreview />
 
         <section className="space-y-5">
           <div className="space-y-2">
             <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">料金プラン</h2>
-            <p className="text-zinc-600 dark:text-zinc-300">3プランで提供予定です。詳細上限値は運用データを見て確定します。</p>
+            <p className="text-zinc-600 dark:text-zinc-300">小さく始められる価格帯から、運用規模に合わせて段階的に拡張できます。</p>
           </div>
           <div className="grid gap-4 lg:grid-cols-3">
             {plans.map((plan) => (
@@ -127,18 +107,9 @@ export default function Home() {
         <section className="space-y-5 rounded-3xl border border-black/10 bg-white/80 p-6 dark:border-white/10 dark:bg-slate-900/70 sm:p-8">
           <div className="space-y-2">
             <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">FAQ</h2>
-            <p className="text-zinc-600 dark:text-zinc-300">よくある質問を先に確認して、導入判断をしやすくしています。</p>
+            <p className="text-zinc-600 dark:text-zinc-300">埋め込み方法、公開URL、主な用途、料金感などを先に確認できます。</p>
           </div>
-          <div className="grid gap-3">
-            {faqs.slice(0, 3).map((item) => (
-              <Card key={item.q} className="gap-3 border-zinc-200 py-4 dark:border-white/10 dark:bg-slate-900/60">
-                <CardHeader className="pb-0">
-                  <CardTitle className="text-base leading-7">{item.q}</CardTitle>
-                </CardHeader>
-                <CardContent className="text-sm leading-7 text-zinc-600 dark:text-zinc-300">{item.a}</CardContent>
-              </Card>
-            ))}
-          </div>
+          <FaqAccordion items={faqs.slice(0, 4)} />
           <Button asChild variant="outline" className="rounded-full">
             <Link href="/faq">すべてのFAQを見る</Link>
           </Button>

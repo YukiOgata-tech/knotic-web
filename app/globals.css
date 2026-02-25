@@ -124,3 +124,16 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  .font-jp {
+    font-family:
+      "Hiragino Kaku Gothic ProN",
+      "Hiragino Sans",
+      "Yu Gothic UI",
+      "Yu Gothic",
+      "Meiryo",
+      "Noto Sans CJK JP",
+      sans-serif;
+  }
+}

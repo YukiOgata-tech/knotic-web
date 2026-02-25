@@ -11,7 +11,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-black/5 bg-white/80 backdrop-blur-md dark:border-white/10 dark:bg-slate-950/75">
-      <Container className="flex h-16 items-center justify-between gap-3">
+      <Container className="flex h-16 max-w-none items-center justify-between gap-3 px-4 sm:px-8 xl:px-12">
         <Link href="/" className="flex shrink-0 items-center">
           <span className="relative block aspect-[220/56] h-8 w-auto max-w-[46vw] sm:h-12 md:h-14">
             <Image
@@ -31,9 +31,13 @@ function SiteHeader() {
           </span>
         </Link>
 
-        <nav className="hidden items-center gap-6 text-sm text-muted-foreground md:flex">
+        <nav className="hidden items-center gap-6 text-sm font-medium text-zinc-700 md:flex dark:text-zinc-200">
           {headerLinks.map((item) => (
-            <Link key={item.href} href={item.href} className="hover:text-foreground">
+            <Link
+              key={item.href}
+              href={item.href}
+              className="transition-colors hover:text-zinc-950 dark:hover:text-white"
+            >
               {item.label}
             </Link>
           ))}
@@ -58,7 +62,7 @@ function SiteHeader() {
                     <Link
                       key={item.href}
                       href={item.href}
-                      className="block rounded-lg px-3 py-3 text-base text-muted-foreground hover:bg-muted hover:text-foreground"
+                      className="block rounded-lg px-3 py-3 text-base font-medium text-zinc-700 transition-colors hover:bg-muted hover:text-zinc-950 dark:text-zinc-200 dark:hover:text-white"
                     >
                       {item.label}
                     </Link>

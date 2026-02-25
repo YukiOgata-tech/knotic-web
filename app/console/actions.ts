@@ -52,6 +52,29 @@ function sanitizeFileName(name: string) {
   return name.replace(/[^a-zA-Z0-9._-]/g, "_")
 }
 
+
+function normalizeChatPurpose(value: string) {
+  const allowed = ["customer_support", "lead_gen", "internal_kb", "onboarding", "custom"] as const
+  return (allowed as readonly string[]).includes(value) ? value : "customer_support"
+}
+
+function normalizeAccessMode(value: string) {
+  return value === "internal" ? "internal" : "public"
+}
+
+function normalizeHexColor(value: string, fallback: string) {
+  const v = value.trim()
+  return /^#[0-9A-Fa-f]{6}$/.test(v) ? v.toLowerCase() : fallback
+}
+
+function normalizeWidgetMode(value: string) {
+  return value === "redirect" || value === "both" ? value : "overlay"
+}
+
+function normalizeWidgetPosition(value: string) {
+  return value === "right-top" ? "right-top" : "right-bottom"
+}
+
 async function getTenantContext(requireEditor = false) {
   const supabase = await createClient()
   const {
@@ -299,6 +322,7 @@ export async function rotateWidgetTokenAction(formData: FormData) {
     const redirectTo = String(formData.get("redirect_to") ?? "")
     const { supabase } = await getTenantContext(true)
     const botId = String(formData.get("bot_id") ?? "")
+    const botPublicId = String(formData.get("bot_public_id") ?? "")
     const rawToken = `knotic_wgt_${crypto.randomBytes(18).toString("base64url")}`
     const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex")
 
@@ -319,6 +343,7 @@ export async function rotateWidgetTokenAction(formData: FormData) {
       toAppUrl(redirectTo, {
         notice: "Widgetトークンを再発行しました。表示中の値はこの1回のみです。",
         widget_token: rawToken,
+        widget_bot_public_id: botPublicId,
       })
     )
   } catch (error) {
@@ -439,16 +464,18 @@ export async function saveAiSettingsAction(formData: FormData) {
     const allowOverride = String(formData.get("allow_model_override") ?? "") === "on"
     const maxOutputTokens = Number(formData.get("max_output_tokens") ?? 1200)
 
-    const { error } = await supabase.from("tenant_ai_settings").upsert({
-      tenant_id: tenantId,
-      default_model: defaultModel,
-      fallback_model: fallbackModel,
-      allow_model_override: allowOverride,
-      max_output_tokens: Number.isFinite(maxOutputTokens) ? maxOutputTokens : 1200,
-    })
+    const { error } = await supabase
+      .from("tenants")
+      .update({
+        ai_default_model: defaultModel,
+        ai_fallback_model: fallbackModel,
+        ai_allow_model_override: allowOverride,
+        ai_max_output_tokens: Number.isFinite(maxOutputTokens) ? maxOutputTokens : 1200,
+      })
+      .eq("id", tenantId)
 
     if (error) {
-      throw new Error("tenant_ai_settingsテーブルが未作成です。patch SQLを適用してください。")
+      throw new Error("tenants のAI設定更新に失敗しました。table-consolidation patchを適用してください。")
     }
 
     redirect(toAppUrl(redirectTo, { notice: "AIモデル設定を更新しました。" }))
@@ -480,3 +507,82 @@ export async function runIndexingWorkerAction(formData: FormData) {
     )
   }
 }
+
+
+
+export async function updateHostedConfigAction(formData: FormData) {
+  try {
+    const redirectTo = String(formData.get("redirect_to") ?? "")
+    const { supabase } = await getTenantContext(true)
+    const botId = String(formData.get("bot_id") ?? "")
+    if (!botId) {
+      redirect(toAppUrl(redirectTo, { error: "Botが指定されていません。" }))
+    }
+
+    const chatPurpose = normalizeChatPurpose(String(formData.get("chat_purpose") ?? "customer_support").trim())
+    const accessMode = normalizeAccessMode(String(formData.get("access_mode") ?? "public").trim())
+    const displayName = String(formData.get("display_name") ?? "").trim()
+    const welcomeMessage = String(formData.get("welcome_message") ?? "").trim()
+    const placeholderText = String(formData.get("placeholder_text") ?? "").trim()
+    const disclaimerText = String(formData.get("disclaimer_text") ?? "").trim()
+    const showCitations = String(formData.get("show_citations") ?? "") === "on"
+    const requireAuthForHosted = String(formData.get("require_auth_for_hosted") ?? "") === "on"
+    const historyTurnLimit = Number(formData.get("history_turn_limit") ?? 8)
+    const headerBgColor = normalizeHexColor(String(formData.get("ui_header_bg_color") ?? "#0f172a"), "#0f172a")
+    const headerTextColor = normalizeHexColor(String(formData.get("ui_header_text_color") ?? "#f8fafc"), "#f8fafc")
+    const footerBgColor = normalizeHexColor(String(formData.get("ui_footer_bg_color") ?? "#f8fafc"), "#f8fafc")
+    const footerTextColor = normalizeHexColor(String(formData.get("ui_footer_text_color") ?? "#0f172a"), "#0f172a")
+    const widgetEnabled = String(formData.get("widget_enabled") ?? "") === "on"
+    const widgetMode = normalizeWidgetMode(String(formData.get("widget_mode") ?? "overlay"))
+    const widgetPosition = normalizeWidgetPosition(String(formData.get("widget_position") ?? "right-bottom"))
+    const widgetLauncherLabel = String(formData.get("widget_launcher_label") ?? "").trim()
+    const widgetPolicyText = String(formData.get("widget_policy_text") ?? "").trim()
+    const widgetRedirectNewTab = String(formData.get("widget_redirect_new_tab") ?? "") === "on"
+    const normalizedLimit = Number.isFinite(historyTurnLimit)
+      ? Math.max(1, Math.min(30, Math.floor(historyTurnLimit)))
+      : 8
+
+    const { error } = await supabase
+      .from("bots")
+      .update({
+        chat_purpose: chatPurpose,
+        access_mode: accessMode,
+        display_name: displayName || null,
+        welcome_message: welcomeMessage || null,
+        placeholder_text: placeholderText || null,
+        disclaimer_text: disclaimerText || null,
+        show_citations: showCitations,
+        history_turn_limit: normalizedLimit,
+        require_auth_for_hosted: requireAuthForHosted || accessMode === "internal",
+        ui_header_bg_color: headerBgColor,
+        ui_header_text_color: headerTextColor,
+        ui_footer_bg_color: footerBgColor,
+        ui_footer_text_color: footerTextColor,
+        widget_enabled: widgetEnabled,
+        widget_mode: widgetMode,
+        widget_position: widgetPosition,
+        widget_launcher_label: widgetLauncherLabel || "チャット",
+        widget_policy_text:
+          widgetPolicyText ||
+          "このチャット履歴はブラウザ上で24時間保持され、自動的に削除されます。",
+        widget_redirect_new_tab: widgetRedirectNewTab,
+      })
+      .eq("id", botId)
+
+    if (error) throw error
+    redirect(toAppUrl(redirectTo, { notice: "Hostedチャット設定を更新しました。" }))
+  } catch (error) {
+    redirect(
+      toAppUrl(String(formData.get("redirect_to") ?? ""), {
+        error: error instanceof Error ? error.message : "Hosted設定の更新に失敗しました。",
+      })
+    )
+  }
+}
+
+
+
+
+
+
+

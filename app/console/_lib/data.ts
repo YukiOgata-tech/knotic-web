@@ -61,11 +61,11 @@ export async function requireConsoleContext() {
 
 export async function fetchConsoleData(tenantId: string) {
   const supabase = await createClient()
-  const [{ data: bots }, { data: sources }, { data: subscriptions }, { data: usage }, logsMeta, { data: tokens }, { data: apiKeys, error: apiKeyError }, { data: aiSettings, error: aiSettingsError }, { data: notifications, error: notificationError }] =
+  const [{ data: bots }, { data: sources }, { data: subscriptions }, { data: usage }, logsMeta, { data: tokens }, { data: apiKeys, error: apiKeyError }, { data: tenantRow, error: aiSettingsError }, { data: notifications, error: notificationError }] =
     await Promise.all([
       supabase
         .from("bots")
-        .select("id, public_id, name, description, status, is_public, created_at")
+        .select("id, public_id, name, description, status, is_public, chat_purpose, access_mode, display_name, welcome_message, placeholder_text, disclaimer_text, show_citations, history_turn_limit, require_auth_for_hosted, ui_header_bg_color, ui_header_text_color, ui_footer_bg_color, ui_footer_text_color, widget_enabled, widget_mode, widget_position, widget_launcher_label, widget_policy_text, widget_redirect_new_tab, created_at")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false }),
       supabase
@@ -101,9 +101,9 @@ export async function fetchConsoleData(tenantId: string) {
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false }),
       supabase
-        .from("tenant_ai_settings")
-        .select("default_model, fallback_model, allow_model_override, max_output_tokens")
-        .eq("tenant_id", tenantId)
+        .from("tenants")
+        .select("ai_default_model, ai_fallback_model, ai_allow_model_override, ai_max_output_tokens")
+        .eq("id", tenantId)
         .maybeSingle(),
       supabase
         .from("tenant_notifications")
@@ -113,6 +113,15 @@ export async function fetchConsoleData(tenantId: string) {
         .order("created_at", { ascending: false })
         .limit(5),
     ])
+
+  const aiSettings = tenantRow
+    ? {
+        default_model: tenantRow.ai_default_model,
+        fallback_model: tenantRow.ai_fallback_model,
+        allow_model_override: tenantRow.ai_allow_model_override,
+        max_output_tokens: tenantRow.ai_max_output_tokens,
+      }
+    : null
 
   const primarySubscription = subscriptions?.[0] as
     | {
@@ -168,3 +177,6 @@ export async function fetchConsoleData(tenantId: string) {
     tokenByBotId,
   }
 }
+
+
+

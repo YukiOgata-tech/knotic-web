@@ -75,7 +75,7 @@
 - `POST /chat` で質問受付
 - top-k検索 + LLM応答
 - 出典表示（少なくともURL/ファイル名）
-- Bot公開ページ（`/b/{bot_public_id}`）
+- Bot公開ページ（`/chat-by-knotic/{bot_public_id}`）
 
 ## Phase 5: 利用制限と運用
 - 日次使用量集計（messages/tokens）

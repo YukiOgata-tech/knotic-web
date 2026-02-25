@@ -6,15 +6,19 @@ import {
   rotateWidgetTokenAction,
   toggleBotPublicAction,
   updateAllowedOriginsAction,
+  updateHostedConfigAction,
 } from "@/app/console/actions"
+import { HostedConfigEditor } from "@/app/console/bots/hosted-config-editor"
 import { ConsoleAlerts } from "@/app/console/_components/console-alerts"
 import { fetchConsoleData, requireConsoleContext } from "@/app/console/_lib/data"
 import { firstParam } from "@/app/console/_lib/ui"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
+import { getAppUrl } from "@/lib/env"
 
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
@@ -26,15 +30,38 @@ export default async function ConsoleBotsPage({ searchParams }: PageProps) {
   const error = firstParam(params.error)
   const issuedApiKey = firstParam(params.issued_api_key)
   const widgetToken = firstParam(params.widget_token)
+  const widgetBotPublicId = firstParam(params.widget_bot_public_id)
+  const appUrl = getAppUrl().replace(/\/$/, "")
 
   const { membership } = await requireConsoleContext()
   if (!membership) return null
   const data = await fetchConsoleData(membership.tenant_id)
   const isEditor = membership.role === "editor"
 
+  const widgetSnippet =
+    widgetToken && widgetBotPublicId
+      ? `<script src=\"${appUrl}/widget.js\" data-bot-id=\"${widgetBotPublicId}\" data-widget-token=\"${widgetToken}\"></script>`
+      : null
+
   return (
     <div className="grid gap-4">
       <ConsoleAlerts notice={notice} error={error} issuedApiKey={issuedApiKey} widgetToken={widgetToken} />
+
+      {widgetSnippet ? (
+        <Card className="border-cyan-200/60 bg-cyan-50/80 dark:border-cyan-900/50 dark:bg-cyan-950/30">
+          <CardHeader>
+            <CardTitle className="text-base">Widget埋め込みコード（この表示時に控えてください）</CardTitle>
+            <CardDescription>
+              契約者サイトに以下のscriptタグを貼り付けると、ボタン起動のWidgetチャットを表示できます。
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <pre className="overflow-x-auto rounded-lg border border-cyan-200/70 bg-white/80 p-3 text-xs dark:border-cyan-800/60 dark:bg-slate-900/70">
+              <code>{widgetSnippet}</code>
+            </pre>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
         <CardHeader>
@@ -85,10 +112,10 @@ export default async function ConsoleBotsPage({ searchParams }: PageProps) {
                     <TableCell>
                       {data.currentPlan?.has_hosted_page ? (
                         <Link
-                          href={`/b/${bot.public_id}`}
+                          href={`/chat-by-knotic/${bot.public_id}`}
                           className="inline-flex items-center gap-1 text-cyan-700 hover:underline dark:text-cyan-300"
                         >
-                          /b/{bot.public_id}
+                          /chat-by-knotic/{bot.public_id}
                           <ExternalLink className="size-3" />
                         </Link>
                       ) : (
@@ -99,6 +126,7 @@ export default async function ConsoleBotsPage({ searchParams }: PageProps) {
                       <form action={rotateWidgetTokenAction}>
                         <input type="hidden" name="redirect_to" value="/console/bots" />
                         <input type="hidden" name="bot_id" value={bot.id} />
+                        <input type="hidden" name="bot_public_id" value={bot.public_id} />
                         <Button type="submit" size="sm" variant="outline" disabled={!isEditor}>
                           トークン再発行
                         </Button>
@@ -126,6 +154,32 @@ export default async function ConsoleBotsPage({ searchParams }: PageProps) {
               })}
             </TableBody>
           </Table>
+
+          <div className="grid gap-3 rounded-xl border border-black/10 p-4 dark:border-white/10">
+            <h3 className="font-medium">Hostedチャット設定</h3>
+            <p className="text-xs text-muted-foreground">
+              サービス名表示・初期メッセージ・用途・公開モード・色設定・Widget動作をBotごとに編集し、保存前にテストできます。
+            </p>
+            <div className="grid gap-4">
+              {data.bots.map((bot) => (
+                <HostedConfigEditor
+                  key={bot.id}
+                  bot={bot}
+                  isEditor={isEditor}
+                  hasHostedPage={Boolean(data.currentPlan?.has_hosted_page)}
+                  saveAction={updateHostedConfigAction}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-2 rounded-lg border border-black/10 p-3 text-xs text-muted-foreground dark:border-white/10">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline">運用メモ</Badge>
+            </div>
+            <p>公開ON/OFFとHostedアクセスモードは別管理です。公開ONでも access_mode=internal ならログインが必要です。</p>
+            <p>Widgetはトークンで実行され、origin制限は `許可オリジン` で制御します。</p>
+          </div>
         </CardContent>
       </Card>
     </div>

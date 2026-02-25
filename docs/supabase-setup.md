@@ -1,6 +1,6 @@
 # Supabase接続手順（認証 + データ）
 
-最終更新: 2026-02-24
+最終更新: 2026-02-25
 
 ## 1. Supabaseプロジェクト作成
 1. Supabaseで新規プロジェクトを作成（`dev` 環境）
@@ -27,7 +27,7 @@ INDEXER_RUNNER_SECRET=change-this-long-random-secret
 
 `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` がある場合はそちらを優先して使用します。  
 未設定なら `NEXT_PUBLIC_SUPABASE_ANON_KEY` を利用します。
-  
+
 `SUPABASE_SECRET_KEY` がある場合はそちらを優先して使用します。  
 未設定なら `SUPABASE_SERVICE_ROLE_KEY` を利用します。
 
@@ -38,20 +38,18 @@ INDEXER_RUNNER_SECRET=change-this-long-random-secret
 2. `Authentication > Providers`
    - まずは `Email` を有効化
 
-## 4. 最小テーブル作成（SQL Editor）
+## 4. DB作成（SQL Editor）
 `supabase/schema.sql` の内容をSQL Editorで実行してください。  
+現在は **schema.sql 1ファイルに統合済み** です（追加パッチ実行は不要）。
+
 このスキーマには以下が含まれています。
 - マルチテナントテーブル
 - 課金テーブル（`plans / subscriptions / billing_*`）
 - Bot/RAG運用テーブル
+- 管理コンソール関連テーブル（APIキー、インデックスジョブ、通知など）
+- Hosted UI設定（目的、表示名、色設定など）
 - RLSポリシー
 - 新規ユーザー時の初期テナント自動作成トリガー
-
-続けて次のパッチを順番に実行してください。
-1. `supabase/patch-20260224-current-user-tenant-ids-definer.sql`
-2. `supabase/patch-20260224-console-management.sql`
-3. `supabase/patch-20260224-indexing-pipeline.sql`
-4. `supabase/patch-20260224-quotas-and-notifications.sql`
 
 ## 5. Storageバケット作成
 Supabase Storageで次のバケットを作成してください。
@@ -78,9 +76,3 @@ Supabase Storageで次のバケットを作成してください。
 6. 管理画面 `Sources` でURL/PDFを追加 -> `インデックス実行` でキュー登録
 7. 開発検証は `Sources > キューを1件実行` を実行
 8. 本番では `POST /api/internal/indexing/run` に `Authorization: Bearer $INDEXER_RUNNER_SECRET` を付与してCron実行
-
-## 8. 次に実装すること（推奨順）
-1. `/console` 配下にBot管理画面のCRUDを追加
-2. Stripe webhookで `subscriptions` を更新
-3. `usage_daily` によるプラン上限チェックをAPIに追加
-4. `tenant_memberships` の招待フローを実装
