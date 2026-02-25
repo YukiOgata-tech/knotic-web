@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { CheckCircle2 } from "lucide-react"
 
+import { AuthAwareCtaButton } from "@/components/auth/auth-aware"
 import { CTASection, PageFrame } from "@/components/marketing/page-frame"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -39,9 +40,14 @@ export default function DemoPage() {
             <CardTitle>次のアクション</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3">
-            <Button asChild variant="outline" className="rounded-full">
-              <Link href="/signup">無料トライアルを始める</Link>
-            </Button>
+            <AuthAwareCtaButton
+              guestHref="/signup"
+              guestLabel="無料トライアルを始める"
+              authHref="/console"
+              authLabel="管理画面へ"
+              variant="outline"
+              className="rounded-full"
+            />
             <Button asChild variant="outline" className="rounded-full">
               <Link href="/contact">個別相談をする</Link>
             </Button>

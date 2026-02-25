@@ -1,6 +1,7 @@
 import Link from "next/link"
-import { ArrowRight, CheckCircle2 } from "lucide-react"
+import { CheckCircle2 } from "lucide-react"
 
+import { AuthAwareCtaButton } from "@/components/auth/auth-aware"
 import { Container } from "@/components/layout/container"
 import { CTASection } from "@/components/marketing/page-frame"
 import { Badge } from "@/components/ui/badge"
@@ -27,12 +28,13 @@ export default function Home() {
               knoticは、URLやPDFを投入するだけでRAGチャットボットを構築できるサービスです。公開URLでも埋め込みでも、すぐに運用を開始できます。
             </p>
             <div className="flex flex-col gap-3 sm:flex-row">
-              <Button asChild className="rounded-full">
-                <Link href="/signup">
-                  無料で試す
-                  <ArrowRight className="size-4" />
-                </Link>
-              </Button>
+              <AuthAwareCtaButton
+                guestHref="/signup"
+                guestLabel="無料で試す"
+                authHref="/console"
+                authLabel="管理画面へ"
+                className="rounded-full"
+              />
               <Button asChild variant="outline" className="rounded-full">
                 <Link href="/demo">デモを見る</Link>
               </Button>

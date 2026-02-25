@@ -20,6 +20,9 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SECRET_KEY=your-secret-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+OPENAI_API_KEY=your-openai-api-key
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+INDEXER_RUNNER_SECRET=change-this-long-random-secret
 ```
 
 `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` がある場合はそちらを優先して使用します。  
@@ -44,22 +47,40 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 - RLSポリシー
 - 新規ユーザー時の初期テナント自動作成トリガー
 
-## 5. このリポジトリで用意済みの接続基盤
+続けて次のパッチを順番に実行してください。
+1. `supabase/patch-20260224-current-user-tenant-ids-definer.sql`
+2. `supabase/patch-20260224-console-management.sql`
+3. `supabase/patch-20260224-indexing-pipeline.sql`
+4. `supabase/patch-20260224-quotas-and-notifications.sql`
+
+## 5. Storageバケット作成
+Supabase Storageで次のバケットを作成してください。
+1. `source-files`（PDF原本アップロード用）
+2. `source-artifacts`（クロールHTML/抽出テキスト保存用）
+
+いずれも公開不要（private）で運用してください。
+
+## 6. このリポジトリで用意済みの接続基盤
 - Browser client: `lib/supabase/client.ts`
 - Server client: `lib/supabase/server.ts`
 - Admin client: `lib/supabase/admin.ts`
 - Session更新 proxy: `proxy.ts`, `lib/supabase/middleware.ts`
 - 接続確認API: `app/api/supabase/ping/route.ts`
+- インデックス実行API: `app/api/internal/indexing/run/route.ts`
+- 回答API: `app/api/v1/chat/route.ts`
 
-## 6. 接続確認
+## 7. 接続確認
 1. 開発サーバー起動
 2. `GET /api/supabase/ping` にアクセス
 3. `ok: true` が返れば接続成功
 4. ログイン後に叩くと `user` が返る
-5. `signup -> メール確認 -> /auth/callback -> /app` の導線が通ることを確認
+5. `signup -> メール確認 -> /auth/callback -> /console` の導線が通ることを確認
+6. 管理画面 `Sources` でURL/PDFを追加 -> `インデックス実行` でキュー登録
+7. 開発検証は `Sources > キューを1件実行` を実行
+8. 本番では `POST /api/internal/indexing/run` に `Authorization: Bearer $INDEXER_RUNNER_SECRET` を付与してCron実行
 
-## 7. 次に実装すること（推奨順）
-1. `/app` 配下にBot管理画面のCRUDを追加
+## 8. 次に実装すること（推奨順）
+1. `/console` 配下にBot管理画面のCRUDを追加
 2. Stripe webhookで `subscriptions` を更新
 3. `usage_daily` によるプラン上限チェックをAPIに追加
 4. `tenant_memberships` の招待フローを実装

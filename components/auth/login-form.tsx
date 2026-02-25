@@ -17,7 +17,7 @@ export function LoginForm() {
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
-  const next = searchParams.get("next") ?? "/app"
+  const next = searchParams.get("next") ?? "/console"
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()

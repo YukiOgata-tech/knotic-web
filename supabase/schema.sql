@@ -73,18 +73,15 @@ create table if not exists public.tenants (
 
 do $$
 begin
-  if exists (
+  if not exists (
     select 1
     from pg_constraint
     where conname = 'profiles_default_tenant_id_fkey'
   ) then
     alter table public.profiles
-      drop constraint profiles_default_tenant_id_fkey;
+      add constraint profiles_default_tenant_id_fkey
+      foreign key (default_tenant_id) references public.tenants(id) on delete set null;
   end if;
-
-  alter table public.profiles
-    add constraint profiles_default_tenant_id_fkey
-    foreign key (default_tenant_id) references public.tenants(id) on delete set null;
 end
 $$;
 
@@ -363,47 +360,38 @@ create table if not exists public.response_cache (
   unique (bot_id, cache_key_hash)
 );
 
-drop trigger if exists set_profiles_updated_at on public.profiles;
 create trigger set_profiles_updated_at
 before update on public.profiles
 for each row execute procedure app.set_updated_at();
 
-drop trigger if exists set_tenants_updated_at on public.tenants;
 create trigger set_tenants_updated_at
 before update on public.tenants
 for each row execute procedure app.set_updated_at();
 
-drop trigger if exists set_tenant_memberships_updated_at on public.tenant_memberships;
 create trigger set_tenant_memberships_updated_at
 before update on public.tenant_memberships
 for each row execute procedure app.set_updated_at();
 
-drop trigger if exists set_plans_updated_at on public.plans;
 create trigger set_plans_updated_at
 before update on public.plans
 for each row execute procedure app.set_updated_at();
 
-drop trigger if exists set_plan_entitlements_updated_at on public.plan_entitlements;
 create trigger set_plan_entitlements_updated_at
 before update on public.plan_entitlements
 for each row execute procedure app.set_updated_at();
 
-drop trigger if exists set_billing_customers_updated_at on public.billing_customers;
 create trigger set_billing_customers_updated_at
 before update on public.billing_customers
 for each row execute procedure app.set_updated_at();
 
-drop trigger if exists set_subscriptions_updated_at on public.subscriptions;
 create trigger set_subscriptions_updated_at
 before update on public.subscriptions
 for each row execute procedure app.set_updated_at();
 
-drop trigger if exists set_bots_updated_at on public.bots;
 create trigger set_bots_updated_at
 before update on public.bots
 for each row execute procedure app.set_updated_at();
 
-drop trigger if exists set_sources_updated_at on public.sources;
 create trigger set_sources_updated_at
 before update on public.sources
 for each row execute procedure app.set_updated_at();
@@ -488,81 +476,61 @@ alter table public.response_cache enable row level security;
 alter table public.plans enable row level security;
 alter table public.plan_entitlements enable row level security;
 
-drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own"
 on public.profiles for select
 using (user_id = auth.uid());
 
-drop policy if exists "profiles_update_own" on public.profiles;
 create policy "profiles_update_own"
 on public.profiles for update
 using (user_id = auth.uid())
 with check (user_id = auth.uid());
 
-drop policy if exists "tenants_select_member" on public.tenants;
 create policy "tenants_select_member"
 on public.tenants for select
 using (id in (select app.current_user_tenant_ids()));
 
-drop policy if exists "tenants_update_editor" on public.tenants;
-drop policy if exists "tenants_update_owner" on public.tenants;
 create policy "tenants_update_editor"
 on public.tenants for update
 using (app.can_write_tenant(id))
 with check (app.can_write_tenant(id));
 
-drop policy if exists "memberships_select_member" on public.tenant_memberships;
 create policy "memberships_select_member"
 on public.tenant_memberships for select
 using (tenant_id in (select app.current_user_tenant_ids()));
 
-drop policy if exists "memberships_insert_manager" on public.tenant_memberships;
-drop policy if exists "memberships_insert_owner" on public.tenant_memberships;
 create policy "memberships_insert_manager"
 on public.tenant_memberships for insert
 with check (app.is_tenant_owner_user(tenant_id));
 
-drop policy if exists "memberships_update_manager" on public.tenant_memberships;
-drop policy if exists "memberships_update_owner" on public.tenant_memberships;
 create policy "memberships_update_manager"
 on public.tenant_memberships for update
 using (app.is_tenant_owner_user(tenant_id))
 with check (app.is_tenant_owner_user(tenant_id));
 
-drop policy if exists "memberships_delete_manager" on public.tenant_memberships;
-drop policy if exists "memberships_delete_owner" on public.tenant_memberships;
 create policy "memberships_delete_manager"
 on public.tenant_memberships for delete
 using (app.is_tenant_owner_user(tenant_id));
 
-drop policy if exists "plans_select_all" on public.plans;
 create policy "plans_select_all"
 on public.plans for select
 using (true);
 
-drop policy if exists "plan_entitlements_select_all" on public.plan_entitlements;
 create policy "plan_entitlements_select_all"
 on public.plan_entitlements for select
 using (true);
 
-drop policy if exists "billing_customers_select_member" on public.billing_customers;
 create policy "billing_customers_select_member"
 on public.billing_customers for select
 using (tenant_id in (select app.current_user_tenant_ids()));
 
-drop policy if exists "subscriptions_select_member" on public.subscriptions;
 create policy "subscriptions_select_member"
 on public.subscriptions for select
 using (tenant_id in (select app.current_user_tenant_ids()));
 
-drop policy if exists "billing_events_select_owner" on public.billing_events;
 create policy "billing_events_select_owner"
 on public.billing_events for select
 using (app.is_tenant_owner_user(tenant_id));
 
-drop policy if exists "bots_select_member" on public.bots;
-drop policy if exists "bots_write_editor" on public.bots;
-drop policy if exists "bots_rw_member" on public.bots;
 create policy "bots_select_member"
 on public.bots for select
 using (app.can_read_tenant(tenant_id));
@@ -571,9 +539,6 @@ on public.bots for all
 using (app.can_write_tenant(tenant_id))
 with check (app.can_write_tenant(tenant_id));
 
-drop policy if exists "bot_tokens_select_member" on public.bot_public_tokens;
-drop policy if exists "bot_tokens_write_editor" on public.bot_public_tokens;
-drop policy if exists "bot_tokens_rw_member" on public.bot_public_tokens;
 create policy "bot_tokens_select_member"
 on public.bot_public_tokens for select
 using (bot_id in (select id from public.bots where tenant_id in (select app.current_user_tenant_ids())))
@@ -583,9 +548,6 @@ on public.bot_public_tokens for all
 using (bot_id in (select id from public.bots where app.can_write_tenant(tenant_id)))
 with check (bot_id in (select id from public.bots where app.can_write_tenant(tenant_id)));
 
-drop policy if exists "sources_select_member" on public.sources;
-drop policy if exists "sources_write_editor" on public.sources;
-drop policy if exists "sources_rw_member" on public.sources;
 create policy "sources_select_member"
 on public.sources for select
 using (
@@ -607,9 +569,6 @@ with check (
   )
 );
 
-drop policy if exists "documents_select_member" on public.documents;
-drop policy if exists "documents_write_editor" on public.documents;
-drop policy if exists "documents_rw_member" on public.documents;
 create policy "documents_select_member"
 on public.documents for select
 using (
@@ -640,9 +599,6 @@ with check (
   )
 );
 
-drop policy if exists "chunks_select_member" on public.chunks;
-drop policy if exists "chunks_write_editor" on public.chunks;
-drop policy if exists "chunks_rw_member" on public.chunks;
 create policy "chunks_select_member"
 on public.chunks for select
 using (
@@ -676,9 +632,6 @@ with check (
   )
 );
 
-drop policy if exists "embeddings_select_member" on public.embeddings;
-drop policy if exists "embeddings_write_editor" on public.embeddings;
-drop policy if exists "embeddings_rw_member" on public.embeddings;
 create policy "embeddings_select_member"
 on public.embeddings for select
 using (
@@ -715,9 +668,6 @@ with check (
   )
 );
 
-drop policy if exists "chat_logs_select_member" on public.chat_logs;
-drop policy if exists "chat_logs_write_editor" on public.chat_logs;
-drop policy if exists "chat_logs_rw_member" on public.chat_logs;
 create policy "chat_logs_select_member"
 on public.chat_logs for select
 using (app.can_read_tenant(tenant_id));
@@ -726,9 +676,6 @@ on public.chat_logs for all
 using (app.can_write_tenant(tenant_id))
 with check (app.can_write_tenant(tenant_id));
 
-drop policy if exists "usage_daily_select_member" on public.usage_daily;
-drop policy if exists "usage_daily_write_editor" on public.usage_daily;
-drop policy if exists "usage_daily_rw_member" on public.usage_daily;
 create policy "usage_daily_select_member"
 on public.usage_daily for select
 using (app.can_read_tenant(tenant_id));
@@ -737,9 +684,6 @@ on public.usage_daily for all
 using (app.can_write_tenant(tenant_id))
 with check (app.can_write_tenant(tenant_id));
 
-drop policy if exists "response_cache_select_member" on public.response_cache;
-drop policy if exists "response_cache_write_editor" on public.response_cache;
-drop policy if exists "response_cache_rw_member" on public.response_cache;
 create policy "response_cache_select_member"
 on public.response_cache for select
 using (
@@ -794,7 +738,6 @@ begin
 end;
 $$;
 
-drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure app.handle_new_user();

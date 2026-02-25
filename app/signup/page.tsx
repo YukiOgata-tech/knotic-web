@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation"
 
+import { RedirectTargetPicker } from "@/components/auth/redirect-target-picker"
 import { SignupForm } from "@/components/auth/signup-form"
 import { PageFrame } from "@/components/marketing/page-frame"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,7 +13,7 @@ export default async function SignupPage() {
   } = await supabase.auth.getUser()
 
   if (user) {
-    redirect("/app")
+    redirect("/console")
   }
 
   return (
@@ -26,7 +27,8 @@ export default async function SignupPage() {
           <CardHeader>
             <CardTitle>アカウント作成</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="grid gap-4">
+            <RedirectTargetPicker />
             <SignupForm />
           </CardContent>
         </Card>

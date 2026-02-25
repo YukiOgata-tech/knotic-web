@@ -1,6 +1,7 @@
 import * as React from "react"
 import Link from "next/link"
 
+import { AuthAwareCtaButton } from "@/components/auth/auth-aware"
 import { Container } from "@/components/layout/container"
 import { Button } from "@/components/ui/button"
 
@@ -42,9 +43,13 @@ function CTASection() {
         URL/PDFの投入から公開までを短いサイクルで検証し、必要な機能を段階的に広げる進め方を推奨します。
       </p>
       <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-        <Button asChild className="rounded-full bg-cyan-500 text-white hover:bg-cyan-600">
-          <Link href="/signup">無料で試す</Link>
-        </Button>
+        <AuthAwareCtaButton
+          guestHref="/signup"
+          guestLabel="無料で試す"
+          authHref="/console"
+          authLabel="管理画面へ"
+          className="rounded-full bg-cyan-500 text-white hover:bg-cyan-600"
+        />
         <Button
           asChild
           variant="outline"

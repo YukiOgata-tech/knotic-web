@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import * as React from "react"
 
 import { createClient } from "@/lib/supabase/client"
@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 
 export function SignupForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [fullName, setFullName] = React.useState("")
   const [companyName, setCompanyName] = React.useState("")
   const [email, setEmail] = React.useState("")
@@ -18,6 +19,8 @@ export function SignupForm() {
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [message, setMessage] = React.useState<string | null>(null)
+
+  const next = searchParams.get("next") ?? "/console"
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -30,7 +33,7 @@ export function SignupForm() {
       const origin =
         process.env.NEXT_PUBLIC_APP_URL ??
         (typeof window !== "undefined" ? window.location.origin : "")
-      const emailRedirectTo = `${origin}/auth/callback?next=/app`
+      const emailRedirectTo = `${origin}/auth/callback?next=${encodeURIComponent(next)}`
 
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
@@ -50,7 +53,7 @@ export function SignupForm() {
       }
 
       if (data.session) {
-        router.push("/app")
+        router.push(next)
         router.refresh()
         return
       }

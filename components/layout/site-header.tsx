@@ -2,6 +2,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { Menu } from "lucide-react"
 
+import { HeaderAuthActions } from "@/components/auth/auth-aware"
 import { headerLinks } from "@/lib/marketing-content"
 import { Button } from "@/components/ui/button"
 import { Container } from "@/components/layout/container"
@@ -64,22 +65,12 @@ function SiteHeader() {
                   ))}
                 </div>
                 <div className="mt-auto grid gap-3">
-                  <Button asChild variant="outline" className="rounded-full">
-                    <Link href="/login">ログイン</Link>
-                  </Button>
-                  <Button asChild className="rounded-full">
-                    <Link href="/signup">無料で試す</Link>
-                  </Button>
+                  <HeaderAuthActions mobile />
                 </div>
               </div>
             </SheetContent>
           </Sheet>
-          <Button asChild variant="ghost" size="sm" className="hidden rounded-full sm:inline-flex">
-            <Link href="/login">ログイン</Link>
-          </Button>
-          <Button asChild size="sm" className="rounded-full">
-            <Link href="/signup">無料で試す</Link>
-          </Button>
+          <HeaderAuthActions />
         </div>
       </Container>
     </header>
