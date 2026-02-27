@@ -34,7 +34,7 @@ export default async function HostedBotPage({ params, searchParams }: PageProps)
   const { data: bot } = await admin
     .from("bots")
     .select(
-      "id, tenant_id, name, public_id, status, is_public, chat_purpose, access_mode, display_name, welcome_message, placeholder_text, disclaimer_text, show_citations, history_turn_limit, require_auth_for_hosted, ui_header_bg_color, ui_header_text_color, ui_footer_bg_color, ui_footer_text_color"
+      "id, tenant_id, name, public_id, status, is_public, chat_purpose, access_mode, display_name, welcome_message, placeholder_text, disclaimer_text, show_citations, history_turn_limit, require_auth_for_hosted, force_stopped, force_stop_reason, ui_header_bg_color, ui_header_text_color, ui_footer_bg_color, ui_footer_text_color"
     )
     .eq("public_id", public_id)
     .maybeSingle()
@@ -48,6 +48,27 @@ export default async function HostedBotPage({ params, searchParams }: PageProps)
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
             指定されたチャットボットは存在しないか、公開されていません。
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  const { data: tenantRow } = await admin
+    .from("tenants")
+    .select("id, force_stopped, force_stop_reason")
+    .eq("id", bot.tenant_id)
+    .maybeSingle()
+
+  if (tenantRow?.force_stopped || bot.force_stopped) {
+    return (
+      <div className="mx-auto w-full max-w-2xl px-4 py-16">
+        <Card>
+          <CardHeader>
+            <CardTitle>現在は停止中です</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            {tenantRow?.force_stop_reason ?? bot.force_stop_reason ?? "運営側の操作により一時停止しています。"}
           </CardContent>
         </Card>
       </div>

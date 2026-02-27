@@ -37,12 +37,12 @@ function CTASection() {
   return (
     <section className="rounded-3xl bg-zinc-900 px-6 py-9 text-white dark:bg-cyan-950/40 dark:ring-1 dark:ring-cyan-400/30 sm:px-8">
       <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-        まずは1つ目のAIボットを公開してみましょう
+        実際にAIボットを公開してみよう!
       </h2>
-      <p className="mt-3 max-w-2xl text-zinc-300">
+      <p className="hidden sm:block mt-1 sm:mt-3 max-w-2xl text-zinc-300">
         URL/PDFの投入から公開までを短いサイクルで検証し、必要な機能を段階的に広げる進め方を推奨します。
       </p>
-      <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+      <div className="mt-6 flex gap-3 flex-row">
         <AuthAwareCtaButton
           guestHref="/signup"
           guestLabel="無料で試す"

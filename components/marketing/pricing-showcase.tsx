@@ -2,94 +2,160 @@
 
 import Link from "next/link"
 import { motion } from "framer-motion"
-import { Sparkles } from "lucide-react"
+import { Check, CircleX, Sparkles } from "lucide-react"
 
 import { pricingComparisonRows, pricingPlans } from "@/content/pricing"
 import { Button } from "@/components/ui/button"
 
+const iconRows = new Set([
+  "Widget埋め込み",
+  "Hosted Page公開",
+  "API利用",
+  "モデル選択",
+])
+
+function BoolIcon({ enabled }: { enabled: boolean }) {
+  if (enabled) {
+    return (
+      <span className="inline-flex items-center justify-center rounded-full bg-emerald-100 p-1.5 text-emerald-700 dark:bg-emerald-900/35 dark:text-emerald-300">
+        <Check className="size-4" />
+      </span>
+    )
+  }
+
+  return (
+    <span className="inline-flex items-center justify-center rounded-full bg-zinc-200 p-1.5 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-300">
+      <CircleX className="size-4" />
+    </span>
+  )
+}
+
+function renderCell(label: string, value: string) {
+  if (!iconRows.has(label)) return <span>{value}</span>
+  if (value === "可") return <BoolIcon enabled />
+  if (value === "不可") return <BoolIcon enabled={false} />
+  return <span>{value}</span>
+}
+
+function ChannelPill({ label, enabled }: { label: string; enabled: boolean }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+      {enabled ? (
+        <Check className="size-3.5 text-emerald-600 dark:text-emerald-300" />
+      ) : (
+        <CircleX className="size-3.5 text-zinc-500 dark:text-zinc-300" />
+      )}
+      {label}
+    </span>
+  )
+}
+
 function PricingShowcase() {
   return (
-    <div className="grid gap-8">
-      <section className="grid gap-4 lg:grid-cols-3">
-        {pricingPlans.map((plan, index) => {
-          const isRecommended = plan.code === "standard"
-          return (
-            <motion.article
-              key={plan.code}
-              initial={{ opacity: 0, y: 22 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.4 }}
-              transition={{ duration: 0.35, delay: 0.08 * index }}
-              className={`relative overflow-hidden rounded-3xl border p-6 sm:p-7 ${
-                isRecommended
-                  ? "border-cyan-300/70 bg-[linear-gradient(165deg,#f5feff_0%,#ffffff_55%,#f6fffb_100%)] shadow-[0_18px_45px_-32px_rgba(8,145,178,.55)] dark:border-cyan-500/40 dark:bg-[linear-gradient(165deg,#072126_0%,#0b1d2a_55%,#0c251f_100%)]"
-                  : "border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/75"
-              }`}
-            >
-              {isRecommended ? (
-                <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-cyan-600/90 px-3 py-1 text-xs font-semibold text-white">
-                  <Sparkles className="size-3.5" />
-                  推奨プラン
+    <div className="grid gap-6 sm:gap-8">
+      <section id="plans" className="rounded-3xl border border-black/10 bg-white/90 p-4 sm:p-6 dark:border-white/10 dark:bg-slate-900/70">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-700 dark:text-cyan-300">
+          Plans
+        </p>
+        <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">3プランの料金と対応範囲</h2>
+        <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300 sm:text-base sm:leading-8">
+          小さく始めて、公開規模と運用負荷に合わせて段階的に拡張できます。
+        </p>
+
+        <div className="mt-5 grid gap-3 sm:gap-4 lg:grid-cols-3">
+          {pricingPlans.map((plan, index) => {
+            const recommended = plan.code === "standard"
+            return (
+              <motion.article
+                key={plan.code}
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.3 }}
+                transition={{ duration: 0.28, delay: 0.05 * index }}
+                className={`rounded-2xl border p-4 sm:p-5 ${
+                  recommended
+                    ? "border-cyan-300/70 bg-[linear-gradient(165deg,#f5feff_0%,#ffffff_55%,#f6fffb_100%)] shadow-[0_16px_34px_-30px_rgba(8,145,178,.55)] dark:border-cyan-500/40 dark:bg-[linear-gradient(165deg,#072126_0%,#0b1d2a_55%,#0c251f_100%)]"
+                    : "border-black/10 bg-white dark:border-white/10 dark:bg-slate-950/45"
+                }`}
+              >
+                {recommended ? (
+                  <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-cyan-600/90 px-3 py-1 text-xs font-semibold text-white">
+                    <Sparkles className="size-3.5" />
+                    推奨プラン
+                  </div>
+                ) : null}
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-300">
+                  {plan.name}
+                </p>
+                <p className="mt-2 text-3xl font-semibold tracking-tight">{plan.priceLabel}</p>
+                <p className="mt-3 text-sm font-medium text-zinc-800 dark:text-zinc-100 sm:text-base">{plan.tagline}</p>
+                <p className="mt-2 text-sm leading-7 text-zinc-600 dark:text-zinc-300 sm:text-base sm:leading-8">
+                  {plan.target}
+                </p>
+
+                <div className="mt-4 grid gap-1.5 text-sm text-zinc-700 dark:text-zinc-200 sm:text-base">
+                  <p>Bot上限: {plan.botLimitLabel}</p>
+                  <p>月間メッセージ: {plan.monthlyMessagesLabel}</p>
+                  <p>データ量: {plan.storageLabel}</p>
                 </div>
-              ) : null}
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-300">
-                {plan.name}
-              </p>
-              <p className="mt-2 text-3xl font-semibold tracking-tight">{plan.priceLabel}</p>
-              <p className="mt-3 text-sm font-medium text-zinc-800 dark:text-zinc-100">{plan.tagline}</p>
-              <p className="mt-2 text-sm leading-7 text-zinc-600 dark:text-zinc-300">{plan.target}</p>
 
-              <div className="mt-5 grid gap-2 text-sm text-zinc-700 dark:text-zinc-200">
-                <p>Bot上限: {plan.botLimitLabel}</p>
-                <p>月間メッセージ: {plan.monthlyMessagesLabel}</p>
-                <p>データ量: {plan.storageLabel}</p>
-              </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <ChannelPill label="Widget" enabled={plan.channels.widget} />
+                  <ChannelPill label="Hosted" enabled={plan.channels.hostedPage} />
+                  <ChannelPill label="API" enabled={plan.channels.api} />
+                </div>
 
-              <div className="mt-4 flex flex-wrap gap-2">
-                <span className="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
-                  Widget {plan.channels.widget ? "可" : "不可"}
-                </span>
-                <span className="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
-                  Hosted {plan.channels.hostedPage ? "可" : "不可"}
-                </span>
-                <span className="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
-                  API {plan.channels.api ? "可" : "不可"}
-                </span>
-              </div>
-
-              <Button asChild className="mt-6 w-full rounded-full">
-                <Link href="/contact">このプランで相談する</Link>
-              </Button>
-            </motion.article>
-          )
-        })}
+                <Button asChild className="mt-5 w-full rounded-full">
+                  <Link href="/contact">このプランで相談する</Link>
+                </Button>
+              </motion.article>
+            )
+          })}
+        </div>
       </section>
 
-      <section className="overflow-hidden rounded-3xl border border-black/10 bg-white/85 dark:border-white/10 dark:bg-slate-900/70">
-        <div className="border-b border-black/10 px-5 py-4 dark:border-white/10 sm:px-6">
-          <h2 className="text-2xl font-semibold tracking-tight">プラン詳細比較</h2>
-          <p className="mt-2 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
-            「埋め込み公開のしやすさ」と「運用上限」を中心に、実運用で必要な項目を比較できます。
-          </p>
-        </div>
+      <section
+        id="comparison"
+        className="-mx-4 overflow-hidden border-y border-black/10 bg-white/85 px-4 py-6 sm:mx-0 sm:rounded-3xl sm:border sm:p-6 dark:border-white/10 dark:bg-slate-900/70"
+      >
+        <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">プラン詳細比較</h2>
+        <p className="mt-2 text-sm leading-7 text-zinc-600 dark:text-zinc-300 sm:text-base sm:leading-8">
+          公開方法と運用上限を中心に、実運用で必要な項目を比較
+        </p>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-[760px] w-full text-sm">
-            <thead className="bg-zinc-100/80 dark:bg-slate-800/70">
+        <div className="mt-4 max-w-full overflow-x-auto overscroll-x-contain rounded-xl border border-black/10 [-webkit-overflow-scrolling:touch] dark:border-white/10">
+          <table className="w-[700px] text-xs sm:w-full sm:min-w-[760px] sm:text-sm">
+            <colgroup>
+              <col className="w-[28%] sm:w-[24%]" />
+              <col className="w-[24%] sm:w-[25.3%]" />
+              <col className="w-[24%] sm:w-[25.3%]" />
+              <col className="w-[24%] sm:w-[25.4%]" />
+            </colgroup>
+            <thead className="bg-zinc-100/90 dark:bg-slate-800/80">
               <tr>
-                <th className="px-4 py-3 text-left font-semibold sm:px-6">項目</th>
-                <th className="px-4 py-3 text-left font-semibold">Lite</th>
-                <th className="px-4 py-3 text-left font-semibold">Standard</th>
-                <th className="px-4 py-3 text-left font-semibold">Pro</th>
+                <th className="bg-zinc-100/95 px-3 py-3 text-left font-semibold whitespace-nowrap sm:px-5 dark:bg-slate-800/95">
+                  項目
+                </th>
+                <th className="px-3 py-3 text-left font-semibold whitespace-nowrap sm:px-4">Lite</th>
+                <th className="px-3 py-3 text-left font-semibold whitespace-nowrap sm:px-4">Standard</th>
+                <th className="px-3 py-3 text-left font-semibold whitespace-nowrap sm:px-4">Pro</th>
               </tr>
             </thead>
             <tbody>
               {pricingComparisonRows.map((row) => (
                 <tr key={row.label} className="border-t border-black/10 dark:border-white/10">
-                  <td className="px-4 py-3 font-medium sm:px-6">{row.label}</td>
-                  <td className="px-4 py-3 text-zinc-700 dark:text-zinc-200">{row.values.lite}</td>
-                  <td className="px-4 py-3 text-zinc-700 dark:text-zinc-200">{row.values.standard}</td>
-                  <td className="px-4 py-3 text-zinc-700 dark:text-zinc-200">{row.values.pro}</td>
+                  <td className="bg-white px-3 py-3 font-medium text-zinc-800 sm:px-5 dark:bg-slate-900 dark:text-zinc-100">
+                    {row.label}
+                  </td>
+                  <td className="px-3 py-3 text-zinc-700 whitespace-nowrap sm:px-4 dark:text-zinc-200">
+                    <span className="inline-flex items-center gap-2">{renderCell(row.label, row.values.lite)}</span>
+                  </td>
+                  <td className="px-3 py-3 text-zinc-700 whitespace-nowrap sm:px-4 dark:text-zinc-200">
+                    <span className="inline-flex items-center gap-2">{renderCell(row.label, row.values.standard)}</span>
+                  </td>
+                  <td className="px-3 py-3 text-zinc-700 whitespace-nowrap sm:px-4 dark:text-zinc-200">
+                    <span className="inline-flex items-center gap-2">{renderCell(row.label, row.values.pro)}</span>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -97,15 +163,15 @@ function PricingShowcase() {
         </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-2">
-        <article className="rounded-2xl border border-black/10 bg-white/85 p-6 dark:border-white/10 dark:bg-slate-900/70">
-          <h3 className="text-xl font-semibold tracking-tight">導入の進め方</h3>
-          <ol className="mt-3 grid gap-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+      <section className="grid gap-3 sm:gap-4 lg:grid-cols-2">
+        <article className="rounded-2xl border border-black/10 bg-white/85 p-4 sm:p-6 dark:border-white/10 dark:bg-slate-900/70">
+          <h3 className="text-xl font-semibold tracking-tight sm:text-2xl">導入の進め方</h3>
+          <ol className="mt-3 grid gap-2.5 text-sm leading-7 text-zinc-600 dark:text-zinc-300 sm:text-base sm:leading-8">
             <li>1. Liteで問い合わせ対応またはマニュアル案内の1用途を公開</li>
             <li>2. 運用が安定したらStandardで公開チャネルと上限を拡張</li>
             <li>3. 複数部門展開やAPI連携が必要ならProへ移行</li>
           </ol>
-          <div className="mt-5 flex flex-wrap gap-3">
+          <div className="mt-4 grid gap-3 sm:flex sm:flex-wrap">
             <Button asChild variant="outline" className="rounded-full">
               <Link href="/use-cases">活用例を見る</Link>
             </Button>
@@ -115,9 +181,9 @@ function PricingShowcase() {
           </div>
         </article>
 
-        <article className="rounded-2xl border border-black/10 bg-white/85 p-6 dark:border-white/10 dark:bg-slate-900/70">
-          <h3 className="text-xl font-semibold tracking-tight">ご利用ポリシー</h3>
-          <div className="mt-3 grid gap-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+        <article className="rounded-2xl border border-black/10 bg-white/85 p-4 sm:p-6 dark:border-white/10 dark:bg-slate-900/70">
+          <h3 className="text-xl font-semibold tracking-tight sm:text-2xl">ご利用ポリシー</h3>
+          <div className="mt-3 grid gap-2.5 text-sm leading-7 text-zinc-600 dark:text-zinc-300 sm:text-base sm:leading-8">
             <p>お支払いに問題が発生した場合でも、管理画面から設定確認・見直しは継続して行えます。</p>
             <p>登録済みデータは保持されるため、再開時は既存構成を活かしてスムーズに運用を戻せます。</p>
             <p>公開設定（埋め込み許可ドメイン、API利用範囲など）は、運用状況に合わせて調整できます。</p>

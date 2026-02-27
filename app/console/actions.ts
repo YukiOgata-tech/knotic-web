@@ -7,6 +7,8 @@ import { assertTenantCanCreateBot, assertTenantCanIndexData } from "@/lib/billin
 import { createAdminClient } from "@/lib/supabase/admin"
 import { processQueuedIndexingJobs } from "@/lib/indexing/pipeline"
 import { createClient } from "@/lib/supabase/server"
+import { writeAuditLog } from "@/app/console/_lib/audit"
+import { requireConsoleContext } from "@/app/console/_lib/data"
 
 const ALLOWED_MODELS = [
   "5-nano",
@@ -76,27 +78,16 @@ function normalizeWidgetPosition(value: string) {
 }
 
 async function getTenantContext(requireEditor = false) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { supabase, user, membership, membershipError, impersonation } = await requireConsoleContext()
 
-  if (!user) {
-    redirect("/login?next=/console")
-  }
-
-  const { data: memberships, error } = await supabase
-    .from("tenant_memberships")
-    .select("tenant_id, role")
-    .eq("user_id", user.id)
-    .eq("is_active", true)
-    .limit(1)
-
-  if (error || !memberships?.length) {
+  if (membershipError || !membership) {
     throw new Error("Tenant membership not found. Run schema and patch SQL first.")
   }
 
-  const membership = memberships[0] as Membership
+  if (impersonation?.active && requireEditor) {
+    throw new Error("代理閲覧モードでは編集できません。開発者コンソールで代理閲覧を終了してください。")
+  }
+
   if (requireEditor && membership.role !== "editor") {
     throw new Error("Editor role is required for this action.")
   }
@@ -106,6 +97,7 @@ async function getTenantContext(requireEditor = false) {
     user,
     tenantId: membership.tenant_id,
     role: membership.role,
+    impersonation,
   }
 }
 
@@ -122,17 +114,33 @@ export async function createBotAction(formData: FormData) {
     await assertTenantCanCreateBot(tenantId)
 
     const publicId = `bot_${crypto.randomUUID().replaceAll("-", "").slice(0, 12)}`
-    const { error } = await supabase.from("bots").insert({
-      tenant_id: tenantId,
-      public_id: publicId,
-      name,
-      description: description || null,
-      status: "draft",
-      is_public: false,
-      created_by: user.id,
-    })
+    const { data: createdBot, error } = await supabase
+      .from("bots")
+      .insert({
+        tenant_id: tenantId,
+        public_id: publicId,
+        name,
+        description: description || null,
+        status: "draft",
+        is_public: false,
+        created_by: user.id,
+      })
+      .select("id, public_id, name, is_public, status")
+      .single()
 
     if (error) throw error
+    await writeAuditLog(supabase, {
+      tenantId,
+      action: "bot.create",
+      targetType: "bot",
+      targetId: createdBot?.id,
+      after: {
+        public_id: createdBot?.public_id ?? publicId,
+        name,
+        is_public: false,
+        status: "draft",
+      },
+    })
     redirect(toAppUrl(redirectTo, { notice: "Botを作成しました。" }))
   } catch (error) {
     redirect(
@@ -146,7 +154,7 @@ export async function createBotAction(formData: FormData) {
 export async function toggleBotPublicAction(formData: FormData) {
   try {
     const redirectTo = String(formData.get("redirect_to") ?? "")
-    const { supabase } = await getTenantContext(true)
+    const { supabase, tenantId } = await getTenantContext(true)
     const botId = String(formData.get("bot_id") ?? "")
     const nextPublic = String(formData.get("next_public") ?? "") === "true"
 
@@ -156,6 +164,13 @@ export async function toggleBotPublicAction(formData: FormData) {
       .eq("id", botId)
 
     if (error) throw error
+    await writeAuditLog(supabase, {
+      tenantId,
+      action: "bot.public.toggle",
+      targetType: "bot",
+      targetId: botId,
+      after: { is_public: nextPublic },
+    })
     redirect(toAppUrl(redirectTo, { notice: nextPublic ? "公開設定を有効化しました。" : "公開設定を停止しました。" }))
   } catch (error) {
     redirect(
@@ -187,6 +202,13 @@ export async function addUrlSourceAction(formData: FormData) {
     })
 
     if (error) throw error
+    await writeAuditLog(supabase, {
+      tenantId,
+      action: "source.url.add",
+      targetType: "source",
+      targetId: botId,
+      after: { bot_id: botId, url },
+    })
     redirect(toAppUrl(redirectTo, { notice: "URLソースを追加しました。" }))
   } catch (error) {
     redirect(
@@ -258,6 +280,13 @@ export async function addPdfSourceAction(formData: FormData) {
       throw insertError
     }
 
+    await writeAuditLog(supabase, {
+      tenantId,
+      action: "source.pdf.add",
+      targetType: "source",
+      targetId: botId,
+      after: { bot_id: botId, file_name: fileName, file_size_bytes: file.size },
+    })
     redirect(toAppUrl(redirectTo, { notice: "PDFソースを追加しました。" }))
   } catch (error) {
     redirect(
@@ -307,6 +336,13 @@ export async function queueIndexAction(formData: FormData) {
       )
     }
 
+    await writeAuditLog(supabase, {
+      tenantId,
+      action: "indexing.queue",
+      targetType: "source",
+      targetId: sourceId,
+      after: { bot_id: botId || null, embedding_model: "text-embedding-3-small" },
+    })
     redirect(toAppUrl(redirectTo, { notice: "インデックス実行をキュー登録しました。" }))
   } catch (error) {
     redirect(
@@ -320,7 +356,7 @@ export async function queueIndexAction(formData: FormData) {
 export async function rotateWidgetTokenAction(formData: FormData) {
   try {
     const redirectTo = String(formData.get("redirect_to") ?? "")
-    const { supabase } = await getTenantContext(true)
+    const { supabase, tenantId } = await getTenantContext(true)
     const botId = String(formData.get("bot_id") ?? "")
     const botPublicId = String(formData.get("bot_public_id") ?? "")
     const rawToken = `knotic_wgt_${crypto.randomBytes(18).toString("base64url")}`
@@ -337,7 +373,16 @@ export async function rotateWidgetTokenAction(formData: FormData) {
       public_token_hash: tokenHash,
       allowed_origins: [],
     })
+
     if (error) throw error
+
+    await writeAuditLog(supabase, {
+      tenantId,
+      action: "widget.token.rotate",
+      targetType: "bot",
+      targetId: botId,
+      after: { bot_public_id: botPublicId, token_last4: rawToken.slice(-4) },
+    })
 
     redirect(
       toAppUrl(redirectTo, {
@@ -354,11 +399,10 @@ export async function rotateWidgetTokenAction(formData: FormData) {
     )
   }
 }
-
 export async function updateAllowedOriginsAction(formData: FormData) {
   try {
     const redirectTo = String(formData.get("redirect_to") ?? "")
-    const { supabase } = await getTenantContext(true)
+    const { supabase, tenantId } = await getTenantContext(true)
     const tokenId = String(formData.get("token_id") ?? "")
     const originsRaw = String(formData.get("allowed_origins") ?? "")
     const allowedOrigins = normalizeOrigins(originsRaw)
@@ -369,6 +413,13 @@ export async function updateAllowedOriginsAction(formData: FormData) {
       .eq("id", tokenId)
 
     if (error) throw error
+    await writeAuditLog(supabase, {
+      tenantId,
+      action: "widget.allowed_origins.update",
+      targetType: "bot_public_token",
+      targetId: tokenId,
+      after: { allowed_origins_count: allowedOrigins.length },
+    })
     redirect(toAppUrl(redirectTo, { notice: "許可オリジンを更新しました。" }))
   } catch (error) {
     redirect(
@@ -411,6 +462,13 @@ export async function createApiKeyAction(formData: FormData) {
       throw new Error("tenant_api_keysテーブルが未作成です。patch SQLを適用してください。")
     }
 
+    await writeAuditLog(supabase, {
+      tenantId,
+      action: "api_key.create",
+      targetType: "tenant_api_key",
+      after: { name, key_prefix: keyPrefix, key_last4: keyLast4, expires_at: expiresAt || null },
+    })
+
     redirect(
       toAppUrl(redirectTo, {
         notice: "APIキーを発行しました。表示中の値はこの1回のみです。",
@@ -429,7 +487,7 @@ export async function createApiKeyAction(formData: FormData) {
 export async function revokeApiKeyAction(formData: FormData) {
   try {
     const redirectTo = String(formData.get("redirect_to") ?? "")
-    const { supabase } = await getTenantContext(true)
+    const { supabase, tenantId } = await getTenantContext(true)
     const keyId = String(formData.get("key_id") ?? "")
     const { error } = await supabase
       .from("tenant_api_keys")
@@ -440,6 +498,13 @@ export async function revokeApiKeyAction(formData: FormData) {
       .eq("id", keyId)
 
     if (error) throw error
+    await writeAuditLog(supabase, {
+      tenantId,
+      action: "api_key.revoke",
+      targetType: "tenant_api_key",
+      targetId: keyId,
+      after: { is_active: false },
+    })
     redirect(toAppUrl(redirectTo, { notice: "APIキーを失効しました。" }))
   } catch (error) {
     redirect(
@@ -478,6 +543,18 @@ export async function saveAiSettingsAction(formData: FormData) {
       throw new Error("tenants のAI設定更新に失敗しました。table-consolidation patchを適用してください。")
     }
 
+    await writeAuditLog(supabase, {
+      tenantId,
+      action: "tenant.ai_settings.update",
+      targetType: "tenant",
+      targetId: tenantId,
+      after: {
+        default_model: defaultModel,
+        fallback_model: fallbackModel,
+        allow_model_override: allowOverride,
+        max_output_tokens: Number.isFinite(maxOutputTokens) ? maxOutputTokens : 1200,
+      },
+    })
     redirect(toAppUrl(redirectTo, { notice: "AIモデル設定を更新しました。" }))
   } catch (error) {
     redirect(
@@ -513,7 +590,7 @@ export async function runIndexingWorkerAction(formData: FormData) {
 export async function updateHostedConfigAction(formData: FormData) {
   try {
     const redirectTo = String(formData.get("redirect_to") ?? "")
-    const { supabase } = await getTenantContext(true)
+    const { supabase, tenantId } = await getTenantContext(true)
     const botId = String(formData.get("bot_id") ?? "")
     if (!botId) {
       redirect(toAppUrl(redirectTo, { error: "Botが指定されていません。" }))
@@ -570,6 +647,22 @@ export async function updateHostedConfigAction(formData: FormData) {
       .eq("id", botId)
 
     if (error) throw error
+    await writeAuditLog(supabase, {
+      tenantId,
+      action: "bot.hosted_config.update",
+      targetType: "bot",
+      targetId: botId,
+      after: {
+        chat_purpose: chatPurpose,
+        access_mode: accessMode,
+        show_citations: showCitations,
+        history_turn_limit: normalizedLimit,
+        require_auth_for_hosted: requireAuthForHosted || accessMode === "internal",
+        widget_enabled: widgetEnabled,
+        widget_mode: widgetMode,
+        widget_position: widgetPosition,
+      },
+    })
     redirect(toAppUrl(redirectTo, { notice: "Hostedチャット設定を更新しました。" }))
   } catch (error) {
     redirect(
@@ -585,4 +678,138 @@ export async function updateHostedConfigAction(formData: FormData) {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+}
+
+function normalizeTenantDisplayName(value: string) {
+  const v = value.trim()
+  if (v.length < 2) throw new Error("テナント名は2文字以上で入力してください。")
+  if (v.length > 80) throw new Error("テナント名は80文字以内で入力してください。")
+  return v
+}
+
+export async function updateTenantProfileAction(formData: FormData) {
+  try {
+    const redirectTo = String(formData.get("redirect_to") ?? "")
+    const { supabase, tenantId, impersonation } = await getTenantContext(true)
+    if (impersonation?.active) {
+      throw new Error("代理閲覧モードでは編集できません。")
+    }
+
+    const displayName = normalizeTenantDisplayName(String(formData.get("display_name") ?? ""))
+
+    const { error } = await supabase
+      .from("tenants")
+      .update({ display_name: displayName })
+      .eq("id", tenantId)
+
+    if (error) throw error
+
+    await writeAuditLog(supabase, {
+      tenantId,
+      action: "tenant.profile.update",
+      targetType: "tenant",
+      targetId: tenantId,
+      after: { display_name: displayName },
+    })
+
+    redirect(toAppUrl(redirectTo, { notice: "テナント情報を更新しました。" }))
+  } catch (error) {
+    redirect(
+      toAppUrl(String(formData.get("redirect_to") ?? ""), {
+        error: error instanceof Error ? error.message : "テナント情報の更新に失敗しました。",
+      })
+    )
+  }
+}
+
+export async function updateAuthEmailAction(formData: FormData) {
+  try {
+    const redirectTo = String(formData.get("redirect_to") ?? "")
+    const { supabase, tenantId, impersonation } = await getTenantContext(false)
+    if (impersonation?.active) {
+      throw new Error("代理閲覧モードでは編集できません。")
+    }
+
+    const nextEmail = String(formData.get("email") ?? "").trim().toLowerCase()
+    if (!isValidEmail(nextEmail)) {
+      throw new Error("有効なメールアドレスを入力してください。")
+    }
+
+    const { error } = await supabase.auth.updateUser({ email: nextEmail })
+    if (error) throw error
+
+    await writeAuditLog(supabase, {
+      tenantId,
+      action: "auth.email.update.requested",
+      targetType: "user",
+      after: { email: nextEmail },
+    })
+
+    redirect(
+      toAppUrl(redirectTo, {
+        notice: "メールアドレス変更リクエストを送信しました。確認メールをご確認ください。",
+      })
+    )
+  } catch (error) {
+    redirect(
+      toAppUrl(String(formData.get("redirect_to") ?? ""), {
+        error: error instanceof Error ? error.message : "メールアドレス変更に失敗しました。",
+      })
+    )
+  }
+}
+
+export async function updatePasswordAction(formData: FormData) {
+  try {
+    const redirectTo = String(formData.get("redirect_to") ?? "")
+    const { supabase, tenantId, impersonation } = await getTenantContext(false)
+    if (impersonation?.active) {
+      throw new Error("代理閲覧モードでは編集できません。")
+    }
+
+    const password = String(formData.get("password") ?? "")
+    const confirm = String(formData.get("password_confirm") ?? "")
+
+    if (password.length < 8) {
+      throw new Error("パスワードは8文字以上で入力してください。")
+    }
+    if (password !== confirm) {
+      throw new Error("確認用パスワードが一致しません。")
+    }
+
+    const { error } = await supabase.auth.updateUser({ password })
+    if (error) throw error
+
+    await writeAuditLog(supabase, {
+      tenantId,
+      action: "auth.password.updated",
+      targetType: "user",
+      after: { updated: true },
+    })
+
+    redirect(toAppUrl(redirectTo, { notice: "パスワードを更新しました。" }))
+  } catch (error) {
+    redirect(
+      toAppUrl(String(formData.get("redirect_to") ?? ""), {
+        error: error instanceof Error ? error.message : "パスワード更新に失敗しました。",
+      })
+    )
+  }
+}
 

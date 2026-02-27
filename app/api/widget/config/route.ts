@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
   const { data: bot } = await admin
     .from("bots")
     .select(
-      "id, public_id, status, is_public, access_mode, require_auth_for_hosted, widget_enabled, widget_mode, widget_position, widget_launcher_label, widget_policy_text, widget_redirect_new_tab"
+      "id, tenant_id, public_id, status, is_public, access_mode, require_auth_for_hosted, force_stopped, force_stop_reason, widget_enabled, widget_mode, widget_position, widget_launcher_label, widget_policy_text, widget_redirect_new_tab"
     )
     .eq("public_id", botPublicId)
     .maybeSingle()
@@ -46,6 +46,19 @@ export async function GET(request: NextRequest) {
     return withCors(NextResponse.json({ error: "bot not found" }, { status: 404 }), origin)
   }
 
+  const { data: tenantRow } = await admin
+    .from("tenants")
+    .select("id, force_stopped, force_stop_reason")
+    .eq("id", bot.tenant_id)
+    .maybeSingle()
+
+  if (tenantRow?.force_stopped) {
+    return withCors(NextResponse.json({ error: tenantRow.force_stop_reason ?? "tenant is force-stopped" }, { status: 423 }), origin)
+  }
+
+  if (bot.force_stopped) {
+    return withCors(NextResponse.json({ error: bot.force_stop_reason ?? "bot is force-stopped" }, { status: 423 }), origin)
+  }
   if (bot.status !== "ready" && bot.status !== "running") {
     return withCors(NextResponse.json({ error: "bot is not ready" }, { status: 409 }), origin)
   }
@@ -99,3 +112,4 @@ export async function GET(request: NextRequest) {
     origin
   )
 }
+

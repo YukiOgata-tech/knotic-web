@@ -1,11 +1,8 @@
 import Link from "next/link"
 
+import { ContactForm } from "@/components/contact/contact-form"
 import { CTASection, PageFrame } from "@/components/marketing/page-frame"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 
 export default function ContactPage() {
   return (
@@ -20,26 +17,7 @@ export default function ContactPage() {
             <CardTitle>相談フォーム</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="name">お名前</Label>
-              <Input id="name" placeholder="山田 太郎" />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="email">メールアドレス</Label>
-              <Input id="email" type="email" placeholder="you@example.com" />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="company">会社名</Label>
-              <Input id="company" placeholder="株式会社サンプル" />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="message">お問い合わせ内容</Label>
-              <Textarea
-                id="message"
-                placeholder="導入目的、対象データ、希望開始時期などを記載してください。"
-              />
-            </div>
-            <Button className="rounded-full">送信する（仮）</Button>
+            <ContactForm />
           </CardContent>
         </Card>
 

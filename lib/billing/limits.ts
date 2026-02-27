@@ -9,6 +9,7 @@ export type TenantPlanSnapshot = {
   maxStorageMb: number
   internalMaxBotsCap: number
   hasApi: boolean
+  billingMode: "stripe" | "bank_transfer" | "invoice" | "manual"
 }
 
 type NotificationPayload = {
@@ -24,6 +25,16 @@ type NotificationPayload = {
 const ACTIVE_SUBSCRIPTION_STATUSES = new Set(["trialing", "active", "past_due"])
 const BLOCKED_SUBSCRIPTION_STATUSES = new Set(["unpaid", "canceled", "paused", "incomplete"])
 
+type PlanRow = {
+  code: string
+  name: string
+  max_bots: number
+  max_monthly_messages: number
+  max_storage_mb: number
+  internal_max_bots_cap: number
+  has_api: boolean
+}
+
 export class QuotaError extends Error {
   code: "subscription_blocked" | "bot_limit" | "message_limit" | "storage_limit"
   constructor(code: QuotaError["code"], message: string) {
@@ -38,7 +49,52 @@ export function getMonthStartString() {
   return monthStart.toISOString().slice(0, 10)
 }
 
+function normalizePlans(plansRaw: unknown) {
+  return (Array.isArray(plansRaw) ? plansRaw[0] : plansRaw) as PlanRow | null
+}
+
+function toSnapshot(status: string, plans: PlanRow, billingMode: TenantPlanSnapshot["billingMode"]): TenantPlanSnapshot {
+  return {
+    subscriptionStatus: status,
+    planCode: plans.code,
+    planName: plans.name,
+    maxBots: plans.max_bots,
+    maxMonthlyMessages: plans.max_monthly_messages,
+    maxStorageMb: plans.max_storage_mb,
+    internalMaxBotsCap: plans.internal_max_bots_cap,
+    hasApi: plans.has_api,
+    billingMode,
+  }
+}
+
+async function getOverrideSnapshot(tenantId: string): Promise<TenantPlanSnapshot | null> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from("tenant_contract_overrides")
+    .select(
+      "status, billing_mode, effective_until, plans(code,name,max_bots,max_monthly_messages,max_storage_mb,internal_max_bots_cap,has_api)"
+    )
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle()
+
+  if (error || !data?.plans) return null
+
+  const effectiveUntil = data.effective_until ? new Date(String(data.effective_until)).getTime() : null
+  if (effectiveUntil && effectiveUntil <= Date.now()) return null
+
+  const plans = normalizePlans(data.plans)
+  if (!plans?.code) return null
+
+  const billingMode = (data.billing_mode as TenantPlanSnapshot["billingMode"] | null) ?? "manual"
+  return toSnapshot(data.status as string, plans, billingMode)
+}
+
 export async function getTenantPlanSnapshot(tenantId: string): Promise<TenantPlanSnapshot> {
+  const override = await getOverrideSnapshot(tenantId)
+  if (override) return override
+
   const admin = createAdminClient()
   const { data, error } = await admin
     .from("subscriptions")
@@ -52,33 +108,15 @@ export async function getTenantPlanSnapshot(tenantId: string): Promise<TenantPla
     .maybeSingle()
 
   if (error || !data?.plans) {
-    throw new Error("契約プラン情報が取得できませんでした。subscriptions / plans を確認してください。")
+    throw new Error("契約プラン情報が取得できませんでした。subscriptions / plans / overrides を確認してください。")
   }
 
-  const plansRaw = data.plans as unknown
-  const plans = (Array.isArray(plansRaw) ? plansRaw[0] : plansRaw) as {
-    code: string
-    name: string
-    max_bots: number
-    max_monthly_messages: number
-    max_storage_mb: number
-    internal_max_bots_cap: number
-    has_api: boolean
-  }
+  const plans = normalizePlans(data.plans)
   if (!plans?.code) {
     throw new Error("契約プラン情報が不正です。")
   }
 
-  return {
-    subscriptionStatus: data.status as string,
-    planCode: plans.code,
-    planName: plans.name,
-    maxBots: plans.max_bots,
-    maxMonthlyMessages: plans.max_monthly_messages,
-    maxStorageMb: plans.max_storage_mb,
-    internalMaxBotsCap: plans.internal_max_bots_cap,
-    hasApi: plans.has_api,
-  }
+  return toSnapshot(data.status as string, plans, "stripe")
 }
 
 export function assertSubscriptionOperational(plan: TenantPlanSnapshot) {

@@ -15,20 +15,29 @@ function SiteFooter() {
       </div>
       <Container className="relative z-10 grid max-w-none gap-8 px-4 sm:px-8 md:grid-cols-[1.2fr_1fr_1fr] xl:px-12">
         <div className="space-y-3">
-          <Image
-            src="/images/knotic-square-logo.png"
-            alt="knotic logo"
-            width={36}
-            height={36}
-            className="size-9 rounded-md"
-          />
+          <Link href="/" className="inline-flex items-center">
+            <span className="relative block aspect-[220/56] h-8 w-auto max-w-[52vw] sm:h-10">
+              <Image
+                src="/images/knotic-title.png"
+                alt="knotic"
+                fill
+                className="object-contain dark:hidden"
+              />
+              <Image
+                src="/images/knotic-title-whitetext.png"
+                alt="knotic"
+                fill
+                className="hidden object-contain dark:block"
+              />
+            </span>
+          </Link>
           <p className="max-w-md text-sm leading-7 text-muted-foreground">
             URLやPDFを投入するだけで、専用AIチャットボットを構築・公開できるサービスです。
           </p>
         </div>
 
         <div className="space-y-3">
-          <p className="text-sm font-semibold">Product</p>
+          <p className="text-sm font-semibold">- Product</p>
           <div className="grid gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">
             {headerLinks.map((item) => (
               <Link
@@ -49,7 +58,7 @@ function SiteFooter() {
         </div>
 
         <div className="space-y-3">
-          <p className="text-sm font-semibold">Company</p>
+          <p className="text-sm font-semibold">- Company</p>
           <div className="grid gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">
             <Link href="/contact" className="transition-colors hover:text-zinc-950 dark:hover:text-white">
               お問い合わせ
@@ -59,6 +68,9 @@ function SiteFooter() {
             </Link>
             <Link href="/terms" className="transition-colors hover:text-zinc-950 dark:hover:text-white">
               利用規約
+            </Link>
+            <Link href="/specified-commercial-transactions" className="transition-colors hover:text-zinc-950 dark:hover:text-white">
+              特定商取引法に基づく表記
             </Link>
             <Link href="/demo" className="transition-colors hover:text-zinc-950 dark:hover:text-white">
               デモ
@@ -75,3 +87,6 @@ function SiteFooter() {
 }
 
 export { SiteFooter }
+
+
+

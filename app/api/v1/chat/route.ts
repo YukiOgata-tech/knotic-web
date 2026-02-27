@@ -33,6 +33,8 @@ type BotRow = {
   is_public: boolean
   access_mode: "public" | "internal" | null
   require_auth_for_hosted: boolean | null
+  force_stopped: boolean | null
+  force_stop_reason: string | null
 }
 
 type SourceRow = {
@@ -99,7 +101,7 @@ export async function POST(request: NextRequest) {
 
   let botQuery = admin
     .from("bots")
-    .select("id, tenant_id, public_id, name, status, is_public, access_mode, require_auth_for_hosted")
+    .select("id, tenant_id, public_id, name, status, is_public, access_mode, require_auth_for_hosted, force_stopped, force_stop_reason")
     .limit(1)
   if (botPublicId) {
     botQuery = botQuery.eq("public_id", botPublicId)
@@ -112,6 +114,27 @@ export async function POST(request: NextRequest) {
   }
 
   const bot = botData as BotRow
+
+  const { data: tenantRow } = await admin
+    .from("tenants")
+    .select("id, force_stopped, force_stop_reason")
+    .eq("id", bot.tenant_id)
+    .maybeSingle()
+
+  if (tenantRow?.force_stopped) {
+    return NextResponse.json(
+      { error: tenantRow.force_stop_reason ?? "tenant is force-stopped by operator" },
+      { status: 423 }
+    )
+  }
+
+  if (bot.force_stopped) {
+    return NextResponse.json(
+      { error: bot.force_stop_reason ?? "bot is force-stopped by operator" },
+      { status: 423 }
+    )
+  }
+
   if (bot.status !== "ready" && bot.status !== "running") {
     return NextResponse.json(
       { error: "bot is not ready. please run indexing first." },
@@ -396,3 +419,4 @@ export async function POST(request: NextRequest) {
     },
   })
 }
+
