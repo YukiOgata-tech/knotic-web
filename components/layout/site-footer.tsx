@@ -6,8 +6,8 @@ import { Container } from "@/components/layout/container"
 
 function SiteFooter() {
   return (
-    <footer className="relative mt-12 overflow-hidden border-t border-black/10 bg-white/70 py-10 dark:border-white/10 dark:bg-slate-950/40">
-      <div className="pointer-events-none absolute inset-0 opacity-20 dark:hidden">
+    <footer className="relative mt-0 overflow-hidden border-t border-black/10 bg-white/70 py-10 dark:border-white/10 dark:bg-slate-950/40">
+      <div className="pointer-events-none absolute inset-0 opacity-60 dark:hidden">
         <Image src="/images/bg-001-l.png" alt="" fill className="object-cover" />
       </div>
       <div className="pointer-events-none absolute inset-0 hidden opacity-20 dark:block">
@@ -16,7 +16,7 @@ function SiteFooter() {
       <Container className="relative z-10 grid max-w-none gap-8 px-4 sm:px-8 md:grid-cols-[1.2fr_1fr_1fr] xl:px-12">
         <div className="space-y-3">
           <Link href="/" className="inline-flex items-center">
-            <span className="relative block aspect-[220/56] h-8 w-auto max-w-[52vw] sm:h-10">
+            <span className="relative block aspect-220/56 h-8 w-auto max-w-[52vw] sm:h-10">
               <Image
                 src="/images/knotic-title.png"
                 alt="knotic"
@@ -37,7 +37,7 @@ function SiteFooter() {
         </div>
 
         <div className="space-y-3">
-          <p className="text-sm font-semibold">- Product</p>
+          <p className="text-sm sm:text-md font-semibold">- Product</p>
           <div className="grid gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">
             {headerLinks.map((item) => (
               <Link

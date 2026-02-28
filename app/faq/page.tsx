@@ -12,13 +12,13 @@ export default function FaqPage() {
       title="よくある質問"
       description="埋め込み方法、共有URL公開、主な活用用途、料金感など、導入前によくいただく質問をまとめています。"
     >
-      <section className="relative overflow-hidden rounded-3xl border border-black/10 bg-white/70 p-4 dark:border-white/10 dark:bg-slate-900/45 sm:p-6">
-        <div className="relative z-10 mb-5 grid gap-4 rounded-2xl border border-black/10 bg-white/85 p-4 dark:border-white/10 dark:bg-slate-900/65 sm:p-5 lg:grid-cols-[1.05fr_0.95fr]">
+      <section className="-mx-4 space-y-5 border-y border-black/40 bg-white/80 px-4 py-6 dark:border-white/10 dark:bg-slate-900/70 sm:mx-0 sm:rounded-3xl sm:border sm:px-6 sm:py-8">
+        <div className="grid gap-4 rounded-2xl border border-black/10 bg-white/85 p-4 dark:border-white/10 dark:bg-slate-900/65 sm:p-5 lg:grid-cols-[1.05fr_0.95fr]">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.14em] text-cyan-700 dark:text-cyan-300">
               Quick Guide
             </p>
-            <p className="mt-2 text-lg font-semibold leading-8 text-zinc-900 dark:text-zinc-100">
+            <p className="mt-2 text-base font-semibold leading-7 text-zinc-900 dark:text-zinc-100 sm:text-lg sm:leading-8">
               まずは「埋め込み方法」と「料金・公開範囲」を確認するのがおすすめです。
             </p>
           </div>
@@ -28,9 +28,7 @@ export default function FaqPage() {
             <p>・改善運用: FAQ追加と再インデックスを定期化する</p>
           </div>
         </div>
-        <div className="relative z-10">
-          <FaqAccordion items={faqs} />
-        </div>
+        <FaqAccordion items={faqs} compactMobile />
       </section>
 
       <section className="mt-8 rounded-2xl border border-black/10 bg-white/80 p-6 dark:border-white/10 dark:bg-slate-900/70 sm:p-8">

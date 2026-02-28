@@ -17,17 +17,26 @@ function PageFrame({
   children: React.ReactNode
 }) {
   return (
-    <div className="font-jp relative overflow-x-clip bg-[linear-gradient(180deg,#fff9ee_0%,#ffffff_40%,#f7fbff_100%)] dark:bg-[linear-gradient(180deg,#0f172a_0%,#0b1220_45%,#0a0f1a_100%)]">
-      <div className="pointer-events-none absolute inset-x-0 -top-24 h-80 bg-[radial-gradient(circle_at_20%_40%,rgba(255,166,0,.16),transparent_55%),radial-gradient(circle_at_78%_12%,rgba(6,182,212,.16),transparent_52%)] dark:bg-[radial-gradient(circle_at_20%_40%,rgba(250,204,21,.12),transparent_55%),radial-gradient(circle_at_78%_12%,rgba(34,211,238,.16),transparent_52%)]" />
-      <Container className="relative py-10 sm:py-14">
-        <section className="rounded-3xl border border-black/10 bg-white/85 p-3 shadow-sm dark:border-white/10 dark:bg-slate-900/70 sm:p-10">
-          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-cyan-700 dark:text-cyan-300">
-            {eyebrow}
-          </p>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">{title}</h1>
-          <p className="mt-4 max-w-3xl leading-8 text-zinc-600 dark:text-zinc-300">{description}</p>
-        </section>
-        <div className="mt-8">{children}</div>
+    <div className="font-jp relative overflow-x-clip bg-[linear-gradient(180deg,#fff8ee_0%,#ffffff_46%,#f5faff_100%)] dark:bg-[linear-gradient(180deg,#091122_0%,#0a1324_40%,#090f1b_100%)]">
+      <section className="relative isolate border-b border-black/10 dark:border-white/10">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_6%_30%,rgba(251,191,36,.24),transparent_36%),radial-gradient(circle_at_88%_22%,rgba(6,182,212,.22),transparent_36%),linear-gradient(130deg,rgba(255,255,255,.76),rgba(255,255,255,.35))] dark:bg-[radial-gradient(circle_at_6%_30%,rgba(250,204,21,.18),transparent_36%),radial-gradient(circle_at_88%_22%,rgba(34,211,238,.2),transparent_38%),linear-gradient(130deg,rgba(8,20,38,.9),rgba(8,20,38,.55))]" />
+        <div className="pointer-events-none absolute inset-0 opacity-50 bg-[linear-gradient(to_right,rgba(15,23,42,.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,23,42,.08)_1px,transparent_1px)] bg-size-[42px_42px] dark:opacity-25" />
+        <Container size="wide" className="relative py-6 sm:py-16 lg:py-20">
+          <div className="max-w-4xl">
+            <p className="inline-flex rounded-full border border-cyan-500/30 bg-white/70 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-800 backdrop-blur dark:border-cyan-300/35 dark:bg-slate-900/55 dark:text-cyan-100">
+              {eyebrow}
+            </p>
+            <h1 className="mt-5 text-4xl font-semibold tracking-tight text-zinc-950 sm:text-5xl lg:text-6xl dark:text-zinc-50">
+              {title}
+            </h1>
+            <p className="mt-5 max-w-3xl text-base leading-8 text-zinc-700 sm:text-lg dark:text-zinc-200">
+              {description}
+            </p>
+          </div>
+        </Container>
+      </section>
+      <Container size="wide" className="relative py-8 sm:py-10">
+        <div>{children}</div>
       </Container>
     </div>
   )
@@ -35,7 +44,7 @@ function PageFrame({
 
 function CTASection() {
   return (
-    <section className="rounded-3xl bg-zinc-900 px-6 py-9 text-white dark:bg-cyan-950/40 dark:ring-1 dark:ring-cyan-400/30 sm:px-8">
+    <section className="rounded-3xl bg-zinc-900 px-6 py-4 sm:py-9 text-white dark:bg-cyan-950/40 dark:ring-1 dark:ring-cyan-400/30 sm:px-8">
       <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
         実際にAIボットを公開してみよう!
       </h2>

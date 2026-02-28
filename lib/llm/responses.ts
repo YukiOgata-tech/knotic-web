@@ -29,7 +29,6 @@ function getOpenAiApiKey() {
 
 function normalizeTurns(conversation: ConversationTurn[] | undefined) {
   const turns = (conversation ?? [])
-    .slice(-8)
     .map((item) => ({
       role: item.role,
       content: [{ type: "input_text", text: item.content.slice(0, 4000) }],
@@ -119,4 +118,3 @@ export async function generateAnswer(params: GenerateAnswerParams) {
     }
   }
 }
-

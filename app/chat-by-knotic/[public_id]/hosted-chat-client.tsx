@@ -45,6 +45,7 @@ type Props = {
   disablePersistence?: boolean
   widgetToken?: string
   embedded?: boolean
+  authenticatedMode?: boolean
 }
 
 const STORAGE_KEY_PREFIX = "knotic_hosted_chat_v1_"
@@ -97,6 +98,7 @@ export function HostedChatClient({
   disablePersistence = false,
   widgetToken,
   embedded = false,
+  authenticatedMode = false,
 }: Props) {
   const [messages, setMessages] = React.useState<Message[]>([
     firstAssistantMessage(welcomeMessage),
@@ -107,13 +109,18 @@ export function HostedChatClient({
   const bottomRef = React.useRef<HTMLDivElement | null>(null)
   const storageKey = React.useMemo(() => `${STORAGE_KEY_PREFIX}${botPublicId}`, [botPublicId])
   const retentionMs = retentionHours * 60 * 60 * 1000
+  const [rooms, setRooms] = React.useState<Array<{ id: string; title: string; updated_at: string }>>([])
+  const [currentRoomId, setCurrentRoomId] = React.useState<string | null>(null)
+  const [roomsLoading, setRoomsLoading] = React.useState(false)
 
   React.useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
   }, [messages, loading])
 
+  const localPersistenceDisabled = disablePersistence || authenticatedMode
+
   React.useEffect(() => {
-    if (disablePersistence) return
+    if (localPersistenceDisabled) return
     try {
       const raw = window.localStorage.getItem(storageKey)
       if (!raw) return
@@ -132,10 +139,10 @@ export function HostedChatClient({
     } catch {
       window.localStorage.removeItem(storageKey)
     }
-  }, [disablePersistence, storageKey])
+  }, [localPersistenceDisabled, storageKey])
 
   React.useEffect(() => {
-    if (disablePersistence) return
+    if (localPersistenceDisabled) return
     try {
       const now = Date.now()
       let expiresAt = now + retentionMs
@@ -151,16 +158,86 @@ export function HostedChatClient({
     } catch {
       // ignore localStorage errors
     }
-  }, [disablePersistence, messages, retentionMs, storageKey])
+  }, [localPersistenceDisabled, messages, retentionMs, storageKey])
 
   React.useEffect(() => {
-    if (!disablePersistence) return
+    if (!localPersistenceDisabled) return
     setMessages((prev) => {
       if (prev.length !== 1 || prev[0]?.role !== "assistant") return prev
       if (prev[0].content === welcomeMessage) return prev
       return [{ ...prev[0], content: welcomeMessage }]
     })
-  }, [disablePersistence, welcomeMessage])
+  }, [localPersistenceDisabled, welcomeMessage])
+
+  const loadRooms = React.useCallback(async () => {
+    if (!authenticatedMode) return
+    setRoomsLoading(true)
+    try {
+      const res = await fetch(`/api/hosted/rooms?botPublicId=${encodeURIComponent(botPublicId)}`, { cache: "no-store" })
+      const data = (await res.json()) as { rooms?: Array<{ id: string; title: string; updated_at: string }>; error?: string }
+      if (!res.ok) throw new Error(data.error ?? "ルーム取得に失敗しました。")
+      const next = data.rooms ?? []
+      setRooms(next)
+      if (!currentRoomId && next.length > 0) {
+        setCurrentRoomId(next[0].id)
+      }
+      if (!currentRoomId && next.length === 0) {
+        const created = await fetch("/api/hosted/rooms", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ botPublicId }),
+        })
+        const createdData = (await created.json()) as { room?: { id: string; title: string; updated_at: string }; error?: string }
+        if (!created.ok || !createdData.room) throw new Error(createdData.error ?? "初期ルーム作成に失敗しました。")
+        setRooms([createdData.room])
+        setCurrentRoomId(createdData.room.id)
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "ルーム取得に失敗しました。")
+    } finally {
+      setRoomsLoading(false)
+    }
+  }, [authenticatedMode, botPublicId, currentRoomId])
+
+  const loadRoomMessages = React.useCallback(async () => {
+    if (!authenticatedMode || !currentRoomId) return
+    try {
+      const res = await fetch(
+        `/api/hosted/messages?botPublicId=${encodeURIComponent(botPublicId)}&roomId=${encodeURIComponent(currentRoomId)}`,
+        { cache: "no-store" }
+      )
+      const data = (await res.json()) as {
+        messages?: Array<{ id: string | number; role: "assistant" | "user"; content: string; citations?: Citation[] }>
+        error?: string
+      }
+      if (!res.ok) throw new Error(data.error ?? "メッセージ取得に失敗しました。")
+      const list = data.messages ?? []
+      if (list.length === 0) {
+        setMessages([firstAssistantMessage(welcomeMessage)])
+        return
+      }
+      setMessages(
+        list.map((item) => ({
+          id: String(item.id),
+          role: item.role,
+          content: item.content,
+          citations: item.role === "assistant" ? item.citations ?? [] : undefined,
+        }))
+      )
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "メッセージ取得に失敗しました。")
+    }
+  }, [authenticatedMode, botPublicId, currentRoomId, welcomeMessage])
+
+  React.useEffect(() => {
+    if (!authenticatedMode) return
+    void loadRooms()
+  }, [authenticatedMode, loadRooms])
+
+  React.useEffect(() => {
+    if (!authenticatedMode) return
+    void loadRoomMessages()
+  }, [authenticatedMode, loadRoomMessages])
 
   function clearHistory() {
     window.localStorage.removeItem(storageKey)
@@ -185,15 +262,14 @@ export function HostedChatClient({
         .slice(-historyTurnLimit)
         .map((m) => ({ role: m.role, content: m.content }))
 
-      const res = await fetch("/api/v1/chat", {
+      const endpoint = authenticatedMode ? "/api/hosted/chat" : "/api/v1/chat"
+      const payload = authenticatedMode
+        ? { botPublicId, roomId: currentRoomId, message: trimmed }
+        : { botPublicId, message: trimmed, conversation, widgetToken }
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          botPublicId,
-          message: trimmed,
-          conversation,
-          widgetToken,
-        }),
+        body: JSON.stringify(payload),
       })
 
       const data = (await res.json()) as {
@@ -215,10 +291,31 @@ export function HostedChatClient({
           citations: data.citations ?? [],
         },
       ])
+      if (authenticatedMode) {
+        void loadRooms()
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "不明なエラーが発生しました。")
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function createRoom() {
+    if (!authenticatedMode || loading) return
+    try {
+      const res = await fetch("/api/hosted/rooms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ botPublicId }),
+      })
+      const data = (await res.json()) as { room?: { id: string; title: string; updated_at: string }; error?: string }
+      if (!res.ok || !data.room) throw new Error(data.error ?? "ルーム作成に失敗しました。")
+      setRooms((prev) => [data.room!, ...prev])
+      setCurrentRoomId(data.room.id)
+      setMessages([firstAssistantMessage(welcomeMessage)])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "ルーム作成に失敗しました。")
     }
   }
 
@@ -235,6 +332,34 @@ export function HostedChatClient({
           </Badge>
         </div>
       </Card>
+
+      {authenticatedMode ? (
+        <Card className="border-black/10 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-sm font-medium">チャットルーム</p>
+            <Button size="sm" variant="outline" className="rounded-full" onClick={() => void createRoom()}>
+              新規ルーム
+            </Button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {roomsLoading ? <span className="text-xs text-muted-foreground">読み込み中...</span> : null}
+            {rooms.map((room) => (
+              <button
+                key={room.id}
+                type="button"
+                onClick={() => setCurrentRoomId(room.id)}
+                className={`rounded-full border px-3 py-1 text-xs ${
+                  currentRoomId === room.id
+                    ? "border-cyan-500 bg-cyan-50 text-cyan-800 dark:bg-cyan-950/40 dark:text-cyan-200"
+                    : "border-black/15 text-zinc-700 dark:border-white/20 dark:text-zinc-200"
+                }`}
+              >
+                {room.title}
+              </button>
+            ))}
+          </div>
+        </Card>
+      ) : null}
 
       <Card className={embedded ? "flex h-[calc(100%-4.5rem)] min-h-[500px] flex-col border-black/10 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80 sm:p-4" : "flex min-h-[62vh] flex-col border-black/10 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80 sm:p-4"}>
         <div className="flex-1 space-y-3 overflow-y-auto pr-1">
@@ -313,7 +438,7 @@ export function HostedChatClient({
               disabled={loading}
               className="h-11"
             />
-            <Button onClick={() => void sendMessage()} disabled={loading || input.trim().length === 0} className="h-11 rounded-full px-5">
+            <Button onClick={() => void sendMessage()} disabled={loading || input.trim().length === 0 || (authenticatedMode && !currentRoomId)} className="h-11 rounded-full px-5">
               送信
             </Button>
           </div>

@@ -1,4 +1,5 @@
 import { AlertCircle } from "lucide-react"
+import Link from "next/link"
 
 import { LogoutButton } from "@/components/auth/logout-button"
 import { Container } from "@/components/layout/container"
@@ -8,6 +9,9 @@ import { boolBadge } from "@/app/console/_lib/ui"
 import { ConsoleNav } from "@/app/console/_components/console-nav"
 import { MobileDesktopRecommendModal } from "@/app/console/_components/mobile-desktop-recommend-modal"
 import { stopImpersonationAction } from "@/app/sub-domain/actions"
+import { createTenantWorkspaceAction } from "@/app/console/actions"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 
 export default async function ConsoleLayout({ children }: { children: React.ReactNode }) {
   const { user, membership, membershipError, impersonation } = await requireConsoleContext()
@@ -20,16 +24,48 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <AlertCircle className="size-5 text-amber-600" />
-                テナント情報が取得できません
+                利用開始の設定をしてください
               </CardTitle>
-              <CardDescription>
-                `supabase/schema.sql` 実行後、必要であれば `supabase/patch-20260224-current-user-tenant-ids-definer.sql` も実行してください。
-              </CardDescription>
+              <CardDescription>このアカウントはまだテナント未所属です。以下から開始方法を選んでください。</CardDescription>
             </CardHeader>
-            <CardContent className="text-sm text-amber-900 dark:text-amber-200">
+            <CardContent className="grid gap-4 text-sm text-amber-900 dark:text-amber-200">
               <p>ログインユーザー: {user.email}</p>
-              <p>エラー: {membershipError?.message ?? "tenant_memberships が空です。"}</p>
-              <div className="mt-4">
+              <div className="grid gap-2 rounded-lg border border-amber-300/60 bg-white/70 p-3 dark:border-amber-500/35 dark:bg-slate-900/40">
+                <p className="font-medium">1) テナントを新規作成（オーナー開始）</p>
+                <form action={createTenantWorkspaceAction} className="flex flex-wrap items-center gap-2">
+                  <input type="hidden" name="redirect_to" value="/console/overview" />
+                  <Input
+                    name="display_name"
+                    required
+                    placeholder="会社名 / 組織名"
+                    className="max-w-sm bg-white dark:bg-slate-900"
+                  />
+                  <Button type="submit" className="rounded-full">
+                    テナント作成
+                  </Button>
+                </form>
+              </div>
+              <div className="grid gap-2 rounded-lg border border-amber-300/60 bg-white/70 p-3 dark:border-amber-500/35 dark:bg-slate-900/40">
+                <p className="font-medium">2) 招待リンクで参加</p>
+                <form method="get" action="/invite" className="flex flex-wrap items-center gap-2">
+                  <Input
+                    name="token"
+                    required
+                    placeholder="招待トークンを入力"
+                    className="max-w-sm bg-white dark:bg-slate-900"
+                  />
+                  <Button type="submit" variant="outline" className="rounded-full">
+                    参加する
+                  </Button>
+                </form>
+                <p className="text-xs text-amber-800 dark:text-amber-300">
+                  受け取った招待URLがある場合は、そのまま開いても参加できます。
+                </p>
+              </div>
+              <div className="mt-2 flex items-center gap-3">
+                <Link href="/" className="text-sm underline underline-offset-4">
+                  トップへ戻る
+                </Link>
                 <LogoutButton />
               </div>
             </CardContent>

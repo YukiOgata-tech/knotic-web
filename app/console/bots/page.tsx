@@ -37,6 +37,7 @@ export default async function ConsoleBotsPage({ searchParams }: PageProps) {
   if (!membership) return null
   const data = await fetchConsoleData(membership.tenant_id)
   const isEditor = membership.role === "editor"
+  const maxHistoryTurnLimit = data.currentPlan?.code === "lite" ? 20 : 30
 
   const widgetSnippet =
     widgetToken && widgetBotPublicId
@@ -167,6 +168,7 @@ export default async function ConsoleBotsPage({ searchParams }: PageProps) {
                   bot={bot}
                   isEditor={isEditor}
                   hasHostedPage={Boolean(data.currentPlan?.has_hosted_page)}
+                  maxHistoryTurnLimit={maxHistoryTurnLimit}
                   saveAction={updateHostedConfigAction}
                 />
               ))}

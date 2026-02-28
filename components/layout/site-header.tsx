@@ -1,6 +1,10 @@
+"use client"
+
 import Image from "next/image"
 import Link from "next/link"
 import { Menu } from "lucide-react"
+import { useEffect, useState } from "react"
+import { usePathname } from "next/navigation"
 
 import { HeaderAuthActions } from "@/components/auth/auth-aware"
 import { headerLinks } from "@/lib/marketing-content"
@@ -9,11 +13,18 @@ import { Container } from "@/components/layout/container"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 
 function SiteHeader() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const pathname = usePathname()
+
+  useEffect(() => {
+    setMobileMenuOpen(false)
+  }, [pathname])
+
   return (
     <header className="sticky top-0 z-40 border-b border-black/50 bg-white/80 backdrop-blur-md dark:border-white/50 dark:bg-slate-950/75">
       <Container className="flex h-16 max-w-none items-center justify-between gap-3 px-4 sm:px-8 xl:px-12">
         <Link href="/" className="flex shrink-0 items-center">
-          <span className="relative block aspect-[220/56] h-8 w-auto max-w-[46vw] sm:h-12 md:h-14">
+          <span className="relative block aspect-220/56 h-8 w-auto max-w-[46vw] sm:h-12 md:h-14">
             <Image
               src="/images/knotic-title.png"
               alt="knotic"
@@ -44,7 +55,7 @@ function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          <Sheet>
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild>
               <Button
                 variant="outline"
@@ -55,14 +66,24 @@ function SiteHeader() {
                 <Menu className="size-4" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="p-0">
+            <SheetContent side="right" className="overflow-hidden p-0">
               <SheetTitle className="sr-only">モバイルメニュー</SheetTitle>
-              <div className="flex h-full flex-col px-6 py-8">
+              <div className="pointer-events-none absolute inset-0">
+                <div className="absolute inset-0 bg-white/88 dark:bg-slate-950/86" />
+                <Image
+                  src="/images/knotic-square-logo.png"
+                  alt=""
+                  fill
+                  className="object-contain p-8 opacity-[0.13] dark:opacity-[0.16]"
+                />
+              </div>
+              <div className="relative z-10 flex h-full flex-col px-6 py-8">
                 <div className="space-y-1">
                   {headerLinks.map((item) => (
                     <Link
                       key={item.href}
                       href={item.href}
+                      onClick={() => setMobileMenuOpen(false)}
                       className="block rounded-lg px-3 py-3 text-base font-medium text-zinc-700 transition-colors hover:bg-muted hover:text-zinc-950 dark:text-zinc-200 dark:hover:text-white"
                     >
                       {item.label}

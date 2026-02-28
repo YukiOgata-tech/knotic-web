@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 import {
   assertTenantCanConsumeMessage,
+  assertTenantCanUseHostedPage,
   createTenantNotification,
   getMonthStartString,
   getTenantMonthlyMessages,
@@ -35,6 +36,10 @@ type BotRow = {
   require_auth_for_hosted: boolean | null
   force_stopped: boolean | null
   force_stop_reason: string | null
+  history_turn_limit: number | null
+  ai_model: string | null
+  ai_fallback_model: string | null
+  ai_max_output_tokens: number | null
 }
 
 type SourceRow = {
@@ -85,6 +90,23 @@ function estimateTokens(text: string) {
   return Math.max(1, Math.ceil(text.length / 4))
 }
 
+function getHistoryTurnLimitCap(planCode: string) {
+  return planCode === "lite" ? 20 : 30
+}
+
+function normalizeConversation(
+  conversation: ConversationTurn[] | undefined,
+  maxTurns: number
+): ConversationTurn[] {
+  const turns = Array.isArray(conversation) ? conversation : []
+  return turns
+    .filter(
+      (turn): turn is ConversationTurn =>
+        (turn.role === "user" || turn.role === "assistant") && typeof turn.content === "string"
+    )
+    .slice(-Math.max(1, maxTurns))
+}
+
 export async function POST(request: NextRequest) {
   const admin = createAdminClient()
   const body = (await request.json().catch(() => ({}))) as ChatRequest
@@ -101,7 +123,7 @@ export async function POST(request: NextRequest) {
 
   let botQuery = admin
     .from("bots")
-    .select("id, tenant_id, public_id, name, status, is_public, access_mode, require_auth_for_hosted, force_stopped, force_stop_reason")
+    .select("id, tenant_id, public_id, name, status, is_public, access_mode, require_auth_for_hosted, force_stopped, force_stop_reason, history_turn_limit, ai_model, ai_fallback_model, ai_max_output_tokens")
     .limit(1)
   if (botPublicId) {
     botQuery = botQuery.eq("public_id", botPublicId)
@@ -211,6 +233,17 @@ export async function POST(request: NextRequest) {
     authMode = "public"
   }
 
+  if (authMode === "public" || authMode === "internal_user") {
+    try {
+      await assertTenantCanUseHostedPage(bot.tenant_id, bot.id)
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "hosted url unavailable" },
+        { status: 403 }
+      )
+    }
+  }
+
   try {
     await assertTenantCanConsumeMessage(bot.tenant_id)
   } catch (error) {
@@ -228,19 +261,26 @@ export async function POST(request: NextRequest) {
 
   const configuredDefaultModel = aiSettings?.ai_default_model as string | undefined
   const configuredFallbackModel = aiSettings?.ai_fallback_model as string | undefined
-  const defaultModel =
-    configuredDefaultModel && ALLOWED_MODELS.has(configuredDefaultModel)
-      ? configuredDefaultModel
-      : "5-mini"
-  const fallbackModel =
-    configuredFallbackModel && ALLOWED_MODELS.has(configuredFallbackModel)
+  const defaultModel = normalizeModel(
+    bot.ai_model ?? configuredDefaultModel ?? "5-mini",
+    "5-mini"
+  )
+  const fallbackModel = bot.ai_fallback_model
+    ? normalizeModel(bot.ai_fallback_model, defaultModel)
+    : configuredFallbackModel && ALLOWED_MODELS.has(configuredFallbackModel)
       ? configuredFallbackModel
       : null
   const allowOverride = Boolean(aiSettings?.ai_allow_model_override)
   const selectedModel = allowOverride
     ? normalizeModel(body.model, defaultModel)
     : defaultModel
-  const maxOutputTokens = Number(aiSettings?.ai_max_output_tokens ?? 900)
+  const maxOutputTokens = Number(bot.ai_max_output_tokens ?? aiSettings?.ai_max_output_tokens ?? 900)
+  const plan = await getTenantPlanSnapshot(bot.tenant_id)
+  const conversationLimit = Math.min(
+    getHistoryTurnLimitCap(plan.planCode),
+    Math.max(1, bot.history_turn_limit ?? 8)
+  )
+  const normalizedConversation = normalizeConversation(body.conversation, conversationLimit)
 
   const [queryEmbedding] = await createEmbeddings([message])
   const vector = `[${queryEmbedding.join(",")}]`
@@ -298,7 +338,7 @@ export async function POST(request: NextRequest) {
     fallbackModel,
     systemPrompt,
     userPrompt,
-    conversation: body.conversation ?? [],
+    conversation: normalizedConversation,
     maxOutputTokens: Number.isFinite(maxOutputTokens) ? maxOutputTokens : 900,
   })
 
@@ -389,7 +429,6 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const plan = await getTenantPlanSnapshot(bot.tenant_id)
   const usedMessages = await getTenantMonthlyMessages(bot.tenant_id)
   const threshold = Math.floor(plan.maxMonthlyMessages * 0.8)
   if (usedMessages >= threshold) {

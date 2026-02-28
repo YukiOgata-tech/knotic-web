@@ -76,7 +76,10 @@ export function LoginForm() {
         {loading ? "ログイン中..." : "ログイン"}
       </Button>
       <Button asChild variant="ghost" className="rounded-full">
-        <Link href="/signup">アカウント作成はこちら</Link>
+        <Link href="/signup">オーナーアカウント作成</Link>
+      </Button>
+      <Button asChild variant="ghost" className="rounded-full">
+        <Link href="/signup-user">knoticユーザー作成</Link>
       </Button>
     </form>
   )

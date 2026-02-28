@@ -3,12 +3,18 @@
 import crypto from "node:crypto"
 import { redirect } from "next/navigation"
 
-import { assertTenantCanCreateBot, assertTenantCanIndexData } from "@/lib/billing/limits"
+import {
+  assertTenantCanCreateBot,
+  assertTenantCanIndexData,
+  assertTenantCanUseHostedPage,
+  getTenantPlanSnapshot,
+} from "@/lib/billing/limits"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { processQueuedIndexingJobs } from "@/lib/indexing/pipeline"
 import { createClient } from "@/lib/supabase/server"
 import { writeAuditLog } from "@/app/console/_lib/audit"
 import { requireConsoleContext } from "@/app/console/_lib/data"
+import { getAppUrl } from "@/lib/env"
 
 const ALLOWED_MODELS = [
   "5-nano",
@@ -75,6 +81,10 @@ function normalizeWidgetMode(value: string) {
 
 function normalizeWidgetPosition(value: string) {
   return value === "right-top" ? "right-top" : "right-bottom"
+}
+
+function getHistoryTurnLimitCap(planCode: string | null | undefined) {
+  return planCode === "lite" ? 20 : 30
 }
 
 async function getTenantContext(requireEditor = false) {
@@ -595,6 +605,7 @@ export async function updateHostedConfigAction(formData: FormData) {
     if (!botId) {
       redirect(toAppUrl(redirectTo, { error: "Botが指定されていません。" }))
     }
+    await assertTenantCanUseHostedPage(tenantId, botId)
 
     const chatPurpose = normalizeChatPurpose(String(formData.get("chat_purpose") ?? "customer_support").trim())
     const accessMode = normalizeAccessMode(String(formData.get("access_mode") ?? "public").trim())
@@ -615,9 +626,18 @@ export async function updateHostedConfigAction(formData: FormData) {
     const widgetLauncherLabel = String(formData.get("widget_launcher_label") ?? "").trim()
     const widgetPolicyText = String(formData.get("widget_policy_text") ?? "").trim()
     const widgetRedirectNewTab = String(formData.get("widget_redirect_new_tab") ?? "") === "on"
+    const aiModel = normalizeModel(String(formData.get("ai_model") ?? "5-mini"), "5-mini")
+    const aiFallbackRaw = String(formData.get("ai_fallback_model") ?? "").trim()
+    const aiFallbackModel = aiFallbackRaw === "" ? null : normalizeModel(aiFallbackRaw, "5-mini")
+    const aiMaxOutputTokensRaw = Number(formData.get("ai_max_output_tokens") ?? 1200)
+    const aiMaxOutputTokens = Number.isFinite(aiMaxOutputTokensRaw)
+      ? Math.max(200, Math.min(4000, Math.floor(aiMaxOutputTokensRaw)))
+      : 1200
+    const plan = await getTenantPlanSnapshot(tenantId)
+    const historyTurnLimitCap = getHistoryTurnLimitCap(plan.planCode)
     const normalizedLimit = Number.isFinite(historyTurnLimit)
-      ? Math.max(1, Math.min(30, Math.floor(historyTurnLimit)))
-      : 8
+      ? Math.max(1, Math.min(historyTurnLimitCap, Math.floor(historyTurnLimit)))
+      : Math.min(8, historyTurnLimitCap)
 
     const { error } = await supabase
       .from("bots")
@@ -643,6 +663,9 @@ export async function updateHostedConfigAction(formData: FormData) {
           widgetPolicyText ||
           "このチャット履歴はブラウザ上で24時間保持され、自動的に削除されます。",
         widget_redirect_new_tab: widgetRedirectNewTab,
+        ai_model: aiModel,
+        ai_fallback_model: aiFallbackModel,
+        ai_max_output_tokens: aiMaxOutputTokens,
       })
       .eq("id", botId)
 
@@ -661,6 +684,9 @@ export async function updateHostedConfigAction(formData: FormData) {
         widget_enabled: widgetEnabled,
         widget_mode: widgetMode,
         widget_position: widgetPosition,
+        ai_model: aiModel,
+        ai_fallback_model: aiFallbackModel,
+        ai_max_output_tokens: aiMaxOutputTokens,
       },
     })
     redirect(toAppUrl(redirectTo, { notice: "Hostedチャット設定を更新しました。" }))
@@ -701,6 +727,102 @@ function normalizeTenantDisplayName(value: string) {
   if (v.length < 2) throw new Error("テナント名は2文字以上で入力してください。")
   if (v.length > 80) throw new Error("テナント名は80文字以内で入力してください。")
   return v
+}
+
+function slugifyTenantName(value: string) {
+  const base = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+  return base || "tenant"
+}
+
+export async function createTenantWorkspaceAction(formData: FormData) {
+  try {
+    const redirectTo = String(formData.get("redirect_to") ?? "/console")
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      throw new Error("ログインが必要です。")
+    }
+
+    const admin = createAdminClient()
+    const displayName = normalizeTenantDisplayName(String(formData.get("display_name") ?? ""))
+    const seed = slugifyTenantName(displayName)
+
+    const { data: existingMembership } = await admin
+      .from("tenant_memberships")
+      .select("tenant_id")
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle()
+
+    if (existingMembership?.tenant_id) {
+      throw new Error("すでに所属テナントがあります。")
+    }
+
+    let tenantId: string | null = null
+    let attempt = 0
+    while (!tenantId && attempt < 5) {
+      const suffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`
+      const slug = `${seed}-${suffix}`.slice(0, 56)
+      const { data: created, error: tenantError } = await admin
+        .from("tenants")
+        .insert({
+          slug,
+          display_name: displayName,
+          owner_user_id: user.id,
+        })
+        .select("id")
+        .single()
+
+      if (!tenantError && created?.id) {
+        tenantId = created.id as string
+        break
+      }
+      attempt += 1
+    }
+
+    if (!tenantId) {
+      throw new Error("テナント作成に失敗しました。もう一度お試しください。")
+    }
+
+    const { error: membershipError } = await admin.from("tenant_memberships").insert({
+      tenant_id: tenantId,
+      user_id: user.id,
+      role: "editor",
+      is_active: true,
+    })
+    if (membershipError) throw membershipError
+
+    await admin
+      .from("profiles")
+      .upsert({
+        user_id: user.id,
+        full_name: (user.user_metadata?.full_name as string | undefined) ?? null,
+        default_tenant_id: tenantId,
+      })
+
+    await writeAuditLog(admin, {
+      tenantId,
+      action: "tenant.create",
+      targetType: "tenant",
+      targetId: tenantId,
+      after: { display_name: displayName },
+    })
+
+    redirect(toAppUrl(redirectTo, { notice: "テナントを作成しました。" }))
+  } catch (error) {
+    redirect(
+      toAppUrl(String(formData.get("redirect_to") ?? "/console"), {
+        error: error instanceof Error ? error.message : "テナント作成に失敗しました。",
+      })
+    )
+  }
 }
 
 export async function updateTenantProfileAction(formData: FormData) {
@@ -813,3 +935,100 @@ export async function updatePasswordAction(formData: FormData) {
   }
 }
 
+export async function createMemberInviteAction(formData: FormData) {
+  try {
+    const redirectTo = String(formData.get("redirect_to") ?? "")
+    const { tenantId, user } = await getTenantContext(true)
+    const admin = createAdminClient()
+    const email = String(formData.get("email") ?? "").trim().toLowerCase()
+    const role: "reader" = "reader"
+
+    if (!isValidEmail(email)) {
+      throw new Error("有効なメールアドレスを入力してください。")
+    }
+
+    const token = `inv_${crypto.randomBytes(24).toString("base64url")}`
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex")
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+
+    const { error } = await admin
+      .from("tenant_member_invites")
+      .upsert(
+        {
+          tenant_id: tenantId,
+          email,
+          role,
+          token_hash: tokenHash,
+          status: "pending",
+          invited_by: user.id,
+          expires_at: expiresAt,
+          accepted_at: null,
+          accepted_by: null,
+        },
+        { onConflict: "tenant_id,email" }
+      )
+
+    if (error) {
+      throw new Error("招待作成に失敗しました。patch SQLの適用状態を確認してください。")
+    }
+
+    await writeAuditLog(admin, {
+      tenantId,
+      action: "tenant.member.invite.create",
+      targetType: "tenant_member_invite",
+      after: { email, role, expires_at: expiresAt },
+    })
+
+    const appUrl = getAppUrl().replace(/\/$/, "")
+    const inviteUrl = `${appUrl}/invite?token=${encodeURIComponent(token)}`
+
+    redirect(
+      toAppUrl(redirectTo, {
+        notice: "招待リンクを発行しました。共有してください。",
+        invite_link: inviteUrl,
+      })
+    )
+  } catch (error) {
+    redirect(
+      toAppUrl(String(formData.get("redirect_to") ?? ""), {
+        error: error instanceof Error ? error.message : "招待作成に失敗しました。",
+      })
+    )
+  }
+}
+
+export async function revokeMemberInviteAction(formData: FormData) {
+  try {
+    const redirectTo = String(formData.get("redirect_to") ?? "")
+    const { tenantId } = await getTenantContext(true)
+    const inviteId = String(formData.get("invite_id") ?? "")
+    const admin = createAdminClient()
+
+    const { error } = await admin
+      .from("tenant_member_invites")
+      .update({
+        status: "revoked",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", inviteId)
+      .eq("tenant_id", tenantId)
+
+    if (error) throw error
+
+    await writeAuditLog(admin, {
+      tenantId,
+      action: "tenant.member.invite.revoke",
+      targetType: "tenant_member_invite",
+      targetId: inviteId,
+      after: { status: "revoked" },
+    })
+
+    redirect(toAppUrl(redirectTo, { notice: "招待を取り消しました。" }))
+  } catch (error) {
+    redirect(
+      toAppUrl(String(formData.get("redirect_to") ?? ""), {
+        error: error instanceof Error ? error.message : "招待取り消しに失敗しました。",
+      })
+    )
+  }
+}

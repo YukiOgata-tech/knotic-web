@@ -110,6 +110,14 @@ create table if not exists public.plans (
   allow_model_selection boolean not null default false,
   is_bot_limit_display_unlimited boolean not null default false,
   internal_max_bots_cap integer not null default 50,
+  max_api_keys integer not null default 0,
+  max_hosted_pages integer not null default 0,
+  max_allowed_origins integer,
+  internal_max_allowed_origins_cap integer not null default 200,
+  api_rpm_limit integer not null default 60,
+  overage_notify_threshold_percent integer not null default 80,
+  spam_protection_profile text not null default 'standard',
+  support_level text not null default 'documentation',
   has_line boolean not null default false,
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
@@ -129,12 +137,20 @@ insert into public.plans (
   allow_model_selection,
   is_bot_limit_display_unlimited,
   internal_max_bots_cap,
+  max_api_keys,
+  max_hosted_pages,
+  max_allowed_origins,
+  internal_max_allowed_origins_cap,
+  api_rpm_limit,
+  overage_notify_threshold_percent,
+  spam_protection_profile,
+  support_level,
   has_line
 )
 values
-  ('lite', 'Lite', 10000, 1, 1000, 100, false, false, true, false, false, 50, false),
-  ('standard', 'Standard', 24800, 2, 5000, 1024, true, true, true, true, false, 50, false),
-  ('pro', 'Pro', 100000, 50, 20000, 10240, true, true, true, true, true, 50, false)
+  ('lite', 'Lite', 10000, 1, 1000, 100, false, false, true, false, false, 50, 0, 0, null, 200, 30, 80, 'standard', 'documentation', false),
+  ('standard', 'Standard', 24800, 2, 5000, 1024, true, true, true, true, false, 50, 2, 2, null, 200, 120, 80, 'standard', 'documentation', false),
+  ('pro', 'Pro', 100000, 50, 20000, 10240, true, true, true, true, true, 50, 10, 50, null, 200, 300, 80, 'standard', 'documentation', false)
 on conflict (code) do update
 set
   name = excluded.name,
@@ -148,47 +164,6 @@ set
   allow_model_selection = excluded.allow_model_selection,
   is_bot_limit_display_unlimited = excluded.is_bot_limit_display_unlimited,
   internal_max_bots_cap = excluded.internal_max_bots_cap,
-  has_line = excluded.has_line,
-  is_active = true;
-
-create table if not exists public.plan_entitlements (
-  plan_id bigint primary key references public.plans(id) on delete cascade,
-  max_api_keys integer not null default 0,
-  max_hosted_pages integer not null default 0,
-  max_allowed_origins integer,
-  internal_max_allowed_origins_cap integer not null default 200,
-  api_rpm_limit integer not null default 60,
-  overage_notify_threshold_percent integer not null default 80,
-  spam_protection_profile text not null default 'standard',
-  support_level text not null default 'documentation',
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
-insert into public.plan_entitlements (
-  plan_id,
-  max_api_keys,
-  max_hosted_pages,
-  max_allowed_origins,
-  internal_max_allowed_origins_cap,
-  api_rpm_limit,
-  overage_notify_threshold_percent,
-  spam_protection_profile,
-  support_level
-)
-select
-  p.id as plan_id,
-  case p.code when 'lite' then 0 when 'standard' then 2 when 'pro' then 10 else 0 end as max_api_keys,
-  case p.code when 'lite' then 0 when 'standard' then 5 when 'pro' then 50 else 0 end as max_hosted_pages,
-  null::integer as max_allowed_origins, -- plan上は無制限、内部CAPで制御
-  200 as internal_max_allowed_origins_cap,
-  case p.code when 'lite' then 30 when 'standard' then 120 when 'pro' then 300 else 60 end as api_rpm_limit,
-  80 as overage_notify_threshold_percent,
-  'standard' as spam_protection_profile,
-  'documentation' as support_level
-from public.plans p
-on conflict (plan_id) do update
-set
   max_api_keys = excluded.max_api_keys,
   max_hosted_pages = excluded.max_hosted_pages,
   max_allowed_origins = excluded.max_allowed_origins,
@@ -196,7 +171,9 @@ set
   api_rpm_limit = excluded.api_rpm_limit,
   overage_notify_threshold_percent = excluded.overage_notify_threshold_percent,
   spam_protection_profile = excluded.spam_protection_profile,
-  support_level = excluded.support_level;
+  support_level = excluded.support_level,
+  has_line = excluded.has_line,
+  is_active = true;
 
 create table if not exists public.billing_customers (
   id bigserial primary key,
@@ -376,10 +353,6 @@ create trigger set_plans_updated_at
 before update on public.plans
 for each row execute procedure app.set_updated_at();
 
-create trigger set_plan_entitlements_updated_at
-before update on public.plan_entitlements
-for each row execute procedure app.set_updated_at();
-
 create trigger set_billing_customers_updated_at
 before update on public.billing_customers
 for each row execute procedure app.set_updated_at();
@@ -474,7 +447,6 @@ alter table public.chat_logs enable row level security;
 alter table public.usage_daily enable row level security;
 alter table public.response_cache enable row level security;
 alter table public.plans enable row level security;
-alter table public.plan_entitlements enable row level security;
 
 create policy "profiles_select_own"
 on public.profiles for select
@@ -513,10 +485,6 @@ using (app.is_tenant_owner_user(tenant_id));
 
 create policy "plans_select_all"
 on public.plans for select
-using (true);
-
-create policy "plan_entitlements_select_all"
-on public.plan_entitlements for select
 using (true);
 
 create policy "billing_customers_select_member"
@@ -1100,3 +1068,560 @@ end
 $$;
 
 
+
+-- ============================================================
+-- schema02 final reconciliation block (2026-02-28)
+-- This block applies additive features not fully embedded in base schema.sql
+-- ============================================================
+
+-- A) Widget distribution settings
+alter table public.bots
+  add column if not exists widget_enabled boolean not null default true,
+  add column if not exists widget_mode text not null default 'overlay',
+  add column if not exists widget_position text not null default 'right-bottom',
+  add column if not exists widget_launcher_label text not null default 'チャット',
+  add column if not exists widget_policy_text text not null default 'このチャット履歴はブラウザ上で24時間保持され、自動的に削除されます。',
+  add column if not exists widget_redirect_new_tab boolean not null default false;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'bots_widget_mode_ck'
+  ) then
+    alter table public.bots
+      add constraint bots_widget_mode_ck
+      check (widget_mode in ('overlay', 'redirect', 'both'));
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint where conname = 'bots_widget_position_ck'
+  ) then
+    alter table public.bots
+      add constraint bots_widget_position_ck
+      check (widget_position in ('right-bottom', 'right-top'));
+  end if;
+end
+$$;
+
+-- B) Platform admin + contract overrides
+create table if not exists public.platform_admin_users (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  role text not null default 'staff' check (role in ('owner', 'staff')),
+  is_active boolean not null default true,
+  note text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.tenant_contract_overrides (
+  id bigserial primary key,
+  tenant_id uuid not null references public.tenants(id) on delete cascade,
+  plan_id bigint not null references public.plans(id),
+  status subscription_status not null default 'active',
+  billing_mode text not null default 'stripe' check (billing_mode in ('stripe', 'bank_transfer', 'invoice', 'manual')),
+  is_active boolean not null default true,
+  notes text,
+  effective_from timestamptz not null default now(),
+  effective_until timestamptz,
+  created_by uuid references auth.users(id) on delete set null,
+  updated_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (tenant_id)
+);
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'tenant_contract_overrides_effective_window_ck') then
+    alter table public.tenant_contract_overrides
+      add constraint tenant_contract_overrides_effective_window_ck
+      check (effective_until is null or effective_until > effective_from);
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'set_platform_admin_users_updated_at') then
+    create trigger set_platform_admin_users_updated_at
+    before update on public.platform_admin_users
+    for each row execute procedure app.set_updated_at();
+  end if;
+
+  if not exists (select 1 from pg_trigger where tgname = 'set_tenant_contract_overrides_updated_at') then
+    create trigger set_tenant_contract_overrides_updated_at
+    before update on public.tenant_contract_overrides
+    for each row execute procedure app.set_updated_at();
+  end if;
+end
+$$;
+
+create index if not exists idx_platform_admin_users_active on public.platform_admin_users(is_active);
+create index if not exists idx_tenant_contract_overrides_tenant_active
+  on public.tenant_contract_overrides(tenant_id, is_active, effective_from desc);
+
+create or replace function app.is_platform_admin_user(target_user_id uuid default auth.uid())
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists(
+    select 1
+    from public.platform_admin_users p
+    where p.user_id = target_user_id
+      and p.is_active = true
+  )
+$$;
+
+alter table public.platform_admin_users enable row level security;
+alter table public.tenant_contract_overrides enable row level security;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'platform_admin_users' and policyname = 'platform_admin_users_select_self_or_admin'
+  ) then
+    create policy "platform_admin_users_select_self_or_admin"
+    on public.platform_admin_users for select
+    using (user_id = auth.uid() or app.is_platform_admin_user());
+  end if;
+
+  if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'platform_admin_users' and policyname = 'platform_admin_users_write_admin'
+  ) then
+    create policy "platform_admin_users_write_admin"
+    on public.platform_admin_users for all
+    using (app.is_platform_admin_user())
+    with check (app.is_platform_admin_user());
+  end if;
+
+  if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'tenant_contract_overrides' and policyname = 'tenant_contract_overrides_admin_only'
+  ) then
+    create policy "tenant_contract_overrides_admin_only"
+    on public.tenant_contract_overrides for all
+    using (app.is_platform_admin_user())
+    with check (app.is_platform_admin_user());
+  end if;
+end
+$$;
+
+-- C) Audit log / ops helper + billing retry metadata
+create table if not exists public.audit_logs (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references public.tenants(id) on delete cascade,
+  actor_user_id uuid references auth.users(id) on delete set null,
+  action text not null,
+  target_type text not null,
+  target_id text,
+  before_json jsonb not null default '{}'::jsonb,
+  after_json jsonb not null default '{}'::jsonb,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_audit_logs_tenant_created
+  on public.audit_logs (tenant_id, created_at desc);
+create index if not exists idx_audit_logs_action_created
+  on public.audit_logs (action, created_at desc);
+create index if not exists idx_audit_logs_target_created
+  on public.audit_logs (target_type, target_id, created_at desc);
+
+alter table public.audit_logs enable row level security;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'audit_logs'
+      and policyname = 'audit_logs_select_member'
+  ) then
+    create policy "audit_logs_select_member"
+    on public.audit_logs for select
+    using (app.can_read_tenant(tenant_id));
+  end if;
+end
+$$;
+
+create or replace function app.write_audit_log(
+  p_tenant_id uuid,
+  p_action text,
+  p_target_type text,
+  p_target_id text default null,
+  p_before jsonb default '{}'::jsonb,
+  p_after jsonb default '{}'::jsonb,
+  p_metadata jsonb default '{}'::jsonb
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  inserted_id uuid;
+begin
+  if auth.uid() is null then
+    raise exception 'auth required';
+  end if;
+
+  if not app.can_read_tenant(p_tenant_id) then
+    raise exception 'forbidden';
+  end if;
+
+  insert into public.audit_logs (
+    tenant_id,
+    actor_user_id,
+    action,
+    target_type,
+    target_id,
+    before_json,
+    after_json,
+    metadata
+  ) values (
+    p_tenant_id,
+    auth.uid(),
+    p_action,
+    p_target_type,
+    p_target_id,
+    coalesce(p_before, '{}'::jsonb),
+    coalesce(p_after, '{}'::jsonb),
+    coalesce(p_metadata, '{}'::jsonb)
+  )
+  returning id into inserted_id;
+
+  return inserted_id;
+end;
+$$;
+
+grant execute on function app.write_audit_log(uuid, text, text, text, jsonb, jsonb, jsonb) to authenticated;
+
+create or replace function app.get_tenant_ops_snapshot(target_tenant_id uuid)
+returns table (
+  bot_total bigint,
+  bot_ready bigint,
+  source_total bigint,
+  source_failed bigint,
+  jobs_queued bigint,
+  jobs_running bigint,
+  jobs_failed_7d bigint,
+  jobs_done_7d bigint,
+  messages_30d bigint,
+  unread_notifications bigint,
+  storage_usage_bytes bigint
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  with bot_stat as (
+    select
+      count(*)::bigint as bot_total,
+      count(*) filter (where status in ('ready', 'running'))::bigint as bot_ready
+    from public.bots
+    where tenant_id = target_tenant_id
+  ),
+  source_stat as (
+    select
+      count(*)::bigint as source_total,
+      count(*) filter (where s.status = 'failed')::bigint as source_failed
+    from public.sources s
+    join public.bots b on b.id = s.bot_id
+    where b.tenant_id = target_tenant_id
+  ),
+  job_stat as (
+    select
+      count(*) filter (where status = 'queued')::bigint as jobs_queued,
+      count(*) filter (where status = 'running')::bigint as jobs_running,
+      count(*) filter (where status = 'failed' and requested_at >= now() - interval '7 days')::bigint as jobs_failed_7d,
+      count(*) filter (where status in ('done', 'ready') and requested_at >= now() - interval '7 days')::bigint as jobs_done_7d
+    from public.indexing_jobs
+    where tenant_id = target_tenant_id
+  ),
+  usage_stat as (
+    select
+      coalesce(sum(messages_count), 0)::bigint as messages_30d
+    from public.usage_daily
+    where tenant_id = target_tenant_id
+      and usage_date >= (now()::date - 29)
+  ),
+  notification_stat as (
+    select
+      count(*)::bigint as unread_notifications
+    from public.tenant_notifications
+    where tenant_id = target_tenant_id
+      and read_at is null
+  ),
+  storage_stat as (
+    select app.get_tenant_storage_usage_bytes(target_tenant_id)::bigint as storage_usage_bytes
+  )
+  select
+    bot_stat.bot_total,
+    bot_stat.bot_ready,
+    source_stat.source_total,
+    source_stat.source_failed,
+    job_stat.jobs_queued,
+    job_stat.jobs_running,
+    job_stat.jobs_failed_7d,
+    job_stat.jobs_done_7d,
+    usage_stat.messages_30d,
+    notification_stat.unread_notifications,
+    storage_stat.storage_usage_bytes
+  from bot_stat, source_stat, job_stat, usage_stat, notification_stat, storage_stat
+$$;
+
+grant execute on function app.get_tenant_ops_snapshot(uuid) to authenticated;
+
+alter table public.billing_events
+  add column if not exists processing_error text,
+  add column if not exists attempt_count integer not null default 0,
+  add column if not exists last_attempt_at timestamptz,
+  add column if not exists next_retry_at timestamptz;
+
+create index if not exists idx_billing_events_retry_queue
+  on public.billing_events (provider, processed_at, next_retry_at, created_at)
+  where processed_at is null;
+
+create index if not exists idx_billing_events_tenant_processed
+  on public.billing_events (tenant_id, processed_at, created_at desc);
+
+-- D) kill switch
+alter table public.tenants
+  add column if not exists force_stopped boolean not null default false,
+  add column if not exists force_stop_reason text,
+  add column if not exists force_stopped_at timestamptz,
+  add column if not exists force_stopped_by uuid references auth.users(id) on delete set null;
+
+alter table public.bots
+  add column if not exists force_stopped boolean not null default false,
+  add column if not exists force_stop_reason text,
+  add column if not exists force_stopped_at timestamptz,
+  add column if not exists force_stopped_by uuid references auth.users(id) on delete set null;
+
+create index if not exists idx_tenants_force_stopped on public.tenants(force_stopped);
+create index if not exists idx_bots_force_stopped on public.bots(force_stopped);
+
+-- E) bot-level AI model + hosted rooms/invites
+alter table public.bots
+  add column if not exists ai_model text not null default '5-mini',
+  add column if not exists ai_fallback_model text,
+  add column if not exists ai_max_output_tokens integer not null default 1200;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'bots_ai_model_ck') then
+    alter table public.bots
+      add constraint bots_ai_model_ck
+      check (ai_model in ('5-nano', '5-mini', '5', '4o-mini', '4o'));
+  end if;
+
+  if not exists (select 1 from pg_constraint where conname = 'bots_ai_fallback_model_ck') then
+    alter table public.bots
+      add constraint bots_ai_fallback_model_ck
+      check (ai_fallback_model is null or ai_fallback_model in ('5-nano', '5-mini', '5', '4o-mini', '4o'));
+  end if;
+
+  if not exists (select 1 from pg_constraint where conname = 'bots_ai_max_output_tokens_ck') then
+    alter table public.bots
+      add constraint bots_ai_max_output_tokens_ck
+      check (ai_max_output_tokens between 200 and 4000);
+  end if;
+end
+$$;
+
+create table if not exists public.hosted_chat_rooms (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references public.tenants(id) on delete cascade,
+  bot_id uuid not null references public.bots(id) on delete cascade,
+  owner_user_id uuid not null references auth.users(id) on delete cascade,
+  title text not null default '新しいチャット',
+  is_archived boolean not null default false,
+  last_message_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.hosted_chat_messages (
+  id bigserial primary key,
+  room_id uuid not null references public.hosted_chat_rooms(id) on delete cascade,
+  tenant_id uuid not null references public.tenants(id) on delete cascade,
+  bot_id uuid not null references public.bots(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete set null,
+  role text not null check (role in ('user', 'assistant')),
+  content text not null,
+  citations jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.tenant_member_invites (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references public.tenants(id) on delete cascade,
+  email text not null,
+  role membership_role not null default 'reader',
+  token_hash text not null unique,
+  status text not null default 'pending' check (status in ('pending', 'accepted', 'revoked', 'expired')),
+  expires_at timestamptz not null,
+  invited_by uuid references auth.users(id),
+  accepted_by uuid references auth.users(id),
+  accepted_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create unique index if not exists uq_tenant_member_invites_active
+on public.tenant_member_invites (tenant_id, email)
+where status = 'pending';
+
+create index if not exists idx_hosted_chat_rooms_owner on public.hosted_chat_rooms(owner_user_id, created_at desc);
+create index if not exists idx_hosted_chat_rooms_tenant_bot on public.hosted_chat_rooms(tenant_id, bot_id, updated_at desc);
+create index if not exists idx_hosted_chat_messages_room on public.hosted_chat_messages(room_id, created_at asc);
+create index if not exists idx_tenant_member_invites_tenant_created on public.tenant_member_invites(tenant_id, created_at desc);
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_trigger
+    where tgname = 'set_hosted_chat_rooms_updated_at'
+      and tgrelid = 'public.hosted_chat_rooms'::regclass
+  ) then
+    create trigger set_hosted_chat_rooms_updated_at
+    before update on public.hosted_chat_rooms
+    for each row execute procedure app.set_updated_at();
+  end if;
+
+  if not exists (
+    select 1 from pg_trigger
+    where tgname = 'set_tenant_member_invites_updated_at'
+      and tgrelid = 'public.tenant_member_invites'::regclass
+  ) then
+    create trigger set_tenant_member_invites_updated_at
+    before update on public.tenant_member_invites
+    for each row execute procedure app.set_updated_at();
+  end if;
+end
+$$;
+
+alter table public.hosted_chat_rooms enable row level security;
+alter table public.hosted_chat_messages enable row level security;
+alter table public.tenant_member_invites enable row level security;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'hosted_chat_rooms' and policyname = 'hosted_chat_rooms_select_member'
+  ) then
+    create policy "hosted_chat_rooms_select_member"
+    on public.hosted_chat_rooms for select
+    using (app.can_read_tenant(tenant_id));
+  end if;
+
+  if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'hosted_chat_rooms' and policyname = 'hosted_chat_rooms_write_editor'
+  ) then
+    create policy "hosted_chat_rooms_write_editor"
+    on public.hosted_chat_rooms for all
+    using (app.can_write_tenant(tenant_id))
+    with check (app.can_write_tenant(tenant_id));
+  end if;
+
+  if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'hosted_chat_messages' and policyname = 'hosted_chat_messages_select_member'
+  ) then
+    create policy "hosted_chat_messages_select_member"
+    on public.hosted_chat_messages for select
+    using (app.can_read_tenant(tenant_id));
+  end if;
+
+  if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'hosted_chat_messages' and policyname = 'hosted_chat_messages_write_editor'
+  ) then
+    create policy "hosted_chat_messages_write_editor"
+    on public.hosted_chat_messages for all
+    using (app.can_write_tenant(tenant_id))
+    with check (app.can_write_tenant(tenant_id));
+  end if;
+
+  if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'tenant_member_invites' and policyname = 'tenant_member_invites_select_member'
+  ) then
+    create policy "tenant_member_invites_select_member"
+    on public.tenant_member_invites for select
+    using (app.can_read_tenant(tenant_id));
+  end if;
+
+  if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'tenant_member_invites' and policyname = 'tenant_member_invites_write_editor'
+  ) then
+    create policy "tenant_member_invites_write_editor"
+    on public.tenant_member_invites for all
+    using (app.can_write_tenant(tenant_id))
+    with check (app.can_write_tenant(tenant_id));
+  end if;
+end
+$$;
+
+-- F) account_type-aware signup trigger behavior
+create or replace function app.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  new_tenant_id uuid;
+  tenant_name text;
+  tenant_slug text;
+  account_type text;
+begin
+  account_type := coalesce(new.raw_user_meta_data->>'account_type', 'owner');
+
+  if account_type = 'member' then
+    insert into public.profiles (user_id, full_name, default_tenant_id)
+    values (new.id, new.raw_user_meta_data->>'full_name', null)
+    on conflict (user_id) do update
+    set full_name = excluded.full_name;
+    return new;
+  end if;
+
+  tenant_name := coalesce(new.raw_user_meta_data->>'company_name', split_part(new.email, '@', 1), 'New Tenant');
+  tenant_slug := lower(regexp_replace(tenant_name, '[^a-zA-Z0-9]+', '-', 'g'));
+  tenant_slug := trim(both '-' from tenant_slug);
+  if tenant_slug = '' then
+    tenant_slug := 'tenant';
+  end if;
+  tenant_slug := tenant_slug || '-' || substr(new.id::text, 1, 8);
+
+  insert into public.tenants (slug, display_name, owner_user_id)
+  values (tenant_slug, tenant_name, new.id)
+  returning id into new_tenant_id;
+
+  insert into public.profiles (user_id, full_name, default_tenant_id)
+  values (new.id, new.raw_user_meta_data->>'full_name', new_tenant_id)
+  on conflict (user_id) do update
+  set
+    full_name = excluded.full_name,
+    default_tenant_id = excluded.default_tenant_id;
+
+  insert into public.tenant_memberships (tenant_id, user_id, role, is_active)
+  values (new_tenant_id, new.id, 'editor', true)
+  on conflict (tenant_id, user_id) do update
+  set role = excluded.role, is_active = true;
+
+  return new;
+end;
+$$;
+
+-- G) ensure final plan entitlements state
+update public.plans
+set
+  max_api_keys = case code when 'lite' then 0 when 'standard' then 2 when 'pro' then 10 else max_api_keys end,
+  max_hosted_pages = case code when 'lite' then 0 when 'standard' then 2 when 'pro' then 50 else max_hosted_pages end,
+  internal_max_allowed_origins_cap = coalesce(internal_max_allowed_origins_cap, 200),
+  api_rpm_limit = case code when 'lite' then 30 when 'standard' then 120 when 'pro' then 300 else api_rpm_limit end,
+  overage_notify_threshold_percent = coalesce(overage_notify_threshold_percent, 80),
+  spam_protection_profile = coalesce(nullif(spam_protection_profile, ''), 'standard'),
+  support_level = coalesce(nullif(support_level, ''), 'documentation');

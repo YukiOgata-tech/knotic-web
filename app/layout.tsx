@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google"
 
 import { SiteFooter } from "@/components/layout/site-footer"
 import { SiteHeader } from "@/components/layout/site-header"
+import { SiteBreadcrumbs } from "@/components/layout/site-breadcrumbs"
 import { ThemeProvider } from "@/components/theme-provider"
 import { ThemeToggle } from "@/components/theme-toggle"
 import "./globals.css"
@@ -36,6 +37,7 @@ export default function RootLayout({
         <ThemeProvider>
           <div className="min-h-screen bg-background text-foreground">
             <SiteHeader />
+            <SiteBreadcrumbs />
             <main>{children}</main>
             <SiteFooter />
           </div>

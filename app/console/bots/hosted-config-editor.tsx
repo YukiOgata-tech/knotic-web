@@ -35,12 +35,16 @@ type BotHostedConfig = {
   widget_launcher_label: string | null
   widget_policy_text: string | null
   widget_redirect_new_tab: boolean | null
+  ai_model: string | null
+  ai_fallback_model: string | null
+  ai_max_output_tokens: number | null
 }
 
 type Props = {
   bot: BotHostedConfig
   isEditor: boolean
   hasHostedPage: boolean
+  maxHistoryTurnLimit: number
   saveAction: (formData: FormData) => void | Promise<void>
 }
 
@@ -66,8 +70,15 @@ const DEFAULT_FOOTER_BG = "#f8fafc"
 const DEFAULT_FOOTER_TEXT = "#0f172a"
 const DEFAULT_WIDGET_POLICY =
   "このチャット履歴はブラウザ上で24時間保持され、自動的に削除されます。"
+const MODEL_OPTIONS = ["5-nano", "5-mini", "5", "4o-mini", "4o"] as const
 
-export function HostedConfigEditor({ bot, isEditor, hasHostedPage, saveAction }: Props) {
+export function HostedConfigEditor({
+  bot,
+  isEditor,
+  hasHostedPage,
+  maxHistoryTurnLimit,
+  saveAction,
+}: Props) {
   const [displayName, setDisplayName] = React.useState(bot.display_name ?? bot.name)
   const [chatPurpose, setChatPurpose] = React.useState(bot.chat_purpose ?? "customer_support")
   const [accessMode, setAccessMode] = React.useState(bot.access_mode ?? "public")
@@ -88,11 +99,14 @@ export function HostedConfigEditor({ bot, isEditor, hasHostedPage, saveAction }:
   const [widgetLauncherLabel, setWidgetLauncherLabel] = React.useState(bot.widget_launcher_label ?? "チャット")
   const [widgetPolicyText, setWidgetPolicyText] = React.useState(bot.widget_policy_text ?? DEFAULT_WIDGET_POLICY)
   const [widgetRedirectNewTab, setWidgetRedirectNewTab] = React.useState(Boolean(bot.widget_redirect_new_tab ?? false))
+  const [aiModel, setAiModel] = React.useState(bot.ai_model ?? "5-mini")
+  const [aiFallbackModel, setAiFallbackModel] = React.useState(bot.ai_fallback_model ?? "")
+  const [aiMaxOutputTokens, setAiMaxOutputTokens] = React.useState(String(bot.ai_max_output_tokens ?? 1200))
 
   const effectiveRequireAuth = accessMode === "internal" || requireAuth
   const historyLimit = Number.isFinite(Number(historyTurnLimit))
-    ? Math.max(1, Math.min(30, Math.floor(Number(historyTurnLimit))))
-    : 8
+    ? Math.max(1, Math.min(maxHistoryTurnLimit, Math.floor(Number(historyTurnLimit))))
+    : Math.min(8, maxHistoryTurnLimit)
 
   return (
     <div className="grid gap-4 rounded-lg border border-black/10 p-3 dark:border-white/10 lg:grid-cols-2">
@@ -167,9 +181,61 @@ export function HostedConfigEditor({ bot, isEditor, hasHostedPage, saveAction }:
               name="history_turn_limit"
               type="number"
               min={1}
-              max={30}
+              max={maxHistoryTurnLimit}
               value={historyTurnLimit}
               onChange={(e) => setHistoryTurnLimit(e.target.value)}
+              disabled={!isEditor}
+            />
+            <p className="text-xs text-muted-foreground">現在プランの上限: {maxHistoryTurnLimit}ターン</p>
+          </div>
+        </div>
+
+        <div className="grid gap-3 rounded-lg border border-black/10 p-3 dark:border-white/10 md:grid-cols-3">
+          <div className="grid gap-1.5">
+            <Label htmlFor={`ai_model_${bot.id}`}>Botモデル</Label>
+            <select
+              id={`ai_model_${bot.id}`}
+              name="ai_model"
+              className="h-11 rounded-md border bg-transparent px-3 text-base sm:h-10 sm:text-sm"
+              value={aiModel}
+              onChange={(e) => setAiModel(e.target.value)}
+              disabled={!isEditor}
+            >
+              {MODEL_OPTIONS.map((model) => (
+                <option key={model} value={model}>
+                  {model}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor={`ai_fallback_model_${bot.id}`}>フォールバック</Label>
+            <select
+              id={`ai_fallback_model_${bot.id}`}
+              name="ai_fallback_model"
+              className="h-11 rounded-md border bg-transparent px-3 text-base sm:h-10 sm:text-sm"
+              value={aiFallbackModel}
+              onChange={(e) => setAiFallbackModel(e.target.value)}
+              disabled={!isEditor}
+            >
+              <option value="">なし</option>
+              {MODEL_OPTIONS.map((model) => (
+                <option key={model} value={model}>
+                  {model}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor={`ai_max_output_tokens_${bot.id}`}>最大出力トークン</Label>
+            <Input
+              id={`ai_max_output_tokens_${bot.id}`}
+              name="ai_max_output_tokens"
+              type="number"
+              min={200}
+              max={4000}
+              value={aiMaxOutputTokens}
+              onChange={(e) => setAiMaxOutputTokens(e.target.value)}
               disabled={!isEditor}
             />
           </div>

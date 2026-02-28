@@ -69,6 +69,22 @@ export type OperationSummary = {
   auditError: { message?: string } | null
 }
 
+export type TenantMemberRow = {
+  user_id: string
+  role: "editor" | "reader"
+  is_active: boolean
+  created_at: string
+}
+
+export type TenantInviteRow = {
+  id: string
+  email: string
+  role: "editor" | "reader"
+  status: "pending" | "accepted" | "revoked" | "expired"
+  expires_at: string
+  created_at: string
+}
+
 export function toMonthStartISO() {
   const now = new Date()
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
@@ -211,7 +227,7 @@ export async function fetchConsoleData(tenantId: string) {
     supabase
       .from("bots")
       .select(
-        "id, public_id, name, description, status, is_public, chat_purpose, access_mode, display_name, welcome_message, placeholder_text, disclaimer_text, show_citations, history_turn_limit, require_auth_for_hosted, ui_header_bg_color, ui_header_text_color, ui_footer_bg_color, ui_footer_text_color, widget_enabled, widget_mode, widget_position, widget_launcher_label, widget_policy_text, widget_redirect_new_tab, created_at"
+        "id, public_id, name, description, status, is_public, chat_purpose, access_mode, display_name, welcome_message, placeholder_text, disclaimer_text, show_citations, history_turn_limit, require_auth_for_hosted, ui_header_bg_color, ui_header_text_color, ui_footer_bg_color, ui_footer_text_color, widget_enabled, widget_mode, widget_position, widget_launcher_label, widget_policy_text, widget_redirect_new_tab, ai_model, ai_fallback_model, ai_max_output_tokens, created_at"
       )
       .eq("tenant_id", tenantId)
       .order("created_at", { ascending: false }),
@@ -451,6 +467,40 @@ export async function fetchAuditLogs(
   return {
     rows: (data ?? []) as AuditLogRow[],
     error,
+  }
+}
+
+export async function fetchTenantMembersAndInvites(tenantId: string) {
+  const supabase = await createClient()
+  const admin = createAdminClient()
+
+  const [{ data: membersRaw, error: membersError }, { data: invitesRaw, error: invitesError }, usersPage] =
+    await Promise.all([
+      supabase
+        .from("tenant_memberships")
+        .select("user_id, role, is_active, created_at")
+        .eq("tenant_id", tenantId)
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("tenant_member_invites")
+        .select("id, email, role, status, expires_at, created_at")
+        .eq("tenant_id", tenantId)
+        .order("created_at", { ascending: false })
+        .limit(50),
+      admin.auth.admin.listUsers({ page: 1, perPage: 500 }),
+    ])
+
+  const emailByUserId = new Map<string, string>()
+  for (const user of usersPage.data.users ?? []) {
+    emailByUserId.set(user.id, user.email ?? "-")
+  }
+
+  return {
+    members: (membersRaw ?? []) as TenantMemberRow[],
+    invites: (invitesRaw ?? []) as TenantInviteRow[],
+    emailByUserId,
+    membersError,
+    invitesError,
   }
 }
 

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 
 import { HostedChatClient } from "@/app/chat-by-knotic/[public_id]/hosted-chat-client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { assertTenantCanUseHostedPage } from "@/lib/billing/limits"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 
@@ -141,6 +142,25 @@ export default async function HostedBotPage({ params, searchParams }: PageProps)
     )
   }
 
+  try {
+    await assertTenantCanUseHostedPage(bot.tenant_id, bot.id)
+  } catch (error) {
+    return (
+      <div className="mx-auto w-full max-w-2xl px-4 py-16">
+        <Card>
+          <CardHeader>
+            <CardTitle>Hosted URLは現在利用できません</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            {error instanceof Error
+              ? error.message
+              : "契約プランまたは上限設定によりHosted URLの利用が制限されています。"}
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className={embedded ? "h-screen w-screen bg-transparent p-2" : "min-h-screen bg-[linear-gradient(180deg,#f8fbff_0%,#ffffff_35%,#fffaf3_100%)] px-3 py-4 dark:bg-[linear-gradient(180deg,#0f172a_0%,#0b1220_45%,#0a0f1a_100%)] sm:px-6 sm:py-8"}>
       <HostedChatClient
@@ -160,6 +180,7 @@ export default async function HostedBotPage({ params, searchParams }: PageProps)
         footerTextColor={bot.ui_footer_text_color ?? "#0f172a"}
         widgetToken={widgetToken}
         embedded={embedded}
+        authenticatedMode={requiresInternal}
       />
     </div>
   )

@@ -5,10 +5,12 @@ export type TenantPlanSnapshot = {
   planCode: string
   planName: string
   maxBots: number
+  maxHostedPages: number
   maxMonthlyMessages: number
   maxStorageMb: number
   internalMaxBotsCap: number
   hasApi: boolean
+  hasHostedPage: boolean
   billingMode: "stripe" | "bank_transfer" | "invoice" | "manual"
 }
 
@@ -29,14 +31,22 @@ type PlanRow = {
   code: string
   name: string
   max_bots: number
+  max_hosted_pages: number
   max_monthly_messages: number
   max_storage_mb: number
   internal_max_bots_cap: number
   has_api: boolean
+  has_hosted_page: boolean
 }
 
 export class QuotaError extends Error {
-  code: "subscription_blocked" | "bot_limit" | "message_limit" | "storage_limit"
+  code:
+    | "subscription_blocked"
+    | "bot_limit"
+    | "message_limit"
+    | "storage_limit"
+    | "hosted_page_unavailable"
+    | "hosted_page_limit"
   constructor(code: QuotaError["code"], message: string) {
     super(message)
     this.code = code
@@ -59,10 +69,12 @@ function toSnapshot(status: string, plans: PlanRow, billingMode: TenantPlanSnaps
     planCode: plans.code,
     planName: plans.name,
     maxBots: plans.max_bots,
+    maxHostedPages: plans.max_hosted_pages,
     maxMonthlyMessages: plans.max_monthly_messages,
     maxStorageMb: plans.max_storage_mb,
     internalMaxBotsCap: plans.internal_max_bots_cap,
     hasApi: plans.has_api,
+    hasHostedPage: plans.has_hosted_page,
     billingMode,
   }
 }
@@ -72,7 +84,7 @@ async function getOverrideSnapshot(tenantId: string): Promise<TenantPlanSnapshot
   const { data, error } = await admin
     .from("tenant_contract_overrides")
     .select(
-      "status, billing_mode, effective_until, plans(code,name,max_bots,max_monthly_messages,max_storage_mb,internal_max_bots_cap,has_api)"
+      "status, billing_mode, effective_until, plans(code,name,max_bots,max_hosted_pages,max_monthly_messages,max_storage_mb,internal_max_bots_cap,has_api,has_hosted_page)"
     )
     .eq("tenant_id", tenantId)
     .eq("is_active", true)
@@ -99,7 +111,7 @@ export async function getTenantPlanSnapshot(tenantId: string): Promise<TenantPla
   const { data, error } = await admin
     .from("subscriptions")
     .select(
-      "status, plans(code,name,max_bots,max_monthly_messages,max_storage_mb,internal_max_bots_cap,has_api)"
+      "status, plans(code,name,max_bots,max_hosted_pages,max_monthly_messages,max_storage_mb,internal_max_bots_cap,has_api,has_hosted_page)"
     )
     .eq("tenant_id", tenantId)
     .in("status", ["trialing", "active", "past_due", "unpaid", "canceled", "paused", "incomplete"])
@@ -147,6 +159,32 @@ export async function getTenantBotCount(tenantId: string) {
     .from("bots")
     .select("id", { count: "exact", head: true })
     .eq("tenant_id", tenantId)
+
+  if (error) throw error
+  return count ?? 0
+}
+
+async function getHostedEligibleBotIds(tenantId: string, limit: number) {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from("bots")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .neq("status", "archived")
+    .order("created_at", { ascending: true })
+    .limit(Math.max(1, limit))
+
+  if (error) throw error
+  return (data ?? []).map((row) => String(row.id))
+}
+
+async function getTenantHostedCandidateCount(tenantId: string) {
+  const admin = createAdminClient()
+  const { count, error } = await admin
+    .from("bots")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .neq("status", "archived")
 
   if (error) throw error
   return count ?? 0
@@ -259,5 +297,35 @@ export async function assertTenantCanIndexData(tenantId: string, incomingBytes =
       metadata: { storageBytes, incomingBytes, maxBytes, planCode: plan.planCode },
     })
     throw new QuotaError("storage_limit", "データ容量上限を超えるため、この操作は実行できません。")
+  }
+}
+
+export async function assertTenantCanUseHostedPage(tenantId: string, botId?: string) {
+  const plan = await getTenantPlanSnapshot(tenantId)
+  assertSubscriptionOperational(plan)
+
+  if (!plan.hasHostedPage || plan.maxHostedPages <= 0) {
+    throw new QuotaError(
+      "hosted_page_unavailable",
+      "現在の契約プランではHosted URL公開は利用できません。"
+    )
+  }
+
+  const hostedCandidateCount = await getTenantHostedCandidateCount(tenantId)
+  if (hostedCandidateCount <= plan.maxHostedPages) return
+
+  if (!botId) {
+    throw new QuotaError(
+      "hosted_page_limit",
+      `Hosted URLの利用上限（${plan.maxHostedPages}）を超えています。`
+    )
+  }
+
+  const allowedBotIds = await getHostedEligibleBotIds(tenantId, plan.maxHostedPages)
+  if (!allowedBotIds.includes(botId)) {
+    throw new QuotaError(
+      "hosted_page_limit",
+      `Hosted URLの利用上限（${plan.maxHostedPages}）を超えています。`
+    )
   }
 }
