@@ -321,7 +321,7 @@ export function HostedChatClient({
 
   return (
     <div className={embedded ? "flex h-full w-full flex-col gap-3" : "mx-auto flex w-full max-w-4xl flex-col gap-4"}>
-      <Card className="border-black/10 p-4 dark:border-white/10" style={{ backgroundColor: headerBgColor, color: headerTextColor }}>
+      <Card className="border-black/20 p-4 dark:border-white/10" style={{ backgroundColor: headerBgColor, color: headerTextColor }}>
         <div className="flex items-center justify-between gap-3">
           <div>
             <h1 className="text-lg font-semibold sm:text-xl">{displayName}</h1>
@@ -334,7 +334,7 @@ export function HostedChatClient({
       </Card>
 
       {authenticatedMode ? (
-        <Card className="border-black/10 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80">
+        <Card className="border-black/20 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80">
           <div className="mb-2 flex items-center justify-between">
             <p className="text-sm font-medium">チャットルーム</p>
             <Button size="sm" variant="outline" className="rounded-full" onClick={() => void createRoom()}>
@@ -361,7 +361,7 @@ export function HostedChatClient({
         </Card>
       ) : null}
 
-      <Card className={embedded ? "flex h-[calc(100%-4.5rem)] min-h-[500px] flex-col border-black/10 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80 sm:p-4" : "flex min-h-[62vh] flex-col border-black/10 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80 sm:p-4"}>
+      <Card className={embedded ? "flex h-[calc(100%-4.5rem)] min-h-[500px] flex-col border-black/20 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80 sm:p-4" : "flex min-h-[62vh] flex-col border-black/20 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80 sm:p-4"}>
         <div className="flex-1 space-y-3 overflow-y-auto pr-1">
           {messages.map((message) => (
             <div
@@ -372,17 +372,17 @@ export function HostedChatClient({
                 className={
                   message.role === "user"
                     ? "max-w-[85%] rounded-2xl bg-slate-900 px-4 py-2 text-sm text-white dark:bg-slate-100 dark:text-slate-900"
-                    : "max-w-[85%] rounded-2xl border border-black/10 bg-slate-50 px-4 py-2 text-sm dark:border-white/10 dark:bg-slate-800"
+                    : "max-w-[85%] rounded-2xl border border-black/20 bg-slate-50 px-4 py-2 text-sm dark:border-white/10 dark:bg-slate-800"
                 }
               >
                 <p className="whitespace-pre-wrap break-words">{renderTextWithLinks(message.content)}</p>
 
                 {showCitations && message.role === "assistant" && message.citations && message.citations.length > 0 ? (
-                  <details className="mt-2 rounded-md border border-black/10 bg-white/60 p-2 text-xs dark:border-white/10 dark:bg-slate-900/60">
+                  <details className="mt-2 rounded-md border border-black/20 bg-white/60 p-2 text-xs dark:border-white/10 dark:bg-slate-900/60">
                     <summary className="cursor-pointer text-muted-foreground">根拠を表示</summary>
                     <div className="mt-2 space-y-2">
                       {message.citations.map((c) => (
-                        <div key={`${message.id}_${c.rank}`} className="rounded border border-black/10 p-2 dark:border-white/10">
+                        <div key={`${message.id}_${c.rank}`} className="rounded border border-black/20 p-2 dark:border-white/10">
                           <div className="mb-1 flex flex-wrap items-center gap-2">
                             <Badge variant="outline">[{c.rank}]</Badge>
                             <Badge variant={c.sourceType === "url" ? "secondary" : "outline"}>
@@ -414,7 +414,7 @@ export function HostedChatClient({
 
           {loading ? (
             <div className="flex justify-start">
-              <div className="rounded-2xl border border-black/10 bg-slate-50 px-4 py-2 text-sm text-muted-foreground dark:border-white/10 dark:bg-slate-800">
+              <div className="rounded-2xl border border-black/20 bg-slate-50 px-4 py-2 text-sm text-muted-foreground dark:border-white/10 dark:bg-slate-800">
                 生成中...
               </div>
             </div>
@@ -422,7 +422,7 @@ export function HostedChatClient({
           <div ref={bottomRef} />
         </div>
 
-        <div className="mt-4 space-y-2 rounded-lg border border-black/10 p-2 dark:border-white/10" style={{ backgroundColor: footerBgColor, color: footerTextColor }}>
+        <div className="mt-4 space-y-2 rounded-lg border border-black/20 p-2 dark:border-white/10" style={{ backgroundColor: footerBgColor, color: footerTextColor }}>
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
           <div className="flex items-center gap-2">
             <Input

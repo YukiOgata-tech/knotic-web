@@ -45,11 +45,11 @@ export default async function ConsoleMembersPage({ searchParams }: PageProps) {
         </Card>
       ) : null}
 
-      <Card className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
+      <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
         <CardHeader>
           <CardTitle>メンバー招待</CardTitle>
           <CardDescription>
-            editor 以上のユーザーがテナント参加リンクを発行できます。招待参加時のロールは reader 固定です。
+            editor 以上のユーザーがテナント招待リンクを発行できます。招待参加時のロールは reader となります。
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -57,13 +57,13 @@ export default async function ConsoleMembersPage({ searchParams }: PageProps) {
             <input type="hidden" name="redirect_to" value="/console/members" />
             <Input name="email" type="email" placeholder="member@example.com" required disabled={!isEditor} />
             <Button type="submit" className="rounded-full" disabled={!isEditor}>
-              reader招待リンク発行
+              招待リンク発行
             </Button>
           </form>
         </CardContent>
       </Card>
 
-      <Card className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
+      <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
         <CardHeader>
           <CardTitle>所属メンバー</CardTitle>
         </CardHeader>
@@ -91,7 +91,7 @@ export default async function ConsoleMembersPage({ searchParams }: PageProps) {
         </CardContent>
       </Card>
 
-      <Card className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
+      <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
         <CardHeader>
           <CardTitle>招待履歴</CardTitle>
         </CardHeader>
@@ -99,7 +99,7 @@ export default async function ConsoleMembersPage({ searchParams }: PageProps) {
           {data.invites.map((invite) => (
             <div
               key={invite.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-black/10 p-3 dark:border-white/10"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-black/20 p-3 dark:border-white/10"
             >
               <div className="text-sm">
                 <p className="font-medium">{invite.email}</p>

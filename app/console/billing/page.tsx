@@ -4,8 +4,9 @@ import { firstParam, fmtDate } from "@/app/console/_lib/ui"
 import { ConsoleAlerts } from "@/app/console/_components/console-alerts"
 import { requireConsoleContext } from "@/app/console/_lib/data"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { getTenantBotCount, getTenantStorageUsageBytes } from "@/lib/billing/limits"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { getStripeClient, getStripePriceMapSafe } from "@/lib/stripe"
+import { getStripeClient, getStripePriceMapSafe, resolvePlanCodeFromPriceId } from "@/lib/stripe"
 
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
@@ -32,6 +33,23 @@ type BillingSubscriptionRow = {
   } | null
 }
 
+type PlanLimitRow = {
+  code: string
+  name: string
+  max_bots: number
+  max_hosted_pages: number
+  max_storage_mb: number
+  internal_max_bots_cap: number
+  has_api: boolean
+  has_hosted_page: boolean
+}
+
+type PendingPlanChange = {
+  targetPlanCode: string
+  targetPlanName: string
+  effectiveAt: string
+}
+
 function formatJpy(value: number | null | undefined) {
   if (typeof value !== "number") return "-"
   return `${value.toLocaleString()} 円`
@@ -50,6 +68,10 @@ export default async function ConsoleBillingPage({ searchParams }: PageProps) {
   const noticeMap: Record<string, string> = {
     retry_success: "Webhook未反映イベントの再同期を実行しました。",
     checkout_success: "決済画面から戻りました。Webhook同期完了後に契約情報へ反映されます。",
+    plan_update_scheduled: "既存契約のプラン変更を受け付けました。日割りなしで次回更新タイミングから反映されます。",
+    plan_already_current: "すでに同じプランを利用中です。",
+    plan_upgrade_prorated: "アップグレードを適用しました。差額は日割りで追加請求され、機能は即時反映されます。",
+    plan_downgrade_scheduled: "ダウングレードを受け付けました。次回更新日から新プランへ切り替わります。",
     cancel_scheduled: "解約予約を受け付けました。現在の請求期間終了日に停止されます。",
     cancel_resumed: "自動更新を再開しました。",
   }
@@ -61,6 +83,7 @@ export default async function ConsoleBillingPage({ searchParams }: PageProps) {
     stripe_invalid_request: "Stripeへのリクエストが不正です。Price/Customer/Subscription設定を確認してください。",
     checkout_failed: "Checkoutの作成に失敗しました。サーバーログの [stripe.checkout] を確認してください。",
     checkout_canceled: "決済をキャンセルしました。",
+    subscription_item_missing: "既存契約の明細取得に失敗しました。Stripe側のSubscription設定を確認してください。",
     permission_denied: "この操作はEditor権限が必要です。",
   }
 
@@ -98,6 +121,34 @@ export default async function ConsoleBillingPage({ searchParams }: PageProps) {
 
   const prices = getStripePriceMapSafe()
   const stripeReady = Boolean(prices.lite && prices.standard && prices.pro)
+  const [botCount, storageBytes] = await Promise.all([
+    getTenantBotCount(tenantId),
+    getTenantStorageUsageBytes(tenantId),
+  ])
+  const storageUsedMb = Math.round((storageBytes / (1024 * 1024)) * 10) / 10
+  const [{ count: hostedCandidateCount }, { count: activeApiKeyCount }] = await Promise.all([
+    admin
+      .from("bots")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .neq("status", "archived")
+      .or("is_public.eq.true,access_mode.eq.internal,require_auth_for_hosted.eq.true"),
+    admin
+      .from("tenant_api_keys")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true)
+      .is("revoked_at", null),
+  ])
+
+  const { data: planRowsRaw } = await admin
+    .from("plans")
+    .select("code, name, max_bots, max_hosted_pages, max_storage_mb, internal_max_bots_cap, has_api, has_hosted_page")
+    .eq("is_active", true)
+
+  const planRows = (planRowsRaw ?? []) as PlanLimitRow[]
+  const planByCode = new Map(planRows.map((row) => [row.code, row]))
+  let pendingPlanChange: PendingPlanChange | null = null
 
   let cardSummary = "未登録"
   let invoices: Stripe.Invoice[] = []
@@ -121,16 +172,59 @@ export default async function ConsoleBillingPage({ searchParams }: PageProps) {
         limit: 8,
       })
       invoices = listed.data
+
+      if (subscription?.provider_subscription_id) {
+        const stripeSub = await stripe.subscriptions.retrieve(subscription.provider_subscription_id)
+        if (typeof stripeSub.schedule === "string" && stripeSub.schedule) {
+          const schedule = await stripe.subscriptionSchedules.retrieve(stripeSub.schedule)
+          const nowSec = Math.floor(Date.now() / 1000)
+          const nextPhase = schedule.phases.find((phase) => Number(phase.start_date ?? 0) > nowSec)
+          const nextItem = nextPhase?.items?.[0] as { price?: string | { id?: string } } | undefined
+          const nextPriceId =
+            typeof nextItem?.price === "string" ? nextItem.price : nextItem?.price?.id ?? null
+          const nextPlanCode = nextPriceId ? resolvePlanCodeFromPriceId(nextPriceId) : null
+          const nextPlan = nextPlanCode ? planByCode.get(nextPlanCode) : null
+          if (nextPlanCode && nextPlan && nextPlanCode !== currentCode && nextPhase?.start_date) {
+            pendingPlanChange = {
+              targetPlanCode: nextPlanCode,
+              targetPlanName: nextPlan.name,
+              effectiveAt: new Date(Number(nextPhase.start_date) * 1000).toISOString(),
+            }
+          }
+        }
+      }
     } catch {
       // Stripe API failure should not break console rendering.
     }
   }
 
+  const targetPlan = pendingPlanChange ? planByCode.get(pendingPlanChange.targetPlanCode) ?? null : null
+  const targetBotLimit = targetPlan
+    ? targetPlan.internal_max_bots_cap > 0
+      ? Math.min(targetPlan.max_bots, targetPlan.internal_max_bots_cap)
+      : targetPlan.max_bots
+    : null
+  const targetStorageBytes = targetPlan ? targetPlan.max_storage_mb * 1024 * 1024 : null
+  const botsToReduce = targetBotLimit !== null ? Math.max(0, botCount - targetBotLimit) : 0
+  const storageToReduceBytes =
+    targetStorageBytes !== null ? Math.max(0, storageBytes - targetStorageBytes) : 0
+  const storageToReduceMb = Math.ceil((storageToReduceBytes / (1024 * 1024)) * 10) / 10
+  const hostedInUse = hostedCandidateCount ?? 0
+  const targetHostedLimit = targetPlan
+    ? targetPlan.has_hosted_page
+      ? Math.max(0, targetPlan.max_hosted_pages)
+      : 0
+    : null
+  const hostedToReduce = targetHostedLimit !== null ? Math.max(0, hostedInUse - targetHostedLimit) : 0
+  const currentPlan = currentCode ? planByCode.get(currentCode) ?? null : null
+  const willLoseApi = Boolean(currentPlan?.has_api) && targetPlan?.has_api === false
+  const activeApiKeys = activeApiKeyCount ?? 0
+
   return (
     <div className="grid gap-4">
       <ConsoleAlerts notice={notice} error={error} />
 
-      <Card className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
+      <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
         <CardHeader>
           <CardTitle>契約情報</CardTitle>
           <CardDescription>自動更新（ON）/ 日割りなし の運用方針に基づく現在の契約状態です。</CardDescription>
@@ -151,12 +245,48 @@ export default async function ConsoleBillingPage({ searchParams }: PageProps) {
         </CardContent>
       </Card>
 
+      {pendingPlanChange && targetPlan ? (
+        <Card className="border-amber-300/60 bg-amber-50/70 dark:border-amber-500/40 dark:bg-amber-950/20">
+          <CardHeader>
+            <CardTitle className="text-base">次回更新日の上限チェック</CardTitle>
+            <CardDescription>
+              {fmtDate(pendingPlanChange.effectiveAt)} から {pendingPlanChange.targetPlanName} が適用されます。
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-2 text-sm text-amber-900 dark:text-amber-200">
+            <p>
+              Bot: 現在 {botCount} / 新上限 {targetBotLimit ?? "-"}
+              {botsToReduce > 0 ? `（更新日までに ${botsToReduce} 件の整理が必要）` : "（適合）"}
+            </p>
+            <p>
+              PDF/データ容量: 現在 {storageUsedMb.toLocaleString()} MB / 新上限 {targetPlan.max_storage_mb.toLocaleString()} MB
+              {storageToReduceMb > 0 ? `（更新日までに ${storageToReduceMb.toLocaleString()} MB の整理が必要）` : "（適合）"}
+            </p>
+            <p>
+              Hosted URL: 現在 {hostedInUse} / 新上限 {targetHostedLimit ?? "-"}
+              {hostedToReduce > 0 ? `（更新日までに ${hostedToReduce} 件の整理が必要）` : "（適合）"}
+            </p>
+            <p>
+              API利用: 次プランで {targetPlan.has_api ? "利用可" : "利用不可"}
+              {willLoseApi
+                ? activeApiKeys > 0
+                  ? `（有効APIキー ${activeApiKeys} 件は更新日以降に利用停止）`
+                  : "（更新日以降はAPI呼び出し不可）"
+                : ""}
+            </p>
+            <p className="text-xs">
+              更新日時点で上限を超過している場合、新規Bot作成・新規PDF追加・再インデックス・Hosted URL利用が停止されます。既存データは削除されません。
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
+
       <section className="grid gap-4 lg:grid-cols-3">
         {(["lite", "standard", "pro"] as const).map((code) => {
           const isCurrent = currentCode === code
           const disabled = !isEditor || !stripeReady
           return (
-            <Card key={code} className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
+            <Card key={code} className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
               <CardHeader>
                 <CardTitle className="text-base">{PLAN_LABELS[code]}</CardTitle>
                 <CardDescription>
@@ -179,8 +309,11 @@ export default async function ConsoleBillingPage({ searchParams }: PageProps) {
           )
         })}
       </section>
+      <p className="rounded-md border border-black/20 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-white/10 dark:bg-slate-900/40 dark:text-slate-300">
+        プラン変更ルール: アップグレードは機能を即時反映し、差額を日割りで請求します。ダウングレードは次回更新日から適用され、期間中の返金はありません。
+      </p>
 
-      <Card className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
+      <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
         <CardHeader>
           <CardTitle className="text-base">支払い情報</CardTitle>
           <CardDescription>カード情報・請求書・支払い失敗時対応はStripe Customer Portalと請求一覧で確認できます。</CardDescription>
@@ -197,7 +330,7 @@ export default async function ConsoleBillingPage({ searchParams }: PageProps) {
               Customer Portalを開く
             </button>
           </form>
-          <div className="grid gap-2 rounded-lg border border-black/10 p-3 text-xs dark:border-white/10">
+          <div className="grid gap-2 rounded-lg border border-black/20 p-3 text-xs dark:border-white/10">
             <p className="font-medium">請求履歴（最新8件）</p>
             {invoices.length === 0 ? <p className="text-muted-foreground">請求履歴はまだありません。</p> : null}
             {invoices.map((invoice) => (

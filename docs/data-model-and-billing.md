@@ -48,5 +48,5 @@
 
 ## 補足（2026-02-25時点）
 - 旧パッチSQLは廃止し、`schema.sql` に統合済み
-- `tenants` にAI設定カラムを統合済み（`ai_default_model` など）
+- AIモデル設定は `bots` 単位で管理（テナント単位AI設定は廃止）
 - `bots` にHosted設定とUI色設定を統合済み

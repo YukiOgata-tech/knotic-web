@@ -23,7 +23,7 @@ export default async function LoginPage() {
       description="作成中のAIボット管理画面に入り、ナレッジ追加や公開設定を続けられます。"
     >
       <section className="mx-auto max-w-xl">
-        <Card className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/75">
+        <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/75">
           <CardHeader>
             <CardTitle>サインイン</CardTitle>
           </CardHeader>

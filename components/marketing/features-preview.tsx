@@ -26,7 +26,7 @@ const previewItems = [
 
 function FeaturesPreview() {
   return (
-    <section className="relative overflow-hidden rounded-3xl border border-black/10 bg-white/85 p-6 dark:border-white/10 dark:bg-slate-900/75 sm:p-8">
+    <section className="relative overflow-hidden rounded-3xl border border-black/20 bg-white/85 p-6 dark:border-white/10 dark:bg-slate-900/75 sm:p-8">
       <div className="pointer-events-none absolute -right-14 -top-16 h-44 w-44 rounded-full bg-cyan-300/20 blur-3xl dark:bg-cyan-400/20" />
       <div className="space-y-3">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-700 dark:text-cyan-300">
@@ -49,7 +49,7 @@ function FeaturesPreview() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.45 }}
             transition={{ duration: 0.32, delay: 0.06 * index }}
-            className="rounded-2xl border border-black/10 bg-white/85 p-4 dark:border-white/10 dark:bg-slate-950/45"
+            className="rounded-2xl border border-black/20 bg-white/85 p-4 dark:border-white/10 dark:bg-slate-950/45"
           >
             <div className="flex items-center gap-2.5">
               <item.icon className="size-5 shrink-0 text-cyan-700 dark:text-cyan-300" />

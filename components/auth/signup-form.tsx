@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import * as React from "react"
-import { MailCheck, X } from "lucide-react"
+import { Loader2, MailCheck, X } from "lucide-react"
 
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ProcessingOverlay } from "@/components/ui/processing-overlay"
 
 type SignupMode = "owner" | "member"
 
@@ -95,6 +96,7 @@ export function SignupForm({ mode = "owner" }: { mode?: SignupMode }) {
             placeholder="山田 太郎"
             value={fullName}
             onChange={(event) => setFullName(event.target.value)}
+            disabled={loading}
           />
         </div>
         <div className="grid gap-2">
@@ -106,6 +108,7 @@ export function SignupForm({ mode = "owner" }: { mode?: SignupMode }) {
             placeholder="株式会社サンプル"
             value={companyName}
             onChange={(event) => setCompanyName(event.target.value)}
+            disabled={loading}
           />
         </div>
         <div className="grid gap-2">
@@ -118,6 +121,7 @@ export function SignupForm({ mode = "owner" }: { mode?: SignupMode }) {
             placeholder="you@example.com"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
+            disabled={loading}
           />
         </div>
         <div className="grid gap-2">
@@ -131,6 +135,7 @@ export function SignupForm({ mode = "owner" }: { mode?: SignupMode }) {
             placeholder="8文字以上"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
+            disabled={loading}
           />
         </div>
 
@@ -138,9 +143,18 @@ export function SignupForm({ mode = "owner" }: { mode?: SignupMode }) {
         {message && <p className="text-sm text-emerald-600 dark:text-emerald-400">{message}</p>}
 
         <Button className="rounded-full" disabled={loading}>
-          {loading ? "作成中..." : mode === "owner" ? "テナントオーナーとして作成" : "knoticユーザーを作成"}
+          {loading ? (
+            <span className="inline-flex items-center gap-2">
+              <Loader2 className="size-4 animate-spin" />
+              作成中...
+            </span>
+          ) : mode === "owner" ? (
+            "テナントオーナーとして作成"
+          ) : (
+            "knoticユーザーを作成"
+          )}
         </Button>
-        <Button asChild variant="ghost" className="rounded-full">
+        <Button asChild variant="ghost" className="rounded-full" disabled={loading}>
           <Link href="/login">既にアカウントをお持ちの方はこちら</Link>
         </Button>
       </form>
@@ -157,7 +171,7 @@ export function SignupForm({ mode = "owner" }: { mode?: SignupMode }) {
               <button
                 type="button"
                 aria-label="閉じる"
-                className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-black/10 bg-white/70 text-zinc-700 hover:bg-white dark:border-white/20 dark:bg-slate-900/75 dark:text-zinc-200 dark:hover:bg-slate-900"
+                className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-black/20 bg-white/70 text-zinc-700 hover:bg-white dark:border-white/20 dark:bg-slate-900/75 dark:text-zinc-200 dark:hover:bg-slate-900"
               >
                 <X className="size-4" />
               </button>
@@ -194,6 +208,12 @@ export function SignupForm({ mode = "owner" }: { mode?: SignupMode }) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ProcessingOverlay
+        open={loading}
+        title="アカウントを作成しています"
+        description="認証情報を安全に登録中です。完了までこのままお待ちください。"
+      />
     </>
   )
 }

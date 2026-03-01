@@ -1,20 +1,16 @@
 import Link from "next/link"
-import { ExternalLink } from "lucide-react"
+import { ArrowRight, ExternalLink } from "lucide-react"
 
 import {
   createBotAction,
-  rotateWidgetTokenAction,
-  toggleBotPublicAction,
-  updateAllowedOriginsAction,
-  updateHostedConfigAction,
 } from "@/app/console/actions"
-import { HostedConfigEditor } from "@/app/console/bots/hosted-config-editor"
 import { ConsoleAlerts } from "@/app/console/_components/console-alerts"
 import { fetchConsoleData, requireConsoleContext } from "@/app/console/_lib/data"
 import { firstParam } from "@/app/console/_lib/ui"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { CopyButton } from "@/components/ui/copy-button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
@@ -22,6 +18,14 @@ import { getAppUrl } from "@/lib/env"
 
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
+}
+
+function botSettingsPath(botName: string, publicId: string) {
+  const slug = botName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+  return `/console/bots/${slug || "bot"}--${publicId}`
 }
 
 export default async function ConsoleBotsPage({ searchParams }: PageProps) {
@@ -37,7 +41,29 @@ export default async function ConsoleBotsPage({ searchParams }: PageProps) {
   if (!membership) return null
   const data = await fetchConsoleData(membership.tenant_id)
   const isEditor = membership.role === "editor"
-  const maxHistoryTurnLimit = data.currentPlan?.code === "lite" ? 20 : 30
+  const botLimit = data.currentPlan
+    ? data.currentPlan.internal_max_bots_cap > 0
+      ? Math.min(data.currentPlan.max_bots, data.currentPlan.internal_max_bots_cap)
+      : data.currentPlan.max_bots
+    : null
+  const botOverCount = botLimit !== null ? Math.max(0, data.botCount - botLimit) : 0
+  const hostedCandidates = data.bots
+    .filter(
+      (bot) =>
+        bot.status !== "archived" &&
+        (Boolean(bot.is_public) || bot.access_mode === "internal" || Boolean(bot.require_auth_for_hosted))
+    )
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+  const hostedLimit =
+    data.currentPlan?.has_hosted_page && typeof data.currentPlan.max_hosted_pages === "number"
+      ? Math.max(0, data.currentPlan.max_hosted_pages)
+      : 0
+  const hostedAllowed = hostedCandidates.slice(0, hostedLimit)
+  const hostedOverflow = hostedCandidates.slice(hostedLimit)
+  const widgetConfiguredCount = data.bots.filter((bot) => {
+    const token = data.tokenByBotId.get(bot.id)
+    return Boolean(token && (token.allowed_origins?.length ?? 0) > 0)
+  }).length
 
   const widgetSnippet =
     widgetToken && widgetBotPublicId
@@ -57,6 +83,9 @@ export default async function ConsoleBotsPage({ searchParams }: PageProps) {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            <div className="mb-3 flex justify-end">
+              <CopyButton value={widgetSnippet} label="スクリプトをコピー" />
+            </div>
             <pre className="overflow-x-auto rounded-lg border border-cyan-200/70 bg-white/80 p-3 text-xs dark:border-cyan-800/60 dark:bg-slate-900/70">
               <code>{widgetSnippet}</code>
             </pre>
@@ -64,30 +93,63 @@ export default async function ConsoleBotsPage({ searchParams }: PageProps) {
         </Card>
       ) : null}
 
-      <Card className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
+      <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
         <CardHeader>
           <CardTitle>Bot管理</CardTitle>
-          <CardDescription>作成・公開切替・Hosted URL/Widget設定を管理します。</CardDescription>
+          <CardDescription>Bot作成と各Bot設定画面への導線を管理します。</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
-          <form action={createBotAction} className="grid gap-3 rounded-xl border border-black/10 p-4 dark:border-white/10">
-            <input type="hidden" name="redirect_to" value="/console/bots" />
-            <h3 className="font-medium">新規Bot作成</h3>
-            <Input name="name" placeholder="Bot名（例: 会社FAQボット）" required disabled={!isEditor} />
-            <Textarea name="description" placeholder="Botの説明（任意）" disabled={!isEditor} />
-            <Button type="submit" className="w-fit rounded-full" disabled={!isEditor}>
-              Botを作成
-            </Button>
-          </form>
+          <div className="rounded-xl border border-black/20 bg-slate-50 p-4 text-sm dark:border-white/10 dark:bg-slate-900/50">
+            <p>
+              Bot数: {data.botCount}
+              {botLimit !== null ? ` / 上限 ${botLimit}` : ""}
+              {botOverCount > 0 ? `（${botOverCount} 件超過）` : ""}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              上限超過時は新規Bot作成不可。既存Botは維持されるため、必要に応じて運用対象を整理してください。
+            </p>
+
+            <div className="my-2 border-b"/>
+
+            <p>
+              Hosted URL対象: {hostedCandidates.length}
+              {data.currentPlan?.has_hosted_page ? ` / 上限 ${hostedLimit}` : " / プラン対象外"}
+              {hostedOverflow.length > 0 ? `（${hostedOverflow.length} 件が対象外）` : ""}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              超過時は作成順で上限内のBotのみ利用可能です。
+            </p>
+            {hostedAllowed.length > 0 ? (
+              <p className="mt-2 text-xs text-emerald-700 dark:text-emerald-300">
+                利用可能: {hostedAllowed.map((bot) => bot.name).join(" / ")}
+              </p>
+            ) : null}
+            {hostedOverflow.length > 0 ? (
+              <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                上限超過で対象外: {hostedOverflow.map((bot) => bot.name).join(" / ")}
+              </p>
+            ) : null}
+
+            <div className="my-2 border-b"/>
+
+            <p className="font-medium text-cyan-900 dark:text-cyan-100">
+              Widget導入フロー（設定済み {widgetConfiguredCount}/{data.bots.length} Bot）
+            </p>
+            <p className="text-xs text-cyan-800/90 dark:text-cyan-200/90">
+              1. 対象Botで「トークン再発行」 2. 「許可オリジン」を保存 3. 発行されたscriptタグを既存サイトに貼り付け
+            </p>
+            <p className="text-xs text-cyan-800/90 dark:text-cyan-200/90">
+              トークン再発行時は以前のトークンが失効します。運用中サイトの切替タイミングに注意してください。
+            </p>
+          </div>
 
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Bot</TableHead>
                 <TableHead>状態</TableHead>
-                <TableHead>公開</TableHead>
                 <TableHead>Hosted URL</TableHead>
-                <TableHead>Widget</TableHead>
+                <TableHead className="text-right">遷移</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -96,19 +158,24 @@ export default async function ConsoleBotsPage({ searchParams }: PageProps) {
                 return (
                   <TableRow key={bot.id}>
                     <TableCell>
-                      <p className="font-medium">{bot.name}</p>
+                      <Link
+                        href={botSettingsPath(bot.name, bot.public_id)}
+                        className="font-medium text-cyan-700 hover:underline dark:text-cyan-300"
+                      >
+                        {bot.name}
+                      </Link>
                       <p className="text-xs text-muted-foreground">{bot.public_id}</p>
                     </TableCell>
-                    <TableCell>{bot.status}</TableCell>
-                    <TableCell>
-                      <form action={toggleBotPublicAction}>
-                        <input type="hidden" name="redirect_to" value="/console/bots" />
-                        <input type="hidden" name="bot_id" value={bot.id} />
-                        <input type="hidden" name="next_public" value={String(!bot.is_public)} />
-                        <Button type="submit" size="sm" variant={bot.is_public ? "secondary" : "outline"} disabled={!isEditor}>
-                          {bot.is_public ? "公開中" : "非公開"}
-                        </Button>
-                      </form>
+                    <TableCell className="space-y-1">
+                      <p>{bot.status}</p>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <Badge variant={Boolean(bot.is_public) ? "secondary" : "outline"}>
+                          {bot.is_public ? "有効" : "無効"}
+                        </Badge>
+                        <Badge variant={token ? "secondary" : "outline"}>
+                          {token ? "Widgetトークン発行済み" : "Widgetトークン未発行"}
+                        </Badge>
+                      </div>
                     </TableCell>
                     <TableCell>
                       {data.currentPlan?.has_hosted_page ? (
@@ -123,32 +190,14 @@ export default async function ConsoleBotsPage({ searchParams }: PageProps) {
                         <span className="text-xs text-muted-foreground">プラン対象外</span>
                       )}
                     </TableCell>
-                    <TableCell className="space-y-2">
-                      <form action={rotateWidgetTokenAction}>
-                        <input type="hidden" name="redirect_to" value="/console/bots" />
-                        <input type="hidden" name="bot_id" value={bot.id} />
-                        <input type="hidden" name="bot_public_id" value={bot.public_id} />
-                        <Button type="submit" size="sm" variant="outline" disabled={!isEditor}>
-                          トークン再発行
-                        </Button>
-                      </form>
-                      {token ? (
-                        <form action={updateAllowedOriginsAction} className="grid gap-1">
-                          <input type="hidden" name="redirect_to" value="/console/bots" />
-                          <input type="hidden" name="token_id" value={token.id} />
-                          <Input
-                            name="allowed_origins"
-                            defaultValue={(token.allowed_origins ?? []).join(", ")}
-                            placeholder="https://example.com, https://www.example.com"
-                            disabled={!isEditor}
-                          />
-                          <Button type="submit" size="sm" variant="secondary" disabled={!isEditor}>
-                            許可オリジン更新
-                          </Button>
-                        </form>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">未発行</span>
-                      )}
+                    <TableCell className="text-right">
+                      <Link
+                        href={botSettingsPath(bot.name, bot.public_id)}
+                        className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-800"
+                      >
+                        Bot設定を開く
+                        <ArrowRight className="size-3.5" />
+                      </Link>
                     </TableCell>
                   </TableRow>
                 )
@@ -156,30 +205,21 @@ export default async function ConsoleBotsPage({ searchParams }: PageProps) {
             </TableBody>
           </Table>
 
-          <div className="grid gap-3 rounded-xl border border-black/10 p-4 dark:border-white/10">
-            <h3 className="font-medium">Hostedチャット設定</h3>
-            <p className="text-xs text-muted-foreground">
-              サービス名表示・初期メッセージ・用途・公開モード・色設定・Widget動作をBotごとに編集し、保存前にテストできます。
-            </p>
-            <div className="grid gap-4">
-              {data.bots.map((bot) => (
-                <HostedConfigEditor
-                  key={bot.id}
-                  bot={bot}
-                  isEditor={isEditor}
-                  hasHostedPage={Boolean(data.currentPlan?.has_hosted_page)}
-                  maxHistoryTurnLimit={maxHistoryTurnLimit}
-                  saveAction={updateHostedConfigAction}
-                />
-              ))}
-            </div>
-          </div>
+          <form action={createBotAction} className="grid gap-3 rounded-xl border border-black/20 p-4 dark:border-white/10">
+            <input type="hidden" name="redirect_to" value="/console/bots" />
+            <h3 className="font-medium">新規Bot作成</h3>
+            <Input name="name" placeholder="Bot名（例:会社FAQボット）" required disabled={!isEditor} />
+            <Textarea name="description" placeholder="Botの説明（任意）" disabled={!isEditor} />
+            <Button type="submit" className="w-fit rounded-full" disabled={!isEditor}>
+              Botを作成
+            </Button>
+          </form>
 
-          <div className="grid gap-2 rounded-lg border border-black/10 p-3 text-xs text-muted-foreground dark:border-white/10">
+          <div className="grid gap-2 rounded-lg border border-black/20 p-3 text-xs text-muted-foreground dark:border-white/10">
             <div className="flex items-center gap-2">
               <Badge variant="outline">運用メモ</Badge>
             </div>
-            <p>公開ON/OFFとHostedアクセスモードは別管理です。公開ONでも access_mode=internal ならログインが必要です。</p>
+            <p>有効/無効とHostedアクセスモードは別管理です。有効でも access_mode=internal ならログインが必要です。</p>
             <p>Widgetはトークンで実行され、origin制限は `許可オリジン` で制御します。</p>
           </div>
         </CardContent>

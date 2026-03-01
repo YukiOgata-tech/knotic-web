@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Activity, BarChart3, Bot, BookOpen, CreditCard, KeyRound, Settings2, ShieldCheck, Users } from "lucide-react"
+import { Activity, BarChart3, Bot, CreditCard, KeyRound, Settings2, ShieldCheck, Users } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -10,7 +10,6 @@ const NAV_ITEMS = [
   { href: "/console/overview", label: "Overview", icon: BarChart3 },
   { href: "/console/operations", label: "Operations", icon: Activity },
   { href: "/console/bots", label: "Bots", icon: Bot },
-  { href: "/console/sources", label: "Sources", icon: BookOpen },
   { href: "/console/api-keys", label: "API Keys", icon: KeyRound },
   { href: "/console/billing", label: "Billing", icon: CreditCard },
   { href: "/console/audit", label: "Audit", icon: ShieldCheck },

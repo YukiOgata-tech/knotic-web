@@ -21,7 +21,7 @@ export default async function SubDomainLayout({ children }: { children: React.Re
     return (
       <div className="relative overflow-x-clip bg-[linear-gradient(180deg,#f8fafc_0%,#ffffff_45%,#f9fafb_100%)] py-6 dark:bg-[linear-gradient(180deg,#0f172a_0%,#0b1220_45%,#0a0f1a_100%)] sm:py-8">
         <Container className="grid gap-4">
-          <Card className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
+          <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
             <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
               <div className="space-y-1">
                 <p className="inline-flex items-center gap-2 text-sm font-semibold">

@@ -43,25 +43,25 @@ export default async function ConsoleOverviewPage({ searchParams }: PageProps) {
       ) : null}
 
       <section className="grid gap-4 md:grid-cols-4">
-        <Card className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
+        <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
           <CardHeader>
             <CardDescription>Bot数</CardDescription>
             <CardTitle>{data.botCount}</CardTitle>
           </CardHeader>
         </Card>
-        <Card className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
+        <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
           <CardHeader>
             <CardDescription>ソース総数</CardDescription>
             <CardTitle>{data.sourceCount}</CardTitle>
           </CardHeader>
         </Card>
-        <Card className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
+        <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
           <CardHeader>
             <CardDescription>今月メッセージ</CardDescription>
             <CardTitle>{data.monthlyMessages.toLocaleString()}</CardTitle>
           </CardHeader>
         </Card>
-        <Card className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
+        <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
           <CardHeader>
             <CardDescription>チャットログ件数</CardDescription>
             <CardTitle>{data.logsCount.toLocaleString()}</CardTitle>
@@ -70,7 +70,7 @@ export default async function ConsoleOverviewPage({ searchParams }: PageProps) {
       </section>
 
       <section className="grid gap-4 xl:grid-cols-2">
-        <Card className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
+        <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings2 className="size-5" />
@@ -98,7 +98,7 @@ export default async function ConsoleOverviewPage({ searchParams }: PageProps) {
           </CardContent>
         </Card>
 
-        <Card className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
+        <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
           <CardHeader>
             <CardTitle>運用メモ</CardTitle>
             <CardDescription>

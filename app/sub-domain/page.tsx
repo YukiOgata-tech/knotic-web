@@ -37,7 +37,7 @@ export default async function PlatformAdminPage({
 
   return (
     <div className="grid gap-4">
-      <Card className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
+      <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
         <CardHeader>
           <CardTitle>Platform Console</CardTitle>
           <CardDescription>
@@ -58,7 +58,7 @@ export default async function PlatformAdminPage({
         </CardContent>
       </Card>
 
-      <Card className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
+      <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
         <CardHeader>
           <CardTitle>Tenants</CardTitle>
           <CardDescription>Stripe契約と手動オーバーライドの両方を同時表示します。</CardDescription>
@@ -128,7 +128,7 @@ export default async function PlatformAdminPage({
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
+        <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
           <CardHeader>
             <CardTitle>手動契約オーバーライド</CardTitle>
             <CardDescription>
@@ -218,7 +218,7 @@ export default async function PlatformAdminPage({
               <Button type="submit">契約オーバーライドを保存</Button>
             </form>
 
-            <form action={disableContractOverrideAction} className="mt-4 grid gap-2 border-t border-black/10 pt-4 dark:border-white/10">
+            <form action={disableContractOverrideAction} className="mt-4 grid gap-2 border-t border-black/20 pt-4 dark:border-white/10">
               <input type="hidden" name="redirect_to" value="/sub-domain" />
               <label className="text-xs text-muted-foreground">tenant_id（無効化対象）</label>
               <Input name="tenant_id" placeholder="UUID" required />
@@ -227,7 +227,7 @@ export default async function PlatformAdminPage({
           </CardContent>
         </Card>
 
-        <Card className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
+        <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
           <CardHeader>
             <CardTitle>契約者ユーザー権限の付与</CardTitle>
             <CardDescription>

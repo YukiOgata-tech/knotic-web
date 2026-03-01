@@ -40,7 +40,7 @@ export default function SpecifiedCommercialTransactionsPage() {
       </section>
 
       {/* メインコンテンツ */}
-      <section className="-mx-4 rounded-none border-y border-black/10 bg-white/90 px-4 py-6 dark:border-white/10 dark:bg-slate-900/75 sm:mx-0 sm:rounded-2xl sm:border sm:p-8">
+      <section className="-mx-4 rounded-none border-y border-black/20 bg-white/90 px-4 py-6 dark:border-white/10 dark:bg-slate-900/75 sm:mx-0 sm:rounded-2xl sm:border sm:p-8">
         <div className="mb-6 grid gap-1 text-xs text-zinc-500 dark:text-zinc-400">
           <p>施行日: {commercialLawMeta.effectiveDate}</p>
           <p>最終改定日: {commercialLawMeta.revisedAt}</p>
@@ -66,7 +66,7 @@ export default function SpecifiedCommercialTransactionsPage() {
       </section>
 
       {/* 関連ページ */}
-      <section className="mt-4 -mx-4 rounded-none border-y border-black/10 bg-white/80 px-4 py-4 text-xs text-zinc-600 dark:border-white/10 dark:bg-slate-900/65 dark:text-zinc-300 sm:mx-0 sm:rounded-xl sm:border sm:p-5">
+      <section className="mt-4 -mx-4 rounded-none border-y border-black/20 bg-white/80 px-4 py-4 text-xs text-zinc-600 dark:border-white/10 dark:bg-slate-900/65 dark:text-zinc-300 sm:mx-0 sm:rounded-xl sm:border sm:p-5">
         <p className="font-medium text-zinc-800 dark:text-zinc-100">関連ページ</p>
         <p className="mt-1">サービス利用条件とデータ取扱い方針は以下をご確認ください。</p>
         <div className="mt-3 flex flex-wrap gap-2">

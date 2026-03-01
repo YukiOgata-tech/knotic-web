@@ -24,7 +24,7 @@ export default async function SignupPage() {
       description="この登録は契約者（オーナー）向けです。作成後、管理コンソールからBot設定やメンバー招待を管理できます。"
     >
       <section className="mx-auto max-w-xl">
-        <Card className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/75">
+        <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/75">
           <CardHeader>
             <CardTitle>オーナーアカウント作成</CardTitle>
           </CardHeader>

@@ -3,11 +3,13 @@
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import * as React from "react"
+import { Loader2 } from "lucide-react"
 
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ProcessingOverlay } from "@/components/ui/processing-overlay"
 
 export function LoginForm() {
   const router = useRouter()
@@ -44,43 +46,60 @@ export function LoginForm() {
   }
 
   return (
-    <form className="grid gap-4" onSubmit={onSubmit}>
-      <div className="grid gap-2">
-        <Label htmlFor="email">メールアドレス</Label>
-        <Input
-          id="email"
-          type="email"
-          required
-          autoComplete="email"
-          placeholder="you@example.com"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-        />
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor="password">パスワード</Label>
-        <Input
-          id="password"
-          type="password"
-          required
-          autoComplete="current-password"
-          placeholder="********"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-        />
-      </div>
+    <>
+      <form className="grid gap-4" onSubmit={onSubmit}>
+        <div className="grid gap-2">
+          <Label htmlFor="email">メールアドレス</Label>
+          <Input
+            id="email"
+            type="email"
+            required
+            autoComplete="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            disabled={loading}
+          />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="password">パスワード</Label>
+          <Input
+            id="password"
+            type="password"
+            required
+            autoComplete="current-password"
+            placeholder="********"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            disabled={loading}
+          />
+        </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+        {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <Button className="rounded-full" disabled={loading}>
-        {loading ? "ログイン中..." : "ログイン"}
-      </Button>
-      <Button asChild variant="ghost" className="rounded-full">
-        <Link href="/signup">オーナーアカウント作成</Link>
-      </Button>
-      <Button asChild variant="ghost" className="rounded-full">
-        <Link href="/signup-user">knoticユーザー作成</Link>
-      </Button>
-    </form>
+        <Button className="rounded-full" disabled={loading}>
+          {loading ? (
+            <span className="inline-flex items-center gap-2">
+              <Loader2 className="size-4 animate-spin" />
+              ログイン中...
+            </span>
+          ) : (
+            "ログイン"
+          )}
+        </Button>
+        <Button asChild variant="ghost" className="rounded-full" disabled={loading}>
+          <Link href="/signup">オーナーアカウント作成</Link>
+        </Button>
+        <Button asChild variant="ghost" className="rounded-full" disabled={loading}>
+          <Link href="/signup-user">knoticユーザー作成</Link>
+        </Button>
+      </form>
+
+      <ProcessingOverlay
+        open={loading}
+        title="認証を処理しています"
+        description="ログイン状態を確認中です。画面が切り替わるまでそのままお待ちください。"
+      />
+    </>
   )
 }

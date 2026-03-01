@@ -21,7 +21,7 @@ export default function DemoPage() {
       description="このページは導入イメージを具体的に掴むためのデモ案内です。将来的には実際の体験デモに置き換えます。"
     >
       <section className="grid gap-4 md:grid-cols-2">
-        <Card className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/75">
+        <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/75">
           <CardHeader>
             <CardTitle>デモの流れ</CardTitle>
           </CardHeader>
@@ -35,7 +35,7 @@ export default function DemoPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/75">
+        <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/75">
           <CardHeader>
             <CardTitle>次のアクション</CardTitle>
           </CardHeader>

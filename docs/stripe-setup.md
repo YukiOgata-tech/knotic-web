@@ -118,6 +118,17 @@ stripe listen --forward-to localhost:3000/api/stripe/webhook
 - `subscriptions` が更新される
 - `billing_customers` が作成/更新される
 
+### テストカード（Stripe test mode）
+
+- 成功: `4242 4242 4242 4242`
+- 失敗（カード拒否）: `4000 0000 0000 0002`
+- 失敗（残高不足）: `4000 0000 0000 9995`
+
+補足:
+- 有効期限は未来日（例: `12/34`）
+- CVCは任意3桁（例: `123`）
+- 郵便番号は任意（例: `12345`）
+
 ## 8. 本番デプロイ前チェック
 
 - Vercelの環境変数は live値のみ

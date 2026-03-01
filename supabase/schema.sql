@@ -789,10 +789,10 @@ create table if not exists public.tenant_notifications (
 
 -- B) consolidated columns (from table-consolidation + ui-colors patches)
 alter table public.tenants
-  add column if not exists ai_default_model text not null default '5-mini',
-  add column if not exists ai_fallback_model text,
-  add column if not exists ai_allow_model_override boolean not null default false,
-  add column if not exists ai_max_output_tokens integer not null default 1200;
+  drop column if exists ai_default_model,
+  drop column if exists ai_fallback_model,
+  drop column if exists ai_allow_model_override,
+  drop column if exists ai_max_output_tokens;
 
 alter table public.bots
   add column if not exists chat_purpose text not null default 'customer_support',

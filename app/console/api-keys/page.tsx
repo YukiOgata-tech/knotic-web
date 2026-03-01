@@ -27,7 +27,7 @@ export default async function ConsoleApiKeysPage({ searchParams }: PageProps) {
     <div className="grid gap-4">
       <ConsoleAlerts notice={notice} error={error} issuedApiKey={issuedApiKey} widgetToken={widgetToken} />
 
-      <Card className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
+      <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
         <CardHeader>
           <CardTitle>APIキー管理（契約者公開用）</CardTitle>
           <CardDescription>LINE連携などは顧客側API実装前提。キーは顧客側サーバーのみで保管してください。</CardDescription>
@@ -39,7 +39,7 @@ export default async function ConsoleApiKeysPage({ searchParams }: PageProps) {
             </p>
           ) : null}
 
-          <form action={createApiKeyAction} className="grid gap-3 rounded-xl border border-black/10 p-4 dark:border-white/10">
+          <form action={createApiKeyAction} className="grid gap-3 rounded-xl border border-black/20 p-4 dark:border-white/10">
             <input type="hidden" name="redirect_to" value="/console/api-keys" />
             <h3 className="font-medium">新規APIキー発行</h3>
             <Input name="name" placeholder="用途名（例: line-prod）" required disabled={!isEditor} />

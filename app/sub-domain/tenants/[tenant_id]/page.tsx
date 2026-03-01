@@ -40,7 +40,7 @@ export default async function PlatformTenantDetailPage({
 
   return (
     <div className="grid gap-4">
-      <Card className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
+      <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
         <CardHeader>
           <CardTitle className="flex items-center justify-between gap-3">
             <span>{detail.tenant.display_name}</span>
@@ -64,19 +64,19 @@ export default async function PlatformTenantDetailPage({
           {notice ? <p className="rounded-md border border-emerald-300/40 bg-emerald-100/60 px-3 py-2 text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-900/20 dark:text-emerald-200">{notice}</p> : null}
           {error ? <p className="rounded-md border border-red-300/40 bg-red-100/60 px-3 py-2 text-red-900 dark:border-red-500/30 dark:bg-red-900/20 dark:text-red-200">{error}</p> : null}
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-md border border-black/10 p-3 dark:border-white/10">
+            <div className="rounded-md border border-black/20 p-3 dark:border-white/10">
               <p className="text-xs text-muted-foreground">メンバー</p>
               <p className="text-lg font-semibold">{detail.memberships.filter((m) => m.is_active).length}</p>
             </div>
-            <div className="rounded-md border border-black/10 p-3 dark:border-white/10">
+            <div className="rounded-md border border-black/20 p-3 dark:border-white/10">
               <p className="text-xs text-muted-foreground">Bots</p>
               <p className="text-lg font-semibold">{detail.bots.length}</p>
             </div>
-            <div className="rounded-md border border-black/10 p-3 dark:border-white/10">
+            <div className="rounded-md border border-black/20 p-3 dark:border-white/10">
               <p className="text-xs text-muted-foreground">30日メッセージ</p>
               <p className="text-lg font-semibold">{detail.usage30dMessages.toLocaleString("ja-JP")}</p>
             </div>
-            <div className="rounded-md border border-black/10 p-3 dark:border-white/10">
+            <div className="rounded-md border border-black/20 p-3 dark:border-white/10">
               <p className="text-xs text-muted-foreground">30日tokens_out</p>
               <p className="text-lg font-semibold">{detail.usage30dTokensOut.toLocaleString("ja-JP")}</p>
             </div>
@@ -85,13 +85,13 @@ export default async function PlatformTenantDetailPage({
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
+        <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
           <CardHeader>
             <CardTitle>契約情報</CardTitle>
             <CardDescription>Stripe契約と手動オーバーライドを併記</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 text-sm">
-            <div className="rounded-md border border-black/10 p-3 dark:border-white/10">
+            <div className="rounded-md border border-black/20 p-3 dark:border-white/10">
               <p className="mb-1 text-xs text-muted-foreground">Stripe</p>
               {detail.tenant.subscription ? (
                 <div className="space-y-1">
@@ -105,7 +105,7 @@ export default async function PlatformTenantDetailPage({
               )}
             </div>
 
-            <div className="rounded-md border border-black/10 p-3 dark:border-white/10">
+            <div className="rounded-md border border-black/20 p-3 dark:border-white/10">
               <p className="mb-1 text-xs text-muted-foreground">Override</p>
               {detail.tenant.override ? (
                 <div className="space-y-1">
@@ -122,7 +122,7 @@ export default async function PlatformTenantDetailPage({
               )}
             </div>
 
-            <form action={upsertContractOverrideAction} className="grid gap-2 border-t border-black/10 pt-4 dark:border-white/10">
+            <form action={upsertContractOverrideAction} className="grid gap-2 border-t border-black/20 pt-4 dark:border-white/10">
               <input type="hidden" name="redirect_to" value={redirectPath} />
               <input type="hidden" name="tenant_id" value={tenant_id} />
               <label className="text-xs text-muted-foreground">plan_id</label>
@@ -168,7 +168,7 @@ export default async function PlatformTenantDetailPage({
               <Button type="submit">Overrideを保存</Button>
             </form>
 
-            <div className="rounded-md border border-black/10 p-3 dark:border-white/10">
+            <div className="rounded-md border border-black/20 p-3 dark:border-white/10">
               <p className="mb-2 text-xs text-muted-foreground">テナント強制停止</p>
               <p className="mb-2 text-xs text-muted-foreground">現在: {detail.tenant.force_stopped ? "停止中" : "稼働中"}</p>
               <form action={setTenantForceStopAction} className="grid gap-2">
@@ -191,7 +191,7 @@ export default async function PlatformTenantDetailPage({
           </CardContent>
         </Card>
 
-        <Card className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
+        <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
           <CardHeader>
             <CardTitle>ユーザー権限</CardTitle>
             <CardDescription>tenant_memberships の編集</CardDescription>
@@ -221,7 +221,7 @@ export default async function PlatformTenantDetailPage({
               </TableBody>
             </Table>
 
-            <form action={upsertTenantMembershipAction} className="grid gap-2 border-t border-black/10 pt-4 dark:border-white/10">
+            <form action={upsertTenantMembershipAction} className="grid gap-2 border-t border-black/20 pt-4 dark:border-white/10">
               <input type="hidden" name="redirect_to" value={redirectPath} />
               <input type="hidden" name="tenant_id" value={tenant_id} />
               <Input name="user_email" type="email" placeholder="user@example.com" required />
@@ -239,7 +239,7 @@ export default async function PlatformTenantDetailPage({
         </Card>
       </div>
 
-      <Card className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
+      <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
         <CardHeader>
           <CardTitle>Bots</CardTitle>
           <CardDescription>テナント配下のBot一覧</CardDescription>

@@ -61,7 +61,7 @@ export const pricingPlans: PricingPlan[] = [
     modelSelection: true,
     apiRpm: "120",
     maxApiKeys: "2",
-    maxHostedPages: "5",
+    maxHostedPages: "2",
     origins: "無制限（内部制御あり）",
   },
   {
@@ -160,7 +160,7 @@ export const pricingComparisonRows: PricingComparisonRow[] = [
     label: "Hostedページ上限",
     values: {
       lite: "0",
-      standard: "5",
+      standard: "2",
       pro: "50",
     },
   },

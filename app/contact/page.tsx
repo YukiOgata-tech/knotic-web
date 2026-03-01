@@ -12,7 +12,7 @@ export default function ContactPage() {
       description="導入相談、プラン相談、連携要件の確認などを受け付けています。まずは要件の概要から共有してください。"
     >
       <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-        <Card className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/75">
+        <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/75">
           <CardHeader>
             <CardTitle>相談フォーム</CardTitle>
           </CardHeader>
@@ -21,21 +21,21 @@ export default function ContactPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/75">
+        <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/75">
           <CardHeader>
             <CardTitle>相談前に確認できるページ</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3 text-sm text-zinc-600 dark:text-zinc-300">
-            <Link href="/pricing" className="rounded-lg border border-black/10 px-3 py-2 hover:bg-muted dark:border-white/10">
+            <Link href="/pricing" className="rounded-lg border border-black/20 px-3 py-2 hover:bg-muted dark:border-white/10">
               料金プラン
             </Link>
-            <Link href="/use-cases" className="rounded-lg border border-black/10 px-3 py-2 hover:bg-muted dark:border-white/10">
+            <Link href="/use-cases" className="rounded-lg border border-black/20 px-3 py-2 hover:bg-muted dark:border-white/10">
               活用例
             </Link>
-            <Link href="/integrations" className="rounded-lg border border-black/10 px-3 py-2 hover:bg-muted dark:border-white/10">
+            <Link href="/integrations" className="rounded-lg border border-black/20 px-3 py-2 hover:bg-muted dark:border-white/10">
               連携
             </Link>
-            <Link href="/security" className="rounded-lg border border-black/10 px-3 py-2 hover:bg-muted dark:border-white/10">
+            <Link href="/security" className="rounded-lg border border-black/20 px-3 py-2 hover:bg-muted dark:border-white/10">
               セキュリティ
             </Link>
           </CardContent>

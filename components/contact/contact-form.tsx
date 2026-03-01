@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import { Loader2, SendHorizonal } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -95,6 +96,13 @@ export function ContactForm() {
         </p>
       ) : null}
 
+      {state === "submitting" ? (
+        <div className="flex items-center gap-2 rounded-md border border-cyan-300/60 bg-cyan-50/80 px-3 py-2 text-sm text-cyan-800 dark:border-cyan-700/50 dark:bg-cyan-950/30 dark:text-cyan-200">
+          <Loader2 className="size-4 animate-spin" />
+          お問い合わせを送信中です。完了までしばらくお待ちください。
+        </div>
+      ) : null}
+
       {state === "error" && errorMessage ? (
         <p className="rounded-md bg-red-100 px-3 py-2 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-300">
           {errorMessage}
@@ -102,7 +110,17 @@ export function ContactForm() {
       ) : null}
 
       <Button className="rounded-full" type="submit" disabled={state === "submitting"}>
-        {state === "submitting" ? "送信中..." : "送信する"}
+        {state === "submitting" ? (
+          <span className="inline-flex items-center gap-2">
+            <Loader2 className="size-4 animate-spin" />
+            送信中...
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-2">
+            <SendHorizonal className="size-4" />
+            送信する
+          </span>
+        )}
       </Button>
     </form>
   )

@@ -53,7 +53,7 @@ function ChannelPill({ label, enabled }: { label: string; enabled: boolean }) {
 function PricingShowcase() {
   return (
     <div className="grid gap-6 sm:gap-8">
-      <section id="plans" className="rounded-3xl border border-black/10 bg-white/90 p-4 sm:p-6 dark:border-white/10 dark:bg-slate-900/70">
+      <section id="plans" className="rounded-3xl border border-black/20 bg-white/90 p-4 sm:p-6 dark:border-white/10 dark:bg-slate-900/70">
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-700 dark:text-cyan-300">
           Plans
         </p>
@@ -75,7 +75,7 @@ function PricingShowcase() {
                 className={`rounded-2xl border p-4 sm:p-5 ${
                   recommended
                     ? "border-cyan-300/70 bg-[linear-gradient(165deg,#f5feff_0%,#ffffff_55%,#f6fffb_100%)] shadow-[0_16px_34px_-30px_rgba(8,145,178,.55)] dark:border-cyan-500/40 dark:bg-[linear-gradient(165deg,#072126_0%,#0b1d2a_55%,#0c251f_100%)]"
-                    : "border-black/10 bg-white dark:border-white/10 dark:bg-slate-950/45"
+                    : "border-black/20 bg-white dark:border-white/10 dark:bg-slate-950/45"
                 }`}
               >
                 {recommended ? (
@@ -116,14 +116,14 @@ function PricingShowcase() {
 
       <section
         id="comparison"
-        className="-mx-4 overflow-hidden border-y border-black/10 bg-white/85 px-4 py-6 sm:mx-0 sm:rounded-3xl sm:border sm:p-6 dark:border-white/10 dark:bg-slate-900/70"
+        className="-mx-4 overflow-hidden border-y border-black/20 bg-white/85 px-4 py-6 sm:mx-0 sm:rounded-3xl sm:border sm:p-6 dark:border-white/10 dark:bg-slate-900/70"
       >
         <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">プラン詳細比較</h2>
         <p className="mt-2 text-sm leading-7 text-zinc-600 dark:text-zinc-300 sm:text-base sm:leading-8">
           公開方法と運用上限を中心に、実運用で必要な項目を比較
         </p>
 
-        <div className="mt-4 max-w-full overflow-x-auto overscroll-x-contain rounded-xl border border-black/10 [-webkit-overflow-scrolling:touch] dark:border-white/10">
+        <div className="mt-4 max-w-full overflow-x-auto overscroll-x-contain rounded-xl border border-black/20 [-webkit-overflow-scrolling:touch] dark:border-white/10">
           <table className="w-[700px] text-xs sm:w-full sm:min-w-[760px] sm:text-sm">
             <colgroup>
               <col className="w-[28%] sm:w-[24%]" />
@@ -143,7 +143,7 @@ function PricingShowcase() {
             </thead>
             <tbody>
               {pricingComparisonRows.map((row) => (
-                <tr key={row.label} className="border-t border-black/10 dark:border-white/10">
+                <tr key={row.label} className="border-t border-black/20 dark:border-white/10">
                   <td className="bg-white px-3 py-3 font-medium text-zinc-800 sm:px-5 dark:bg-slate-900 dark:text-zinc-100">
                     {row.label}
                   </td>
@@ -164,7 +164,7 @@ function PricingShowcase() {
       </section>
 
       <section className="grid gap-3 sm:gap-4 lg:grid-cols-2">
-        <article className="rounded-2xl border border-black/10 bg-white/85 p-4 sm:p-6 dark:border-white/10 dark:bg-slate-900/70">
+        <article className="rounded-2xl border border-black/20 bg-white/85 p-4 sm:p-6 dark:border-white/10 dark:bg-slate-900/70">
           <h3 className="text-xl font-semibold tracking-tight sm:text-2xl">導入の進め方</h3>
           <ol className="mt-3 grid gap-2.5 text-sm leading-7 text-zinc-600 dark:text-zinc-300 sm:text-base sm:leading-8">
             <li>1. Liteで問い合わせ対応またはマニュアル案内の1用途を公開</li>
@@ -181,7 +181,7 @@ function PricingShowcase() {
           </div>
         </article>
 
-        <article className="rounded-2xl border border-black/10 bg-white/85 p-4 sm:p-6 dark:border-white/10 dark:bg-slate-900/70">
+        <article className="rounded-2xl border border-black/20 bg-white/85 p-4 sm:p-6 dark:border-white/10 dark:bg-slate-900/70">
           <h3 className="text-xl font-semibold tracking-tight sm:text-2xl">ご利用ポリシー</h3>
           <div className="mt-3 grid gap-2.5 text-sm leading-7 text-zinc-600 dark:text-zinc-300 sm:text-base sm:leading-8">
             <p>お支払いに問題が発生した場合でも、管理画面から設定確認・見直しは継続して行えます。</p>

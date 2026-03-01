@@ -5,8 +5,8 @@ export default function UseCasesPage() {
   return (
     <PageFrame
       eyebrow="Use Cases"
-      title="成果が見えやすい活用例から始める"
-      description="主用途は、Web問い合わせ対応とマニュアル案内です。運用が定着した後に、社内教育や規約監査の一次チェック支援へ段階的に展開できます。"
+      title="どんな用途に使えるか、実例で確認する"
+      description="問い合わせ対応・マニュアル案内・社内ナレッジ共有・オンボーディング支援の4用途が代表的です。まずは1つに絞ってスタートし、効果を見ながら段階的に展開できます。"
     >
       <UseCasesShowcase />
 

@@ -20,6 +20,7 @@ export type PlanSummary = {
   name: string
   monthly_price_jpy: number
   max_bots: number
+  max_hosted_pages: number
   max_monthly_messages: number
   max_storage_mb: number
   has_api: boolean
@@ -221,8 +222,8 @@ export async function fetchConsoleData(tenantId: string) {
     logsMeta,
     { data: tokens },
     { data: apiKeys, error: apiKeyError },
-    { data: tenantRow, error: aiSettingsError },
     { data: notifications, error: notificationError },
+    storageUsage,
   ] = await Promise.all([
     supabase
       .from("bots")
@@ -233,13 +234,13 @@ export async function fetchConsoleData(tenantId: string) {
       .order("created_at", { ascending: false }),
     supabase
       .from("sources")
-      .select("id, bot_id, type, status, url, file_name, created_at")
+      .select("id, bot_id, type, status, url, file_name, file_size_bytes, created_at")
       .order("created_at", { ascending: false })
       .limit(100),
     supabase
       .from("subscriptions")
       .select(
-        "id, status, current_period_end, trial_ends_at, plans(code,name,monthly_price_jpy,max_bots,max_monthly_messages,max_storage_mb,has_api,has_hosted_page,has_widget,allow_model_selection,is_bot_limit_display_unlimited,internal_max_bots_cap)"
+        "id, status, current_period_end, trial_ends_at, plans(code,name,monthly_price_jpy,max_bots,max_hosted_pages,max_monthly_messages,max_storage_mb,has_api,has_hosted_page,has_widget,allow_model_selection,is_bot_limit_display_unlimited,internal_max_bots_cap)"
       )
       .eq("tenant_id", tenantId)
       .in("status", ["trialing", "active", "past_due", "unpaid", "canceled"])
@@ -264,27 +265,14 @@ export async function fetchConsoleData(tenantId: string) {
       .eq("tenant_id", tenantId)
       .order("created_at", { ascending: false }),
     supabase
-      .from("tenants")
-      .select("ai_default_model, ai_fallback_model, ai_allow_model_override, ai_max_output_tokens")
-      .eq("id", tenantId)
-      .maybeSingle(),
-    supabase
       .from("tenant_notifications")
       .select("id, level, title, message, created_at, read_at")
       .eq("tenant_id", tenantId)
       .is("read_at", null)
       .order("created_at", { ascending: false })
       .limit(5),
+    supabase.rpc("get_tenant_storage_usage_bytes", { target_tenant_id: tenantId }),
   ])
-
-  const aiSettings = tenantRow
-    ? {
-        default_model: tenantRow.ai_default_model,
-        fallback_model: tenantRow.ai_fallback_model,
-        allow_model_override: tenantRow.ai_allow_model_override,
-        max_output_tokens: tenantRow.ai_max_output_tokens,
-      }
-    : null
 
   const primarySubscription = subscriptions?.[0] as
     | {
@@ -301,6 +289,8 @@ export async function fetchConsoleData(tenantId: string) {
   const monthlyMessages = (usage ?? []).reduce((sum, row) => sum + (row.messages_count ?? 0), 0)
   const monthlyTokensOut = (usage ?? []).reduce((sum, row) => sum + (row.tokens_out ?? 0), 0)
   const logsCount = logsMeta.count ?? 0
+  const storageUsedBytes = typeof storageUsage.data === "number" ? storageUsage.data : 0
+  const storageUsedMb = Math.round((storageUsedBytes / (1024 * 1024)) * 10) / 10
 
   const sourceByBotId = new Map<string, typeof sources>()
   for (const source of sources ?? []) {
@@ -326,8 +316,6 @@ export async function fetchConsoleData(tenantId: string) {
     tokens: tokens ?? [],
     apiKeys: apiKeys ?? [],
     apiKeyError,
-    aiSettings,
-    aiSettingsError,
     notifications: notifications ?? [],
     notificationError,
     primarySubscription,
@@ -336,6 +324,8 @@ export async function fetchConsoleData(tenantId: string) {
     sourceCount,
     monthlyMessages,
     monthlyTokensOut,
+    storageUsedBytes,
+    storageUsedMb,
     sourceByBotId,
     tokenByBotId,
   }

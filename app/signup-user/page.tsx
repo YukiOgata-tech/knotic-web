@@ -23,7 +23,7 @@ export default async function SignupUserPage() {
       description="既存テナントへの参加向けアカウントです。ログイン後に、テナント新規作成または招待参加を選択できます。"
     >
       <section className="mx-auto max-w-xl">
-        <Card className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/75">
+        <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/75">
           <CardHeader>
             <CardTitle>knoticユーザー作成</CardTitle>
           </CardHeader>

@@ -32,7 +32,7 @@ export default function IntegrationsPage() {
     >
       <section className="grid gap-4 md:grid-cols-2">
         {integrationItems.map((item) => (
-          <Card key={item.title} className="border-black/10 bg-white/90 dark:border-white/10 dark:bg-slate-900/75">
+          <Card key={item.title} className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/75">
             <CardHeader>
               <CardTitle>{item.title}</CardTitle>
             </CardHeader>
@@ -41,7 +41,7 @@ export default function IntegrationsPage() {
         ))}
       </section>
 
-      <section className="mt-8 rounded-2xl border border-black/10 bg-white/80 p-6 dark:border-white/10 dark:bg-slate-900/70 sm:p-8">
+      <section className="mt-8 rounded-2xl border border-black/20 bg-white/80 p-6 dark:border-white/10 dark:bg-slate-900/70 sm:p-8">
         <h2 className="text-2xl font-semibold tracking-tight">技術検討の入り口</h2>
         <div className="mt-5 flex flex-wrap gap-3">
           <Button asChild variant="outline" className="rounded-full">

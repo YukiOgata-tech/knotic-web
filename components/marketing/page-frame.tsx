@@ -18,7 +18,7 @@ function PageFrame({
 }) {
   return (
     <div className="font-jp relative overflow-x-clip bg-[linear-gradient(180deg,#fff8ee_0%,#ffffff_46%,#f5faff_100%)] dark:bg-[linear-gradient(180deg,#091122_0%,#0a1324_40%,#090f1b_100%)]">
-      <section className="relative isolate border-b border-black/10 dark:border-white/10">
+      <section className="relative isolate border-b border-black/20 dark:border-white/10">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_6%_30%,rgba(251,191,36,.24),transparent_36%),radial-gradient(circle_at_88%_22%,rgba(6,182,212,.22),transparent_36%),linear-gradient(130deg,rgba(255,255,255,.76),rgba(255,255,255,.35))] dark:bg-[radial-gradient(circle_at_6%_30%,rgba(250,204,21,.18),transparent_36%),radial-gradient(circle_at_88%_22%,rgba(34,211,238,.2),transparent_38%),linear-gradient(130deg,rgba(8,20,38,.9),rgba(8,20,38,.55))]" />
         <div className="pointer-events-none absolute inset-0 opacity-50 bg-[linear-gradient(to_right,rgba(15,23,42,.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,23,42,.08)_1px,transparent_1px)] bg-size-[42px_42px] dark:opacity-25" />
         <Container size="wide" className="relative py-6 sm:py-16 lg:py-20">

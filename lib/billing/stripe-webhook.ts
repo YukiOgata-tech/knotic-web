@@ -1,6 +1,7 @@
 import Stripe from "stripe"
 
 import { createAdminClient } from "@/lib/supabase/admin"
+import { enforceTenantPlanLimits } from "@/lib/billing/enforcement"
 import { mapStripeSubscriptionStatus, resolvePlanCodeFromPriceId } from "@/lib/stripe"
 
 type AdminClient = ReturnType<typeof createAdminClient>
@@ -247,6 +248,14 @@ export async function processStripeEvent(
 
     default:
       break
+  }
+
+  if (tenantId) {
+    try {
+      await enforceTenantPlanLimits(tenantId)
+    } catch {
+      // Do not fail webhook processing due to non-critical enforcement checks.
+    }
   }
 
   return { tenantId }

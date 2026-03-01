@@ -10,7 +10,7 @@ export default function PrivacyPage() {
       title="プライバシーポリシー"
       description="knotic の契約者および利用者情報の取扱い方針を定めています。内容は法令やサービス変更に応じて更新される場合があります。"
     >
-      <section className="-mx-4 rounded-none border-y border-black/10 bg-white/90 px-4 py-6 dark:border-white/10 dark:bg-slate-900/75 sm:mx-0 sm:rounded-2xl sm:border sm:p-8">
+      <section className="-mx-4 rounded-none border-y border-black/20 bg-white/90 px-4 py-6 dark:border-white/10 dark:bg-slate-900/75 sm:mx-0 sm:rounded-2xl sm:border sm:p-8">
         <div className="mb-6 grid gap-1 text-xs text-zinc-500 dark:text-zinc-400">
           <p>施行日: {privacyPolicyMeta.effectiveDate}</p>
           <p>最終改定日: {privacyPolicyMeta.revisedAt}</p>
@@ -35,7 +35,7 @@ export default function PrivacyPage() {
         </div>
       </section>
 
-      <section className="mt-4 -mx-4 rounded-none border-y border-black/10 bg-white/80 px-4 py-4 text-xs text-zinc-600 dark:border-white/10 dark:bg-slate-900/65 dark:text-zinc-300 sm:mx-0 sm:rounded-xl sm:border sm:p-5">
+      <section className="mt-4 -mx-4 rounded-none border-y border-black/20 bg-white/80 px-4 py-4 text-xs text-zinc-600 dark:border-white/10 dark:bg-slate-900/65 dark:text-zinc-300 sm:mx-0 sm:rounded-xl sm:border sm:p-5">
         <p className="font-medium text-zinc-800 dark:text-zinc-100">関連ページ</p>
         <p className="mt-1">サービス利用条件は利用規約をご確認ください。</p>
         <Button asChild variant="outline" size="sm" className="mt-3 rounded-full">

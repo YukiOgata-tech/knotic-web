@@ -171,6 +171,7 @@ async function getHostedEligibleBotIds(tenantId: string, limit: number) {
     .select("id")
     .eq("tenant_id", tenantId)
     .neq("status", "archived")
+    .or("is_public.eq.true,access_mode.eq.internal,require_auth_for_hosted.eq.true")
     .order("created_at", { ascending: true })
     .limit(Math.max(1, limit))
 
@@ -185,6 +186,7 @@ async function getTenantHostedCandidateCount(tenantId: string) {
     .select("id", { count: "exact", head: true })
     .eq("tenant_id", tenantId)
     .neq("status", "archived")
+    .or("is_public.eq.true,access_mode.eq.internal,require_auth_for_hosted.eq.true")
 
   if (error) throw error
   return count ?? 0

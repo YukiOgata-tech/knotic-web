@@ -39,7 +39,7 @@ function SiteBreadcrumbs() {
   return (
     <nav
       aria-label="パンくず"
-      className="sticky top-16 z-30 border-b border-black/10 bg-background/85 backdrop-blur-md dark:border-white/10"
+      className="sticky top-16 z-30 border-b border-black/20 bg-background/85 backdrop-blur-md dark:border-white/10"
     >
       <Container className="max-w-none px-4 py-2 sm:px-8 xl:px-12">
         <ol className="flex flex-wrap items-center gap-1 text-xs text-zinc-600 dark:text-zinc-300">

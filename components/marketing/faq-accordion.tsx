@@ -27,8 +27,8 @@ function FaqAccordion({ items, defaultOpenIndex = 0, compactMobile = false }: Fa
             key={item.q}
             className={
               compactMobile
-                ? "group overflow-hidden border-b border-zinc-200/90 bg-transparent transition-all duration-200 dark:border-white/10 sm:rounded-2xl sm:border sm:border-black/10 sm:bg-white/90 sm:shadow-[0_14px_35px_-28px_rgba(15,23,42,.5)] sm:hover:border-cyan-300/60 sm:hover:shadow-[0_20px_40px_-30px_rgba(8,145,178,.45)] sm:dark:border-white/10 sm:dark:bg-slate-900/75 sm:dark:hover:border-cyan-500/40"
-                : "group overflow-hidden rounded-2xl border border-black/10 bg-white/90 shadow-[0_14px_35px_-28px_rgba(15,23,42,.5)] transition-all duration-200 hover:border-cyan-300/60 hover:shadow-[0_20px_40px_-30px_rgba(8,145,178,.45)] dark:border-white/10 dark:bg-slate-900/75 dark:hover:border-cyan-500/40"
+                ? "group overflow-hidden border-b border-zinc-200/90 bg-transparent transition-all duration-200 dark:border-white/10 sm:rounded-2xl sm:border sm:border-black/20 sm:bg-white/90 sm:shadow-[0_14px_35px_-28px_rgba(15,23,42,.5)] sm:hover:border-cyan-300/60 sm:hover:shadow-[0_20px_40px_-30px_rgba(8,145,178,.45)] sm:dark:border-white/10 sm:dark:bg-slate-900/75 sm:dark:hover:border-cyan-500/40"
+                : "group overflow-hidden rounded-2xl border border-black/20 bg-white/90 shadow-[0_14px_35px_-28px_rgba(15,23,42,.5)] transition-all duration-200 hover:border-cyan-300/60 hover:shadow-[0_20px_40px_-30px_rgba(8,145,178,.45)] dark:border-white/10 dark:bg-slate-900/75 dark:hover:border-cyan-500/40"
             }
           >
             <button

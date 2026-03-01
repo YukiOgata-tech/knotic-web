@@ -6,7 +6,6 @@ import { redirect } from "next/navigation"
 import {
   assertTenantCanCreateBot,
   assertTenantCanIndexData,
-  assertTenantCanUseHostedPage,
   getTenantPlanSnapshot,
 } from "@/lib/billing/limits"
 import { createAdminClient } from "@/lib/supabase/admin"
@@ -181,7 +180,7 @@ export async function toggleBotPublicAction(formData: FormData) {
       targetId: botId,
       after: { is_public: nextPublic },
     })
-    redirect(toAppUrl(redirectTo, { notice: nextPublic ? "公開設定を有効化しました。" : "公開設定を停止しました。" }))
+    redirect(toAppUrl(redirectTo, { notice: nextPublic ? "Botを有効化しました。" : "Botを無効化しました。" }))
   } catch (error) {
     redirect(
       toAppUrl(String(formData.get("redirect_to") ?? ""), {
@@ -525,56 +524,6 @@ export async function revokeApiKeyAction(formData: FormData) {
   }
 }
 
-export async function saveAiSettingsAction(formData: FormData) {
-  try {
-    const redirectTo = String(formData.get("redirect_to") ?? "")
-    const { supabase, tenantId } = await getTenantContext(true)
-    const defaultModel = normalizeModel(
-      String(formData.get("default_model") ?? "5-mini"),
-      "5-mini"
-    )
-    const fallbackModelRaw = String(formData.get("fallback_model") ?? "").trim()
-    const fallbackModel =
-      fallbackModelRaw === "" ? null : normalizeModel(fallbackModelRaw, "5-mini")
-    const allowOverride = String(formData.get("allow_model_override") ?? "") === "on"
-    const maxOutputTokens = Number(formData.get("max_output_tokens") ?? 1200)
-
-    const { error } = await supabase
-      .from("tenants")
-      .update({
-        ai_default_model: defaultModel,
-        ai_fallback_model: fallbackModel,
-        ai_allow_model_override: allowOverride,
-        ai_max_output_tokens: Number.isFinite(maxOutputTokens) ? maxOutputTokens : 1200,
-      })
-      .eq("id", tenantId)
-
-    if (error) {
-      throw new Error("tenants のAI設定更新に失敗しました。table-consolidation patchを適用してください。")
-    }
-
-    await writeAuditLog(supabase, {
-      tenantId,
-      action: "tenant.ai_settings.update",
-      targetType: "tenant",
-      targetId: tenantId,
-      after: {
-        default_model: defaultModel,
-        fallback_model: fallbackModel,
-        allow_model_override: allowOverride,
-        max_output_tokens: Number.isFinite(maxOutputTokens) ? maxOutputTokens : 1200,
-      },
-    })
-    redirect(toAppUrl(redirectTo, { notice: "AIモデル設定を更新しました。" }))
-  } catch (error) {
-    redirect(
-      toAppUrl(String(formData.get("redirect_to") ?? ""), {
-        error: error instanceof Error ? error.message : "AIモデル設定の更新に失敗しました。",
-      })
-    )
-  }
-}
-
 export async function runIndexingWorkerAction(formData: FormData) {
   try {
     const redirectTo = String(formData.get("redirect_to") ?? "")
@@ -605,10 +554,13 @@ export async function updateHostedConfigAction(formData: FormData) {
     if (!botId) {
       redirect(toAppUrl(redirectTo, { error: "Botが指定されていません。" }))
     }
-    await assertTenantCanUseHostedPage(tenantId, botId)
+    const botName = String(formData.get("name") ?? "").trim()
+    if (!botName) {
+      redirect(toAppUrl(redirectTo, { error: "Bot名を入力してください。" }))
+    }
 
     const chatPurpose = normalizeChatPurpose(String(formData.get("chat_purpose") ?? "customer_support").trim())
-    const accessMode = normalizeAccessMode(String(formData.get("access_mode") ?? "public").trim())
+    const requestedAccessMode = normalizeAccessMode(String(formData.get("access_mode") ?? "public").trim())
     const displayName = String(formData.get("display_name") ?? "").trim()
     const welcomeMessage = String(formData.get("welcome_message") ?? "").trim()
     const placeholderText = String(formData.get("placeholder_text") ?? "").trim()
@@ -634,6 +586,10 @@ export async function updateHostedConfigAction(formData: FormData) {
       ? Math.max(200, Math.min(4000, Math.floor(aiMaxOutputTokensRaw)))
       : 1200
     const plan = await getTenantPlanSnapshot(tenantId)
+    const accessMode = plan.hasHostedPage ? requestedAccessMode : "public"
+    const normalizedRequireAuth = plan.hasHostedPage
+      ? requireAuthForHosted || accessMode === "internal"
+      : false
     const historyTurnLimitCap = getHistoryTurnLimitCap(plan.planCode)
     const normalizedLimit = Number.isFinite(historyTurnLimit)
       ? Math.max(1, Math.min(historyTurnLimitCap, Math.floor(historyTurnLimit)))
@@ -642,6 +598,7 @@ export async function updateHostedConfigAction(formData: FormData) {
     const { error } = await supabase
       .from("bots")
       .update({
+        name: botName,
         chat_purpose: chatPurpose,
         access_mode: accessMode,
         display_name: displayName || null,
@@ -650,7 +607,7 @@ export async function updateHostedConfigAction(formData: FormData) {
         disclaimer_text: disclaimerText || null,
         show_citations: showCitations,
         history_turn_limit: normalizedLimit,
-        require_auth_for_hosted: requireAuthForHosted || accessMode === "internal",
+        require_auth_for_hosted: normalizedRequireAuth,
         ui_header_bg_color: headerBgColor,
         ui_header_text_color: headerTextColor,
         ui_footer_bg_color: footerBgColor,
@@ -676,11 +633,12 @@ export async function updateHostedConfigAction(formData: FormData) {
       targetType: "bot",
       targetId: botId,
       after: {
+        name: botName,
         chat_purpose: chatPurpose,
         access_mode: accessMode,
         show_citations: showCitations,
         history_turn_limit: normalizedLimit,
-        require_auth_for_hosted: requireAuthForHosted || accessMode === "internal",
+        require_auth_for_hosted: normalizedRequireAuth,
         widget_enabled: widgetEnabled,
         widget_mode: widgetMode,
         widget_position: widgetPosition,

@@ -6,7 +6,7 @@ import { Container } from "@/components/layout/container"
 
 function SiteFooter() {
   return (
-    <footer className="relative mt-0 overflow-hidden border-t border-black/10 bg-white/70 py-10 dark:border-white/10 dark:bg-slate-950/40">
+    <footer className="relative mt-0 overflow-hidden border-t border-black/20 bg-white/70 py-10 dark:border-white/10 dark:bg-slate-950/40">
       <div className="pointer-events-none absolute inset-0 opacity-60 dark:hidden">
         <Image src="/images/bg-001-l.png" alt="" fill className="object-cover" />
       </div>
@@ -79,7 +79,7 @@ function SiteFooter() {
         </div>
       </Container>
 
-      <Container className="relative z-10 mt-8 max-w-none border-t border-black/10 px-4 pt-6 text-xs text-muted-foreground dark:border-white/10 sm:px-8 xl:px-12">
+      <Container className="relative z-10 mt-8 max-w-none border-t border-black/20 px-4 pt-6 text-xs text-muted-foreground dark:border-white/10 sm:px-8 xl:px-12">
         <p>© {new Date().getFullYear()} knotic / make-it-tech.com</p>
       </Container>
     </footer>

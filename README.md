@@ -101,6 +101,7 @@ npm install
 - `SUPABASE_SECRET_KEY`（または `SUPABASE_SERVICE_ROLE_KEY`）
 - `OPENAI_API_KEY`
 - `INDEXER_RUNNER_SECRET`
+- `BILLING_RUNNER_SECRET`（課金enforcement内部API用。未設定時は `INDEXER_RUNNER_SECRET` をフォールバック）
 - `RESEND_API_KEY`
 - `RESEND_FROM_EMAIL`
 - `RESEND_CONTACT_TO_EMAIL`
@@ -131,7 +132,17 @@ npm run build
 - `POST /api/contact` お問い合わせ送信（Resend）
 - `POST /api/internal/indexing/run` インデックスジョブ実行（内部用）
   - Header: `Authorization: Bearer <INDEXER_RUNNER_SECRET>`
+- `POST /api/internal/billing/enforce` 契約上限enforcement実行（内部用）
+  - Header: `Authorization: Bearer <BILLING_RUNNER_SECRET>`（未設定時は `INDEXER_RUNNER_SECRET`）
+  - Body(任意): `{ "tenantId": "<uuid>" }` で単一テナント、未指定で全体バッチ
 - `POST /api/v1/chat` RAG回答API
+
+## 運用メモ（将来のVercel Cron）
+- 目的: Webhook取りこぼし時でも、契約上限の状態（API利用可否 / Hosted上限 / Bot上限 / 容量超過通知）を日次で再整合する。
+- 実行対象: `POST /api/internal/billing/enforce`
+- 推奨頻度: 1日1回（深夜帯）
+- 認証: `Authorization: Bearer <BILLING_RUNNER_SECRET>`
+- 注意: このCronはWebhookの代替ではなく、補助的な安全網。
 
 ## 補足
 - Embeddingは `text-embedding-3-small` を標準採用

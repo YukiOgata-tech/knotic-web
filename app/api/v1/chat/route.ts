@@ -185,6 +185,7 @@ export async function POST(request: NextRequest) {
 
   const internalUser = Boolean(membership)
   const requiresInternalAuth = bot.access_mode === "internal" || Boolean(bot.require_auth_for_hosted)
+  const plan = await getTenantPlanSnapshot(bot.tenant_id)
 
   let authMode: "api_key" | "widget" | "public" | "internal_user" | null = null
   if (apiKey) {
@@ -202,6 +203,9 @@ export async function POST(request: NextRequest) {
       : false
     if (!keyRow || expired) {
       return NextResponse.json({ error: "invalid api key" }, { status: 401 })
+    }
+    if (!plan.hasApi) {
+      return NextResponse.json({ error: "api is not available on current plan" }, { status: 403 })
     }
     authMode = "api_key"
   } else if (widgetToken) {
@@ -253,29 +257,12 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const { data: aiSettings } = await admin
-    .from("tenants")
-    .select("ai_default_model, ai_fallback_model, ai_allow_model_override, ai_max_output_tokens")
-    .eq("id", bot.tenant_id)
-    .maybeSingle()
-
-  const configuredDefaultModel = aiSettings?.ai_default_model as string | undefined
-  const configuredFallbackModel = aiSettings?.ai_fallback_model as string | undefined
-  const defaultModel = normalizeModel(
-    bot.ai_model ?? configuredDefaultModel ?? "5-mini",
-    "5-mini"
-  )
+  const defaultModel = normalizeModel(bot.ai_model ?? "5-mini", "5-mini")
   const fallbackModel = bot.ai_fallback_model
     ? normalizeModel(bot.ai_fallback_model, defaultModel)
-    : configuredFallbackModel && ALLOWED_MODELS.has(configuredFallbackModel)
-      ? configuredFallbackModel
-      : null
-  const allowOverride = Boolean(aiSettings?.ai_allow_model_override)
-  const selectedModel = allowOverride
-    ? normalizeModel(body.model, defaultModel)
-    : defaultModel
-  const maxOutputTokens = Number(bot.ai_max_output_tokens ?? aiSettings?.ai_max_output_tokens ?? 900)
-  const plan = await getTenantPlanSnapshot(bot.tenant_id)
+    : null
+  const selectedModel = defaultModel
+  const maxOutputTokens = Number(bot.ai_max_output_tokens ?? 900)
   const conversationLimit = Math.min(
     getHistoryTurnLimitCap(plan.planCode),
     Math.max(1, bot.history_turn_limit ?? 8)
