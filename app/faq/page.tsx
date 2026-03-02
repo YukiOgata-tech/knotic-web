@@ -5,25 +5,18 @@ import { faqCategories, faqs } from "@/content/faqs"
 import { FaqAccordion } from "@/components/marketing/faq-accordion"
 import { CTASection, PageFrame } from "@/components/marketing/page-frame"
 import { Button } from "@/components/ui/button"
+import { buildMarketingMetadata } from "@/lib/seo/metadata"
+import { buildFaqJsonLd } from "@/lib/seo/structured-data"
 
-export const metadata: Metadata = {
-  title: "よくある質問（FAQ）| knotic",
+export const metadata: Metadata = buildMarketingMetadata({
+  title: "よくある質問（FAQ）",
   description:
     "knoticの導入方法・公開方法・料金・セキュリティなど、よくいただく質問をカテゴリ別にまとめています。導入前の疑問をここで解決してください。",
-}
+  path: "/faq",
+  keywords: ["knotic FAQ", "AIチャットボット導入", "料金質問", "セキュリティ質問"],
+})
 
-const faqJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  mainEntity: faqs.map((faq) => ({
-    "@type": "Question",
-    name: faq.q,
-    acceptedAnswer: {
-      "@type": "Answer",
-      text: faq.a,
-    },
-  })),
-}
+const faqJsonLd = buildFaqJsonLd(faqs)
 
 export default function FaqPage() {
   return (

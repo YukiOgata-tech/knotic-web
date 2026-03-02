@@ -12,18 +12,17 @@ import { CTASection } from "@/components/marketing/page-frame"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { getAppUrl } from "@/lib/env"
 import { plans, useCases } from "@/lib/marketing-content"
+import { buildMarketingMetadata } from "@/lib/seo/metadata"
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildMarketingMetadata({
   title: "URLとPDFでAIチャットボットを作成・公開",
   description:
     "URLやPDFを登録するだけで、Webサイト埋め込み・共有URLで公開できるAIチャットボット。問い合わせ自動化・マニュアル案内・社内ナレッジ検索に最短数分で導入できます。",
-  openGraph: {
-    title: "URLとPDFでAIチャットボットを作成・公開 | knotic",
-    description:
-      "URLやPDFを登録するだけで、Webサイト埋め込み・共有URLで公開できるAIチャットボット。問い合わせ自動化・マニュアル案内・社内ナレッジ検索に。",
-  },
-}
+  path: "/",
+  keywords: ["AIチャットボット", "FAQ自動化", "Webサイト埋め込み", "PDF検索", "knotic"],
+})
 
 const problems = [
   "問い合わせ対応に毎日時間を取られている",
@@ -59,26 +58,13 @@ const stats = [
 ]
 
 export default function Home() {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? ""
   const jsonLd = {
     "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "WebSite",
-        "@id": `${siteUrl}/#website`,
-        url: siteUrl,
-        name: "knotic",
-        description: "URLとPDFでAIチャットボットを作成・公開できるSaaSサービス",
-        inLanguage: "ja",
-      },
-      {
-        "@type": "Organization",
-        "@id": `${siteUrl}/#organization`,
-        name: "knotic",
-        url: siteUrl,
-        description: "URLやPDFを登録するだけでAIチャットボットを作成・公開できるサービス",
-      },
-    ],
+    "@type": "WebSite",
+    name: "knotic",
+    url: getAppUrl(),
+    description: "URLとPDFでAIチャットボットを作成・公開できるSaaSサービス",
+    inLanguage: "ja",
   }
 
   return (

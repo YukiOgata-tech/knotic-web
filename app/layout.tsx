@@ -7,6 +7,7 @@ import { SiteBreadcrumbs } from "@/components/layout/site-breadcrumbs"
 import { ThemeProvider } from "@/components/theme-provider"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { getAppUrl } from "@/lib/env"
+import { buildOrganizationJsonLd, buildSoftwareApplicationJsonLd } from "@/lib/seo/structured-data"
 import "./globals.css"
 
 const geistSans = Geist({
@@ -42,12 +43,21 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const rootJsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [buildOrganizationJsonLd(), buildSoftwareApplicationJsonLd()],
+  }
+
   return (
     <html lang="ja" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ThemeProvider>
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(rootJsonLd) }}
+          />
           <div className="min-h-screen bg-background text-foreground">
             <SiteHeader />
             <SiteBreadcrumbs />
