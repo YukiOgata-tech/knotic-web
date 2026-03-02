@@ -15,6 +15,7 @@
 - 仕様の一次ソースは以下2ファイルを利用する
   - `docs/AI-bot-service/AI-bot-service.md`
   - `docs/AI-bot-service/feedback_spec-v0.1_20260223.md`
+  - 以上２つのファイルは初期構想段階でのものなので、情報が古い場合があります。
 
 ---
 

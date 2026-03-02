@@ -810,7 +810,7 @@ export function HostedConfigEditor({
                   <p className="font-medium">{source.url ?? source.file_name ?? "-"}</p>
                   <p className="text-muted-foreground">
                     {source.type === "url" ? "URL" : source.type === "pdf" ? "PDF" : "ファイル"} ／{" "}
-                    {source.status === "indexed" ? "インデックス済み" : source.status === "queued" ? "待機中" : source.status === "running" ? "処理中" : source.status === "failed" ? "失敗" : source.status === "pending" ? "保留中" : source.status} ／{" "}
+                    {source.status === "ready" ? "同期済み" : source.status === "queued" ? "待機中" : source.status === "running" ? "処理中" : source.status === "failed" ? "失敗" : source.status === "deleted" ? "削除済み" : source.status} ／{" "}
                     {formatMbFromBytes(source.file_size_bytes)}
                   </p>
                   <p className="text-muted-foreground">

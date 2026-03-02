@@ -2,7 +2,6 @@
 -- Apply in Supabase SQL Editor
 
 create extension if not exists pgcrypto;
-create extension if not exists vector;
 
 create schema if not exists app;
 
@@ -271,36 +270,6 @@ begin
 end
 $$;
 
-create table if not exists public.documents (
-  id uuid primary key default gen_random_uuid(),
-  source_id uuid not null references public.sources(id) on delete cascade,
-  version integer not null default 1,
-  title text,
-  raw_path text,
-  text_path text,
-  retrieved_at timestamptz not null default now(),
-  created_at timestamptz not null default now(),
-  unique (source_id, version)
-);
-
-create table if not exists public.chunks (
-  id uuid primary key default gen_random_uuid(),
-  document_id uuid not null references public.documents(id) on delete cascade,
-  chunk_index integer not null,
-  text text not null,
-  token_count integer,
-  meta jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now(),
-  unique (document_id, chunk_index)
-);
-
-create table if not exists public.embeddings (
-  chunk_id uuid primary key references public.chunks(id) on delete cascade,
-  model text not null,
-  embedding vector(1536) not null,
-  created_at timestamptz not null default now()
-);
-
 create table if not exists public.chat_logs (
   id bigserial primary key,
   tenant_id uuid not null references public.tenants(id) on delete cascade,
@@ -372,8 +341,6 @@ for each row execute procedure app.set_updated_at();
 create index if not exists idx_memberships_user_id on public.tenant_memberships(user_id);
 create index if not exists idx_bots_tenant_id on public.bots(tenant_id);
 create index if not exists idx_sources_bot_id on public.sources(bot_id);
-create index if not exists idx_documents_source_id on public.documents(source_id);
-create index if not exists idx_chunks_document_id on public.chunks(document_id);
 create index if not exists idx_chat_logs_tenant_created on public.chat_logs(tenant_id, created_at desc);
 create index if not exists idx_usage_daily_tenant_date on public.usage_daily(tenant_id, usage_date desc);
 create index if not exists idx_response_cache_bot_expires on public.response_cache(bot_id, expires_at);
@@ -440,9 +407,6 @@ alter table public.billing_events enable row level security;
 alter table public.bots enable row level security;
 alter table public.bot_public_tokens enable row level security;
 alter table public.sources enable row level security;
-alter table public.documents enable row level security;
-alter table public.chunks enable row level security;
-alter table public.embeddings enable row level security;
 alter table public.chat_logs enable row level security;
 alter table public.usage_daily enable row level security;
 alter table public.response_cache enable row level security;
@@ -534,105 +498,6 @@ using (
 with check (
   bot_id in (
     select id from public.bots where app.can_write_tenant(tenant_id)
-  )
-);
-
-create policy "documents_select_member"
-on public.documents for select
-using (
-  source_id in (
-    select s.id
-    from public.sources s
-    join public.bots b on b.id = s.bot_id
-    where app.can_read_tenant(b.tenant_id)
-  )
-)
-;
-create policy "documents_write_editor"
-on public.documents for all
-using (
-  source_id in (
-    select s.id
-    from public.sources s
-    join public.bots b on b.id = s.bot_id
-    where app.can_write_tenant(b.tenant_id)
-  )
-)
-with check (
-  source_id in (
-    select s.id
-    from public.sources s
-    join public.bots b on b.id = s.bot_id
-    where app.can_write_tenant(b.tenant_id)
-  )
-);
-
-create policy "chunks_select_member"
-on public.chunks for select
-using (
-  document_id in (
-    select d.id
-    from public.documents d
-    join public.sources s on s.id = d.source_id
-    join public.bots b on b.id = s.bot_id
-    where app.can_read_tenant(b.tenant_id)
-  )
-)
-;
-create policy "chunks_write_editor"
-on public.chunks for all
-using (
-  document_id in (
-    select d.id
-    from public.documents d
-    join public.sources s on s.id = d.source_id
-    join public.bots b on b.id = s.bot_id
-    where app.can_write_tenant(b.tenant_id)
-  )
-)
-with check (
-  document_id in (
-    select d.id
-    from public.documents d
-    join public.sources s on s.id = d.source_id
-    join public.bots b on b.id = s.bot_id
-    where app.can_write_tenant(b.tenant_id)
-  )
-);
-
-create policy "embeddings_select_member"
-on public.embeddings for select
-using (
-  chunk_id in (
-    select c.id
-    from public.chunks c
-    join public.documents d on d.id = c.document_id
-    join public.sources s on s.id = d.source_id
-    join public.bots b on b.id = s.bot_id
-    where app.can_read_tenant(b.tenant_id)
-  )
-)
-;
-create policy "embeddings_write_editor"
-on public.embeddings for all
-using (
-  chunk_id in (
-    select c.id
-    from public.chunks c
-    join public.documents d on d.id = c.document_id
-    join public.sources s on s.id = d.source_id
-    join public.bots b on b.id = s.bot_id
-    where app.can_write_tenant(b.tenant_id)
-  )
-)
-with check (
-  chunk_id in (
-    select c.id
-    from public.chunks c
-    join public.documents d on d.id = c.document_id
-    join public.sources s on s.id = d.source_id
-    join public.bots b on b.id = s.bot_id
-    where app.can_write_tenant(b.tenant_id)
   )
 );
 
@@ -888,7 +753,6 @@ create index if not exists idx_bots_access_mode on public.bots(access_mode);
 create index if not exists idx_bots_chat_purpose on public.bots(chat_purpose);
 create index if not exists idx_bots_file_search_vector_store_id on public.bots(file_search_vector_store_id);
 create index if not exists idx_sources_file_search_file_id on public.sources(file_search_file_id);
-create index if not exists idx_embeddings_vector on public.embeddings using ivfflat (embedding vector_cosine_ops) with (lists = 100);
 
 -- D) function final forms
 create or replace function app.current_user_tenant_ids()
@@ -901,43 +765,6 @@ as $$
   select tenant_id
   from public.tenant_memberships
   where user_id = auth.uid() and is_active = true
-$$;
-
-create or replace function app.match_chunks(
-  query_embedding vector(1536),
-  target_tenant_id uuid,
-  target_bot_id uuid default null,
-  match_count integer default 8
-)
-returns table (
-  chunk_id uuid,
-  document_id uuid,
-  source_id uuid,
-  bot_id uuid,
-  score double precision,
-  text text,
-  meta jsonb
-)
-language sql
-stable
-as $$
-  select
-    c.id as chunk_id,
-    c.document_id,
-    d.source_id,
-    s.bot_id,
-    (1 - (e.embedding <=> query_embedding))::double precision as score,
-    c.text,
-    c.meta
-  from public.embeddings e
-  join public.chunks c on c.id = e.chunk_id
-  join public.documents d on d.id = c.document_id
-  join public.sources s on s.id = d.source_id
-  join public.bots b on b.id = s.bot_id
-  where b.tenant_id = target_tenant_id
-    and (target_bot_id is null or s.bot_id = target_bot_id)
-  order by e.embedding <=> query_embedding
-  limit greatest(match_count, 1);
 $$;
 
 create or replace function app.increment_usage_daily(

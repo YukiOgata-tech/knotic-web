@@ -2,15 +2,12 @@ import crypto from "node:crypto"
 
 import { assertTenantCanIndexData } from "@/lib/billing/limits"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { chunkPlainText } from "@/lib/indexing/chunking"
-import { createEmbeddings } from "@/lib/indexing/embeddings"
 import { syncSourceTextToOpenAiFileSearch } from "@/lib/filesearch/openai"
 import {
-  getEmbeddingModel,
   MAX_CRAWL_PAGES_PER_JOB,
   STORAGE_BUCKET_ARTIFACTS,
 } from "@/lib/indexing/config"
-import { fetchPage, parseSitemapUrls } from "@/lib/indexing/html"
+import { fetchPage, filterUrlsByHost, parseSitemapUrls } from "@/lib/indexing/html"
 
 type IndexingJob = {
   id: string
@@ -28,14 +25,6 @@ type SourceRow = {
   file_name: string | null
 }
 
-type DocumentInsert = {
-  source_id: string
-  version: number
-  title: string | null
-  raw_path: string | null
-  text_path: string | null
-}
-
 function artifactPath(tenantId: string, sourceId: string, kind: "raw" | "text", suffix: string) {
   return `${tenantId}/${sourceId}/${Date.now()}-${kind}.${suffix}`
 }
@@ -43,27 +32,6 @@ function artifactPath(tenantId: string, sourceId: string, kind: "raw" | "text", 
 function maybeSitemap(url: string) {
   const lower = url.toLowerCase()
   return lower.endsWith(".xml") || lower.includes("sitemap")
-}
-
-async function getNextDocumentVersion(sourceId: string) {
-  const admin = createAdminClient()
-  const { data, error } = await admin
-    .from("documents")
-    .select("version")
-    .eq("source_id", sourceId)
-    .order("version", { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  if (error) throw error
-  return (data?.version ?? 0) + 1
-}
-
-async function createDocument(insert: DocumentInsert) {
-  const admin = createAdminClient()
-  const { data, error } = await admin.from("documents").insert(insert).select("id").single()
-  if (error) throw error
-  return data.id as string
 }
 
 async function uploadArtifact(path: string, content: string, contentType: string) {
@@ -124,74 +92,16 @@ async function upsertSourcePage(params: {
   if (error) throw error
 }
 
-async function insertChunksAndEmbeddings(params: {
-  documentId: string
-  sourceId: string
-  botId: string
-  tenantId: string
-  chunks: ReturnType<typeof chunkPlainText>
-  citationUrl: string
-  citationTitle: string | null
-}) {
-  if (!params.chunks.length) {
-    return { chunksCreated: 0, tokensEmbedded: 0 }
-  }
-
-  const admin = createAdminClient()
-  const chunkRows = params.chunks.map((chunk) => ({
-    document_id: params.documentId,
-    chunk_index: chunk.index,
-    text: chunk.text,
-    token_count: chunk.estimatedTokens,
-    meta: {
-      tenant_id: params.tenantId,
-      bot_id: params.botId,
-      source_id: params.sourceId,
-      source_url: params.citationUrl,
-      source_title: params.citationTitle,
-    },
-  }))
-
-  const { data: inserted, error: chunkError } = await admin
-    .from("chunks")
-    .insert(chunkRows)
-    .select("id,text")
-
-  if (chunkError) throw chunkError
-
-  const insertedChunks = inserted ?? []
-  const model = getEmbeddingModel()
-  const BATCH_SIZE = 64
-  let tokensEmbedded = 0
-
-  for (let i = 0; i < insertedChunks.length; i += BATCH_SIZE) {
-    const batch = insertedChunks.slice(i, i + BATCH_SIZE)
-    const input = batch.map((item) => item.text as string)
-    const vectors = await createEmbeddings(input)
-    tokensEmbedded += input.reduce((sum, text) => sum + Math.ceil(text.length / 4), 0)
-
-    const rows = batch.map((item, idx) => ({
-      chunk_id: item.id as string,
-      model,
-      embedding: vectors[idx],
-    }))
-
-    const { error: embError } = await admin.from("embeddings").upsert(rows, {
-      onConflict: "chunk_id",
-    })
-    if (embError) throw embError
-  }
-
-  return { chunksCreated: insertedChunks.length, tokensEmbedded }
-}
-
 async function processUrlSource(job: IndexingJob, source: SourceRow) {
   if (!source.url) throw new Error("URL source has no URL.")
   const admin = createAdminClient()
   await assertTenantCanIndexData(job.tenant_id, 0)
 
   const discovered = maybeSitemap(source.url)
-    ? parseSitemapUrls(await (await fetch(source.url)).text(), MAX_CRAWL_PAGES_PER_JOB)
+    ? filterUrlsByHost(
+        source.url,
+        parseSitemapUrls(await (await fetch(source.url)).text(), MAX_CRAWL_PAGES_PER_JOB)
+      )
     : [source.url]
   const pageUrls = discovered.length ? discovered : [source.url]
 
@@ -425,7 +335,10 @@ export async function processIndexingJob(jobId: string) {
     const message = error instanceof Error ? error.message : "Unknown indexing error"
     await admin
       .from("sources")
-      .update({ status: "failed" })
+      .update({
+        status: "failed",
+        file_search_error: message,
+      })
       .eq("id", claimed.source_id)
     await admin
       .from("indexing_jobs")
