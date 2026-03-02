@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { CheckCircle2, Globe, Settings2 } from "lucide-react"
+import { ArrowRight, Settings2 } from "lucide-react"
 
 import { ConsoleAlerts } from "@/app/console/_components/console-alerts"
 import { fetchConsoleData, requireConsoleContext } from "@/app/console/_lib/data"
@@ -78,17 +78,15 @@ export default async function ConsoleOverviewPage({ searchParams }: PageProps) {
             </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-2 text-sm">
-            <p>契約ステータス: {data.primarySubscription?.status ?? "未設定"}</p>
+            <p>
+              プラン: {data.currentPlan?.name ?? "未契約"}{data.currentPlan?.monthly_price_jpy ? ` ／ ${data.currentPlan.monthly_price_jpy.toLocaleString()} 円/月` : ""}
+            </p>
+            <p>
+              契約ステータス: {data.primarySubscription?.status === "active" ? "有効" : data.primarySubscription?.status === "trialing" ? "トライアル中" : data.primarySubscription?.status === "past_due" ? "支払い遅延" : data.primarySubscription?.status === "canceled" ? "解約済み" : data.primarySubscription?.status ?? "未設定"}
+            </p>
             <p>次回更新日: {fmtDate(data.primarySubscription?.current_period_end)}</p>
-            <p>
-              プラン: {data.currentPlan?.name ?? "未契約"} / {data.currentPlan?.monthly_price_jpy?.toLocaleString() ?? "-"} 円
-            </p>
-            <p>
-              Bot上限: {data.currentPlan?.is_bot_limit_display_unlimited ? "無制限表示" : data.currentPlan?.max_bots ?? "-"}
-              （内部CAP: {data.currentPlan?.internal_max_bots_cap ?? "-"}）
-            </p>
+            <p>Bot上限: {data.currentPlan?.is_bot_limit_display_unlimited ? "無制限" : data.currentPlan?.max_bots ?? "-"}</p>
             <p>月間メッセージ上限: {data.currentPlan?.max_monthly_messages?.toLocaleString() ?? "-"}</p>
-            <p>今月トークン出力: {data.monthlyTokensOut.toLocaleString()}</p>
             <div className="flex flex-wrap gap-2 pt-1">
               {boolBadge(Boolean(data.currentPlan?.has_widget), "Widget可", "Widget不可")}
               {boolBadge(Boolean(data.currentPlan?.has_hosted_page), "Hosted Page可", "Hosted Page不可")}
@@ -100,31 +98,26 @@ export default async function ConsoleOverviewPage({ searchParams }: PageProps) {
 
         <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
           <CardHeader>
-            <CardTitle>運用メモ</CardTitle>
-            <CardDescription>
-              未払い・期限切れ時はボット応答停止、管理画面アクセス継続、データ保持の方針です。
-            </CardDescription>
+            <CardTitle>クイックアクセス</CardTitle>
+            <CardDescription>よく使う操作へのショートカットです。</CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-2 text-sm text-zinc-600 dark:text-zinc-300">
-            <p className="flex items-center gap-2">
-              <CheckCircle2 className="size-4 text-emerald-600" />
-              スパム対策（レート制限 / origin検証 / CAPTCHA）を公開チャネルに適用
-            </p>
-            <p className="flex items-center gap-2">
-              <CheckCircle2 className="size-4 text-emerald-600" />
-              インデックスは管理画面から手動実行（コスト制御）
-            </p>
-            <p className="flex items-center gap-2">
-              <CheckCircle2 className="size-4 text-emerald-600" />
-              サポート導線:{" "}
-              <Link href="https://make-it-tech.com" className="text-cyan-700 hover:underline dark:text-cyan-300">
-                make-it-tech.com
+          <CardContent className="grid gap-2 text-sm">
+            {[
+              { href: "/console/bots", label: "Bot管理 — Botの作成・設定変更" },
+              { href: "/console/operations", label: "運用 — インデックス実行・ソース確認" },
+              { href: "/console/api-keys", label: "APIキー — キーの発行・失効" },
+              { href: "/console/members", label: "メンバー — 招待リンク発行" },
+              { href: "/console/billing", label: "請求・プラン — プラン変更・請求履歴" },
+            ].map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="flex items-center justify-between rounded-md border border-black/10 px-3 py-2.5 hover:bg-slate-50 dark:border-white/10 dark:hover:bg-slate-800/50"
+              >
+                <span>{item.label}</span>
+                <ArrowRight className="size-4 text-muted-foreground" />
               </Link>
-            </p>
-            <p className="flex items-center gap-2">
-              <Globe className="size-4 text-cyan-600" />
-              API公開型と埋め込み型の双方を前提に運用
-            </p>
+            ))}
           </CardContent>
         </Card>
       </section>

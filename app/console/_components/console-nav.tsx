@@ -7,14 +7,14 @@ import { Activity, BarChart3, Bot, CreditCard, KeyRound, Settings2, ShieldCheck,
 import { cn } from "@/lib/utils"
 
 const NAV_ITEMS = [
-  { href: "/console/overview", label: "Overview", icon: BarChart3 },
-  { href: "/console/operations", label: "Operations", icon: Activity },
-  { href: "/console/bots", label: "Bots", icon: Bot },
-  { href: "/console/api-keys", label: "API Keys", icon: KeyRound },
-  { href: "/console/billing", label: "Billing", icon: CreditCard },
-  { href: "/console/audit", label: "Audit", icon: ShieldCheck },
-  { href: "/console/members", label: "Members", icon: Users },
-  { href: "/console/settings", label: "Settings", icon: Settings2 },
+  { href: "/console/overview", label: "概要", icon: BarChart3 },
+  { href: "/console/operations", label: "運用", icon: Activity },
+  { href: "/console/bots", label: "Bot管理", icon: Bot },
+  { href: "/console/api-keys", label: "APIキー", icon: KeyRound },
+  { href: "/console/billing", label: "請求・プラン", icon: CreditCard },
+  { href: "/console/audit", label: "監査ログ", icon: ShieldCheck },
+  { href: "/console/members", label: "メンバー", icon: Users },
+  { href: "/console/settings", label: "設定", icon: Settings2 },
 ]
 
 export function ConsoleNav() {

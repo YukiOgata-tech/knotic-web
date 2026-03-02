@@ -4,6 +4,7 @@ import Link from "next/link"
 import * as React from "react"
 import {
   Brain,
+  ChevronLeft,
   ExternalLink,
   MonitorSmartphone,
   Palette,
@@ -48,6 +49,7 @@ type BotHostedConfig = {
   ai_model: string | null
   ai_fallback_model: string | null
   ai_max_output_tokens: number | null
+  file_search_provider: string | null
 }
 
 type BotSourceRow = {
@@ -58,6 +60,9 @@ type BotSourceRow = {
   url: string | null
   file_name: string | null
   file_size_bytes: number | null
+  file_search_provider: string | null
+  file_search_last_synced_at: string | null
+  file_search_error: string | null
 }
 
 type WidgetTokenRow = {
@@ -85,6 +90,7 @@ type Props = {
   addUrlSourceAction: ActionFn
   addPdfSourceAction: ActionFn
   queueIndexAction: ActionFn
+  runIndexingWorkerAction: ActionFn
 }
 
 type ConfigTab = "basic" | "bot" | "ai" | "theme" | "widget" | "preview"
@@ -110,7 +116,7 @@ const DEFAULT_HEADER_TEXT = "#f8fafc"
 const DEFAULT_FOOTER_BG = "#f8fafc"
 const DEFAULT_FOOTER_TEXT = "#0f172a"
 const DEFAULT_WIDGET_POLICY =
-  "このチャット履歴はブラウザ上で24時間保持され、自動的に削除されます。"
+  "チャット履歴はブラウザ上で24時間保持され、自動的に削除されます。"
 const MODEL_OPTIONS = ["5-nano", "5-mini", "5", "4o-mini", "4o"] as const
 const SELECT_CLASS =
   "h-11 rounded-md border border-black/15 bg-white px-3 text-base text-slate-900 [color-scheme:light] sm:h-10 sm:text-sm dark:border-white/15 dark:bg-slate-950 dark:text-slate-100 dark:[color-scheme:dark]"
@@ -127,6 +133,13 @@ const TAB_ITEMS: Array<{ id: ConfigTab; label: string; icon: React.ComponentType
 function formatMbFromBytes(bytes: number | null | undefined) {
   if (typeof bytes !== "number" || bytes <= 0) return "-"
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "-"
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return "-"
+  return parsed.toLocaleString("ja-JP", { hour12: false })
 }
 
 function Panel({ active, children }: { active: boolean; children: React.ReactNode }) {
@@ -149,6 +162,7 @@ export function HostedConfigEditor({
   addUrlSourceAction,
   addPdfSourceAction,
   queueIndexAction,
+  runIndexingWorkerAction,
 }: Props) {
   const [activeTab, setActiveTab] = React.useState<ConfigTab>("basic")
 
@@ -187,6 +201,12 @@ export function HostedConfigEditor({
     if (!internalOptionEnabled && requireAuth) setRequireAuth(false)
   }, [internalOptionEnabled, accessMode, requireAuth])
 
+  React.useEffect(() => {
+    if (!hasHostedPage && (widgetMode === "redirect" || widgetMode === "both")) {
+      setWidgetMode("overlay")
+    }
+  }, [hasHostedPage, widgetMode])
+
   const effectiveRequireAuth = internalOptionEnabled && (accessMode === "internal" || requireAuth)
   const historyLimit = Number.isFinite(Number(historyTurnLimit))
     ? Math.max(1, Math.min(maxHistoryTurnLimit, Math.floor(Number(historyTurnLimit))))
@@ -194,47 +214,60 @@ export function HostedConfigEditor({
 
   return (
     <div className="grid gap-4">
-      <div className="rounded-xl border border-black/20 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="grid gap-1">
-            <p className="text-lg font-semibold">{bot.name}</p>
-            <p className="text-xs text-muted-foreground">public_id: {bot.public_id}</p>
-            {!hasHostedPage ? (
-              <p className="text-xs text-muted-foreground">
-                LiteプランではHosted専用項目（社内限定/認証必須）は選択できません。
-              </p>
+      <div className="rounded-xl border border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
+
+        {/* 上段: ナビゲーション + アクション */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/10 px-4 py-2.5 dark:border-white/8">
+          <Link
+            href={backHref}
+            className="inline-flex items-center gap-0.5 text-xs text-muted-foreground transition-colors hover:text-slate-700 dark:hover:text-slate-200"
+          >
+            <ChevronLeft className="size-3.5" />
+            Bot一覧
+          </Link>
+          <div className="flex items-center gap-2">
+            {hasHostedPage ? (
+              <Link
+                href={`/chat-by-knotic/${bot.public_id}`}
+                target="_blank"
+                className="inline-flex items-center gap-1.5 rounded-full border border-black/20 px-3 py-1.5 text-xs transition-colors hover:bg-slate-50 dark:border-white/15 dark:hover:bg-slate-800"
+              >
+                公開画面を確認
+                <ExternalLink className="size-3" />
+              </Link>
             ) : null}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Link href={backHref} className="text-sm text-cyan-700 hover:underline dark:text-cyan-300">
-              Bot一覧へ戻る
-            </Link>
-            <Button type="submit" form={`save_bot_${bot.id}`} className="rounded-full" disabled={!isEditor}>
+            <Button type="submit" form={`save_bot_${bot.id}`} size="sm" className="rounded-full" disabled={!isEditor}>
               設定を保存
             </Button>
           </div>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-black/20 pt-3 dark:border-white/10">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Badge variant={bot.is_public ? "default" : "outline"}>{bot.is_public ? "有効" : "無効"}</Badge>
-            <Badge variant="outline">{accessMode === "internal" ? "社内限定" : "公開利用"}</Badge>
-            <Badge variant="outline">{widgetEnabled ? "Widget ON" : "Widget OFF"}</Badge>
-            {hasHostedPage ? (
-              <Link
-                href={`/chat-by-knotic/${bot.public_id}`}
-                target="_blank"
-                className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs"
-              >
-                公開画面
-                <ExternalLink className="size-3" />
-              </Link>
-            ) : null}
+        {/* 中段: Bot名 + ステータス情報 */}
+        <div className="px-4 py-4">
+          <div className="flex items-center gap-2.5">
+            <span
+              className={cn(
+                "size-2.5 shrink-0 rounded-full",
+                bot.is_public ? "bg-emerald-500" : "bg-slate-400 dark:bg-slate-500"
+              )}
+            />
+            <h1 className="text-xl font-bold tracking-tight">{bot.name}</h1>
           </div>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 pl-5 text-xs text-muted-foreground">
+            <span>{PURPOSE_LABEL[chatPurpose] ?? chatPurpose}</span>
+            <span className="opacity-25">·</span>
+            <span className={cn(accessMode === "internal" && "font-medium text-amber-600 dark:text-amber-400")}>
+              {accessMode === "internal" ? "社内限定" : "公開利用"}
+            </span>
+            <span className="opacity-25">·</span>
+            <span>{widgetEnabled ? "Widget 有効" : "Widget 無効"}</span>
+          </div>
+          <p className="mt-1 pl-5 text-[11px] text-muted-foreground/50">Bot ID: {bot.public_id}</p>
         </div>
 
-        <div className="mt-3 overflow-x-auto border-t border-black/20 pt-3 dark:border-white/10">
-          <div className="inline-flex min-w-full gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800/80">
+        {/* 下段: タブ */}
+        <div className="overflow-x-auto border-t border-black/10 px-3 pb-3 pt-2 dark:border-white/8">
+          <div className="inline-flex min-w-full gap-0.5 rounded-xl bg-slate-100 p-1 dark:bg-slate-800/80">
             {TAB_ITEMS.map((item) => {
               const Icon = item.icon
               const active = activeTab === item.id
@@ -244,19 +277,20 @@ export function HostedConfigEditor({
                   type="button"
                   onClick={() => setActiveTab(item.id)}
                   className={cn(
-                    "inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-xs font-medium transition",
+                    "inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-xs font-medium transition-all",
                     active
                       ? "bg-white text-slate-900 shadow-sm dark:bg-slate-950 dark:text-slate-100"
-                      : "text-slate-600 hover:bg-white/70 dark:text-slate-300 dark:hover:bg-slate-700/70"
+                      : "text-slate-500 hover:bg-white/60 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-700/60 dark:hover:text-slate-200"
                   )}
                 >
-                  <Icon className="size-3.5" />
+                  <Icon className="size-3.5 shrink-0" />
                   {item.label}
                 </button>
               )
             })}
           </div>
         </div>
+
       </div>
 
       <form id={`save_bot_${bot.id}`} action={saveAction} className="grid gap-4 rounded-xl border border-black/20 bg-white/90 p-4 dark:border-white/10 dark:bg-slate-900/80">
@@ -268,22 +302,14 @@ export function HostedConfigEditor({
             <p className="text-sm font-semibold">基本設定</p>
             <p className="text-xs text-muted-foreground">Bot情報と公開方式を設定します。</p>
           </div>
-          <div className="grid gap-2 rounded-lg border border-black/20 p-3 dark:border-white/10">
-            <p className="text-xs text-muted-foreground">
-              Bot状態は「有効/無効」で管理します。無効にするとHosted公開URLやWidget経由での利用導線を停止できます。
-            </p>
-            <PublicToggle
-              botId={bot.id}
-              isPublic={Boolean(bot.is_public)}
-              isEditor={isEditor}
-              redirectTo={redirectTo}
-              action={togglePublicAction}
-            />
-          </div>
+          <p className="text-xs text-muted-foreground">
+            Bot状態（有効/無効）の切り替えは、この下の「Bot状態管理」エリアで実行します。
+          </p>
           <div className="grid gap-3 md:grid-cols-2">
             <div className="grid gap-1.5">
               <Label htmlFor={`name_${bot.id}`}>Bot名</Label>
               <Input id={`name_${bot.id}`} name="name" value={botName} onChange={(e) => setBotName(e.target.value)} disabled={!isEditor} />
+              <p className="text-[11px] text-muted-foreground">Bot名/サービス表示名は30日で3回まで変更できます。</p>
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor={`display_name_${bot.id}`}>サービス表示名</Label>
@@ -390,16 +416,18 @@ export function HostedConfigEditor({
               />
               回答時に根拠（引用）を表示
             </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                name="require_auth_for_hosted"
-                checked={effectiveRequireAuth}
-                onChange={(e) => setRequireAuth(e.target.checked)}
-                disabled={!isEditor || !internalOptionEnabled}
-              />
-              Hostedチャットで認証を必須化
-            </label>
+            {internalOptionEnabled ? (
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  name="require_auth_for_hosted"
+                  checked={effectiveRequireAuth}
+                  onChange={(e) => setRequireAuth(e.target.checked)}
+                  disabled={!isEditor}
+                />
+                Hostedチャットで認証を必須化
+              </label>
+            ) : null}
           </div>
         </Panel>
 
@@ -409,6 +437,13 @@ export function HostedConfigEditor({
             <p className="text-xs text-muted-foreground">モデル・トークン制限・情報ソースを管理します。</p>
           </div>
           <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid gap-1.5">
+              <Label>RAG方式</Label>
+              <Input value="OpenAI File Search（固定）" disabled />
+              <p className="text-[11px] text-muted-foreground">
+                この環境ではFile Search運用を標準化しており、Legacy Vectorは利用しません。
+              </p>
+            </div>
             <div className="grid gap-1.5">
               <Label htmlFor={`ai_model_${bot.id}`}>モデル</Label>
               <select
@@ -549,9 +584,13 @@ export function HostedConfigEditor({
                 onChange={(e) => setWidgetMode(e.target.value)}
                 disabled={!isEditor}
               >
-                <option value="overlay">overlay（モーダル表示）</option>
-                <option value="redirect">redirect（公開URLへ遷移）</option>
-                <option value="both">both（両方対応）</option>
+                <option value="overlay">モーダル表示</option>
+                <option value="redirect" disabled={!hasHostedPage}>
+                  公開URLへ遷移{!hasHostedPage ? "（要Hosted Page）" : ""}
+                </option>
+                <option value="both" disabled={!hasHostedPage}>
+                  両方対応{!hasHostedPage ? "（要Hosted Page）" : ""}
+                </option>
               </select>
             </div>
             <div className="grid gap-1.5">
@@ -632,6 +671,24 @@ export function HostedConfigEditor({
         </div>
       </form>
 
+      <section className={cn("grid gap-3 rounded-xl border border-black/20 bg-white/90 p-4 dark:border-white/10 dark:bg-slate-900/80", activeTab !== "basic" && "hidden")}>
+        <div className="grid gap-1">
+          <p className="text-sm font-semibold">Bot状態管理</p>
+          <p className="text-xs text-muted-foreground">
+            Bot状態は「有効/無効」で管理します。無効にするとHosted公開URLやWidget経由での利用導線を停止できます。
+          </p>
+        </div>
+        <div className="grid gap-2 rounded-lg border border-black/20 p-3 dark:border-white/10">
+          <PublicToggle
+            botId={bot.id}
+            isPublic={Boolean(bot.is_public)}
+            isEditor={isEditor}
+            redirectTo={redirectTo}
+            action={togglePublicAction}
+          />
+        </div>
+      </section>
+
       <section className={cn("grid gap-3 rounded-xl border border-black/20 bg-white/90 p-4 dark:border-white/10 dark:bg-slate-900/80", activeTab !== "widget" && "hidden")}>
         <div className="grid gap-1">
           <p className="text-sm font-semibold">Widgetトークン管理</p>
@@ -692,6 +749,17 @@ export function HostedConfigEditor({
           <p className="text-xs text-muted-foreground">このBot専用のURL/PDFソースを登録し、インデックス処理を行います。</p>
         </div>
 
+        <form action={runIndexingWorkerAction} className="grid gap-2 rounded-lg border border-black/20 p-3 dark:border-white/10">
+          <input type="hidden" name="redirect_to" value={redirectTo} />
+          <p className="text-sm font-medium">インデックス手動実行</p>
+          <p className="text-xs text-muted-foreground">
+            待機中のインデックスジョブを1件実行します。
+          </p>
+          <Button type="submit" size="sm" className="w-fit" disabled={!isEditor}>
+            インデックスを実行
+          </Button>
+        </form>
+
         <div className="grid gap-3 lg:grid-cols-2">
           <form action={addUrlSourceAction} className="grid gap-2 rounded-lg border border-black/20 p-3 dark:border-white/10">
             <input type="hidden" name="redirect_to" value={redirectTo} />
@@ -741,8 +809,17 @@ export function HostedConfigEditor({
                 <div className="grid gap-0.5">
                   <p className="font-medium">{source.url ?? source.file_name ?? "-"}</p>
                   <p className="text-muted-foreground">
-                    {source.type} / {source.status} / {formatMbFromBytes(source.file_size_bytes)}
+                    {source.type === "url" ? "URL" : source.type === "pdf" ? "PDF" : "ファイル"} ／{" "}
+                    {source.status === "indexed" ? "インデックス済み" : source.status === "queued" ? "待機中" : source.status === "running" ? "処理中" : source.status === "failed" ? "失敗" : source.status === "pending" ? "保留中" : source.status} ／{" "}
+                    {formatMbFromBytes(source.file_size_bytes)}
                   </p>
+                  <p className="text-muted-foreground">
+                    同期方式: {source.file_search_provider === "openai" ? "OpenAI File Search" : "OpenAI File Search（未同期）"} ／
+                    最終同期: {formatDateTime(source.file_search_last_synced_at)}
+                  </p>
+                  {source.file_search_error ? (
+                    <p className="text-rose-600 dark:text-rose-400">同期エラー: {source.file_search_error}</p>
+                  ) : null}
                 </div>
                 <form action={queueIndexAction}>
                   <input type="hidden" name="redirect_to" value={redirectTo} />
@@ -757,6 +834,18 @@ export function HostedConfigEditor({
           )}
         </div>
       </section>
+
+      {!hasHostedPage ? (
+        <div className="rounded-xl border border-black/10 bg-slate-50/80 px-4 py-3 dark:border-white/8 dark:bg-slate-900/40">
+          <p className="text-xs text-muted-foreground">
+            <span className="font-medium text-slate-700 dark:text-slate-300">Standardプラン以上</span>
+            でご利用いただける機能：Hosted公開URL・社内限定モード・Hosted認証必須化。
+            <Link href="/console/billing" className="ml-1 text-cyan-700 hover:underline dark:text-cyan-400">
+              プランを確認する
+            </Link>
+          </p>
+        </div>
+      ) : null}
 
       {showRotateConfirm ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">

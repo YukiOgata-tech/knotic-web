@@ -1,0 +1,311 @@
+import { createAdminClient } from "@/lib/supabase/admin"
+
+function getOpenAiApiKey() {
+  const value = process.env.OPENAI_API_KEY?.trim()
+  if (!value) {
+    throw new Error("Missing environment variable: OPENAI_API_KEY")
+  }
+  return value
+}
+
+async function openAiFetch(path: string, init: RequestInit) {
+  const response = await fetch(`https://api.openai.com/v1${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${getOpenAiApiKey()}`,
+      ...(init.headers ?? {}),
+    },
+  })
+
+  if (!response.ok) {
+    const body = await response.text()
+    throw new Error(`OpenAI API failed (${response.status}) ${path}: ${body}`)
+  }
+
+  return response
+}
+
+type EnsureStoreResult = {
+  vectorStoreId: string
+}
+
+async function trySelectBotStore(botId: string) {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from("bots")
+    .select("id, file_search_provider, file_search_vector_store_id")
+    .eq("id", botId)
+    .maybeSingle()
+
+  if (error) {
+    if ((error as { code?: string }).code === "42703") {
+      throw new Error(
+        "bots.file_search_vector_store_id が未作成です。最新 schema.sql の ALTER TABLE を適用してください。"
+      )
+    }
+    throw error
+  }
+
+  return (data ?? null) as {
+    id: string
+    file_search_provider: string | null
+    file_search_vector_store_id: string | null
+  } | null
+}
+
+export async function getBotOpenAiVectorStoreId(botId: string): Promise<string | null> {
+  try {
+    const row = await trySelectBotStore(botId)
+    if (!row) return null
+    if (row.file_search_provider && row.file_search_provider !== "openai") return null
+    return row.file_search_vector_store_id ?? null
+  } catch {
+    return null
+  }
+}
+
+export async function ensureOpenAiVectorStoreForBot(botId: string, botPublicId: string): Promise<EnsureStoreResult> {
+  const admin = createAdminClient()
+  const row = await trySelectBotStore(botId)
+  if (!row) {
+    throw new Error("Bot not found while ensuring vector store.")
+  }
+
+  if (row.file_search_vector_store_id) {
+    return { vectorStoreId: row.file_search_vector_store_id }
+  }
+
+  const createdRes = await openAiFetch("/vector_stores", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: `knotic-bot-${botPublicId}`,
+      metadata: { bot_id: botId, bot_public_id: botPublicId },
+    }),
+  })
+  const created = (await createdRes.json()) as { id?: string }
+  const vectorStoreId = String(created.id ?? "")
+  if (!vectorStoreId) {
+    throw new Error("OpenAI vector store creation returned empty id.")
+  }
+
+  const { error: updateError } = await admin
+    .from("bots")
+    .update({
+      file_search_provider: "openai",
+      file_search_vector_store_id: vectorStoreId,
+    })
+    .eq("id", botId)
+
+  if (updateError) {
+    if ((updateError as { code?: string }).code === "42703") {
+      throw new Error(
+        "bots.file_search_provider / file_search_vector_store_id が未作成です。最新 schema.sql を適用してください。"
+      )
+    }
+    throw updateError
+  }
+
+  return { vectorStoreId }
+}
+
+function toSafeFileName(name: string) {
+  return name.replace(/[^A-Za-z0-9._-]/g, "_")
+}
+
+async function uploadTextAsFile(params: {
+  filename: string
+  text: string
+}) {
+  const form = new FormData()
+  form.set("purpose", "assistants")
+  const blob = new Blob([params.text], { type: "text/plain;charset=utf-8" })
+  form.set("file", blob, toSafeFileName(params.filename))
+
+  const uploadedRes = await openAiFetch("/files", {
+    method: "POST",
+    body: form,
+  })
+  const uploaded = (await uploadedRes.json()) as { id?: string }
+  const fileId = String(uploaded.id ?? "")
+  if (!fileId) {
+    throw new Error("OpenAI file upload returned empty id.")
+  }
+  return fileId
+}
+
+async function attachFileToVectorStore(vectorStoreId: string, fileId: string) {
+  await openAiFetch(`/vector_stores/${encodeURIComponent(vectorStoreId)}/files`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ file_id: fileId }),
+  })
+}
+
+async function detachFileFromVectorStore(vectorStoreId: string, fileId: string) {
+  try {
+    await openAiFetch(`/vector_stores/${encodeURIComponent(vectorStoreId)}/files/${encodeURIComponent(fileId)}`, {
+      method: "DELETE",
+    })
+  } catch {
+    // Best effort only.
+  }
+}
+
+export async function syncSourceTextToOpenAiFileSearch(params: {
+  botId: string
+  botPublicId: string
+  sourceId: string
+  sourceType: "url" | "pdf" | "file"
+  sourceLabel: string
+  text: string
+}) {
+  const admin = createAdminClient()
+  const { vectorStoreId } = await ensureOpenAiVectorStoreForBot(params.botId, params.botPublicId)
+
+  const { data: sourceRow, error: sourceSelectError } = await admin
+    .from("sources")
+    .select("id, file_search_file_id")
+    .eq("id", params.sourceId)
+    .maybeSingle()
+
+  if (sourceSelectError) {
+    if ((sourceSelectError as { code?: string }).code === "42703") {
+      throw new Error("sources.file_search_file_id が未作成です。最新 schema.sql を適用してください。")
+    }
+    throw sourceSelectError
+  }
+
+  const previousFileId = String((sourceRow as { file_search_file_id?: string | null } | null)?.file_search_file_id ?? "") || null
+
+  const fileId = await uploadTextAsFile({
+    filename: `${params.sourceType}-${params.sourceId}.txt`,
+    text: [`# ${params.sourceLabel}`, "", params.text].join("\n"),
+  })
+  await attachFileToVectorStore(vectorStoreId, fileId)
+
+  if (previousFileId) {
+    await detachFileFromVectorStore(vectorStoreId, previousFileId)
+  }
+
+  const { error: sourceUpdateError } = await admin
+    .from("sources")
+    .update({
+      file_search_provider: "openai",
+      file_search_file_id: fileId,
+      file_search_last_synced_at: new Date().toISOString(),
+      file_search_error: null,
+    })
+    .eq("id", params.sourceId)
+
+  if (sourceUpdateError) {
+    if ((sourceUpdateError as { code?: string }).code === "42703") {
+      throw new Error(
+        "sources.file_search_* カラムが未作成です。最新 schema.sql の ALTER TABLE を適用してください。"
+      )
+    }
+    throw sourceUpdateError
+  }
+
+  return { vectorStoreId, fileId }
+}
+
+function collectFileCitationIds(value: unknown, out: string[]) {
+  if (!value || typeof value !== "object") return
+  if (Array.isArray(value)) {
+    for (const item of value) collectFileCitationIds(item, out)
+    return
+  }
+
+  const obj = value as Record<string, unknown>
+  const type = typeof obj.type === "string" ? obj.type : ""
+  const fileId = typeof obj.file_id === "string" ? obj.file_id : ""
+  if (type.includes("file") && fileId) {
+    out.push(fileId)
+  }
+
+  for (const key of Object.keys(obj)) {
+    collectFileCitationIds(obj[key], out)
+  }
+}
+
+export type FileSearchAnswer = {
+  text: string
+  usage: {
+    input_tokens?: number
+    output_tokens?: number
+  }
+  citationFileIds: string[]
+}
+
+export async function answerWithOpenAiFileSearch(params: {
+  vectorStoreId: string
+  model: string
+  fallbackModel?: string | null
+  systemPrompt: string
+  message: string
+  conversation?: Array<{ role: "user" | "assistant"; content: string }>
+  maxOutputTokens?: number
+}) {
+  const tryCall = async (model: string): Promise<FileSearchAnswer> => {
+    const input = [
+      {
+        role: "system",
+        content: [{ type: "input_text", text: params.systemPrompt }],
+      },
+      ...(params.conversation ?? []).map((turn) => ({
+        role: turn.role,
+        content: [{ type: "input_text", text: turn.content.slice(0, 4000) }],
+      })),
+      {
+        role: "user",
+        content: [{ type: "input_text", text: params.message }],
+      },
+    ]
+
+    const res = await openAiFetch("/responses", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        input,
+        tools: [
+          {
+            type: "file_search",
+            vector_store_ids: [params.vectorStoreId],
+            max_num_results: 8,
+          },
+        ],
+        tool_choice: "auto",
+        max_output_tokens: params.maxOutputTokens ?? 900,
+      }),
+    })
+
+    const body = (await res.json()) as {
+      output_text?: string
+      usage?: { input_tokens?: number; output_tokens?: number }
+      output?: unknown
+    }
+
+    const citationFileIdsRaw: string[] = []
+    collectFileCitationIds(body.output, citationFileIdsRaw)
+    const citationFileIds = [...new Set(citationFileIdsRaw)]
+
+    return {
+      text: String(body.output_text ?? "").trim(),
+      usage: body.usage ?? {},
+      citationFileIds,
+    }
+  }
+
+  try {
+    const primary = await tryCall(params.model)
+    return { model: params.model, ...primary }
+  } catch (error) {
+    if (!params.fallbackModel || params.fallbackModel === params.model) {
+      throw error
+    }
+    const fallback = await tryCall(params.fallbackModel)
+    return { model: params.fallbackModel, ...fallback }
+  }
+}

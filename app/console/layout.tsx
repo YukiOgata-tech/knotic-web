@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { fetchConsolePlanLabel, requireConsoleContext } from "@/app/console/_lib/data"
 import { boolBadge } from "@/app/console/_lib/ui"
 import { ConsoleNav } from "@/app/console/_components/console-nav"
+import { ConsoleMobileNav } from "@/app/console/_components/console-mobile-nav"
 import { MobileDesktopRecommendModal } from "@/app/console/_components/mobile-desktop-recommend-modal"
 import { stopImpersonationAction } from "@/app/sub-domain/actions"
 import { createTenantWorkspaceAction } from "@/app/console/actions"
@@ -79,9 +80,13 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
   const planLabel = await fetchConsolePlanLabel(membership.tenant_id)
 
   return (
-    <div className="relative overflow-x-clip bg-[linear-gradient(180deg,#fff9ee_0%,#ffffff_45%,#f7fbff_100%)] py-6 dark:bg-[linear-gradient(180deg,#0f172a_0%,#0b1220_45%,#0a0f1a_100%)] sm:py-8">
-      <Container size="full" className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
-        <aside className="h-fit rounded-xl border border-black/20 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80 lg:sticky lg:top-20">
+    <div className="relative overflow-x-clip bg-[linear-gradient(180deg,#fff9ee_0%,#ffffff_45%,#f7fbff_100%)] dark:bg-[linear-gradient(180deg,#0f172a_0%,#0b1220_45%,#0a0f1a_100%)] lg:py-8">
+      <ConsoleMobileNav
+        orgName={membership.tenants?.display_name ?? "-"}
+        planLabel={planLabel}
+      />
+      <Container size="full" className="grid gap-4 py-4 lg:grid-cols-[240px_minmax(0,1fr)] lg:py-0">
+        <aside className="hidden h-fit rounded-xl border border-black/20 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80 lg:block lg:sticky lg:top-20">
           <div className="mb-3 border-b border-black/20 pb-3 dark:border-white/10">
             <p className="text-sm font-semibold">knotic console</p>
             <p className="text-xs text-muted-foreground">{membership.tenants?.display_name ?? "-"}</p>
@@ -90,7 +95,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
           <ConsoleNav />
         </aside>
 
-        <main className="grid gap-4">
+        <main className="grid gap-4 pb-24 lg:pb-0">
           {impersonation?.active ? (
             <Card className="border-amber-300/50 bg-amber-50/70 dark:border-amber-500/40 dark:bg-amber-950/20">
               <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
@@ -111,18 +116,13 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
             </Card>
           ) : null}
           <MobileDesktopRecommendModal />
-          <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80 ">
-            <CardContent className="flex flex-wrap items-center justify-between gap-2 px-4 py-0">
-              <div className="flex gap-x-1">
-                <p className="text-sm text-muted-foreground">ログイン中:</p>
-                <p className="text-md font-medium">{user.email}</p>
-              </div>
-              <div className="flex items-center gap-x-2">
-                {boolBadge(isEditor, "Editor", "Reader")}
-                <LogoutButton />
-              </div>
-            </CardContent>
-          </Card>
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-black/20 bg-white/90 px-4 py-2.5 dark:border-white/10 dark:bg-slate-900/80">
+            <p className="text-sm text-muted-foreground">{user.email}</p>
+            <div className="flex items-center gap-x-2">
+              {boolBadge(isEditor, "Editor", "Reader")}
+              <LogoutButton />
+            </div>
+          </div>
           {children}
         </main>
       </Container>

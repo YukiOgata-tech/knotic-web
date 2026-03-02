@@ -228,13 +228,15 @@ export async function fetchConsoleData(tenantId: string) {
     supabase
       .from("bots")
       .select(
-        "id, public_id, name, description, status, is_public, chat_purpose, access_mode, display_name, welcome_message, placeholder_text, disclaimer_text, show_citations, history_turn_limit, require_auth_for_hosted, ui_header_bg_color, ui_header_text_color, ui_footer_bg_color, ui_footer_text_color, widget_enabled, widget_mode, widget_position, widget_launcher_label, widget_policy_text, widget_redirect_new_tab, ai_model, ai_fallback_model, ai_max_output_tokens, created_at"
+        "id, public_id, name, description, status, is_public, chat_purpose, access_mode, display_name, welcome_message, placeholder_text, disclaimer_text, show_citations, history_turn_limit, require_auth_for_hosted, ui_header_bg_color, ui_header_text_color, ui_footer_bg_color, ui_footer_text_color, widget_enabled, widget_mode, widget_position, widget_launcher_label, widget_policy_text, widget_redirect_new_tab, ai_model, ai_fallback_model, ai_max_output_tokens, file_search_provider, created_at"
       )
       .eq("tenant_id", tenantId)
       .order("created_at", { ascending: false }),
     supabase
       .from("sources")
-      .select("id, bot_id, type, status, url, file_name, file_size_bytes, created_at")
+      .select(
+        "id, bot_id, type, status, url, file_name, file_size_bytes, file_search_provider, file_search_last_synced_at, file_search_error, created_at"
+      )
       .order("created_at", { ascending: false })
       .limit(100),
     supabase

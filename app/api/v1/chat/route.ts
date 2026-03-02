@@ -9,8 +9,8 @@ import {
   getTenantMonthlyMessages,
   getTenantPlanSnapshot,
 } from "@/lib/billing/limits"
-import { createEmbeddings } from "@/lib/indexing/embeddings"
-import { generateAnswer, type ConversationTurn } from "@/lib/llm/responses"
+import { answerWithOpenAiFileSearch, getBotOpenAiVectorStoreId } from "@/lib/filesearch/openai"
+import { type ConversationTurn } from "@/lib/llm/responses"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 
@@ -48,6 +48,17 @@ type SourceRow = {
   url: string | null
   file_name: string | null
   file_path: string | null
+}
+
+type CitationItem = {
+  rank: number
+  sourceId: string
+  score: number
+  url: string | null
+  title: string | null
+  excerpt: string
+  sourceType: "url" | "pdf" | "file"
+  linkLabel: string
 }
 
 function sha256(value: string) {
@@ -105,6 +116,32 @@ function normalizeConversation(
         (turn.role === "user" || turn.role === "assistant") && typeof turn.content === "string"
     )
     .slice(-Math.max(1, maxTurns))
+}
+
+async function buildCitationsFromSources(admin: ReturnType<typeof createAdminClient>, sourceRows: SourceRow[]) {
+  const citations: CitationItem[] = []
+  for (let i = 0; i < sourceRows.length; i += 1) {
+    const source = sourceRows[i]
+    const sourceType = source.type
+    let link: string | null = source.url ?? null
+    let linkLabel = "URLはこちら"
+    if ((sourceType === "pdf" || sourceType === "file") && source.file_path) {
+      const signed = await admin.storage.from("source-files").createSignedUrl(source.file_path, 60 * 60)
+      link = signed.data?.signedUrl ?? null
+      linkLabel = "PDF資料はこちら"
+    }
+    citations.push({
+      rank: i + 1,
+      sourceId: source.id,
+      score: 0,
+      url: link,
+      title: source.file_name ?? null,
+      excerpt: "",
+      sourceType,
+      linkLabel,
+    })
+  }
+  return citations
 }
 
 export async function POST(request: NextRequest) {
@@ -269,118 +306,44 @@ export async function POST(request: NextRequest) {
   )
   const normalizedConversation = normalizeConversation(body.conversation, conversationLimit)
 
-  const [queryEmbedding] = await createEmbeddings([message])
-  const vector = `[${queryEmbedding.join(",")}]`
-  const { data: matches, error: matchError } = await admin.rpc("match_chunks", {
-    query_embedding: vector,
-    target_tenant_id: bot.tenant_id,
-    target_bot_id: bot.id,
-    match_count: 8,
-  })
-  if (matchError) {
-    return NextResponse.json({ error: `retrieval failed: ${matchError.message}` }, { status: 500 })
-  }
-
-  const chunks = (matches ?? []) as Array<{
-    chunk_id: string
-    source_id: string
-    score: number
-    text: string
-    meta: { source_url?: string; source_title?: string; [key: string]: unknown }
-  }>
-  if (!chunks.length) {
+  let citations: CitationItem[] = []
+  const vectorStoreId = await getBotOpenAiVectorStoreId(bot.id)
+  if (!vectorStoreId) {
     return NextResponse.json(
       {
-        error: "no indexed content found for this bot",
-        hint: "add sources and run indexing",
+        error: "file search store is not ready for this bot",
+        hint: "run indexing to sync sources into file search",
       },
       { status: 409 }
     )
   }
 
-  const context = chunks
-    .map((chunk, index) => {
-      const url = chunk.meta?.source_url ?? "-"
-      const title = chunk.meta?.source_title ?? "-"
-      return `[#${index + 1}] title=${title} url=${url}\n${chunk.text}`
-    })
-    .join("\n\n")
-
-  const systemPrompt = [
-    "あなたは企業向けサポートAIです。",
-    "必ず与えられたコンテキストのみで回答し、不明な場合は不明と答えてください。",
-    "回答は簡潔に要点をまとめ、該当根拠番号 [n] を本文中に付けてください。",
-    "案内可能な情報源がある場合は『URLはこちら』または『PDF資料はこちら』の形で案内してください。",
-  ].join("\n")
-
-  const userPrompt = [
-    `質問:\n${message}`,
-    "",
-    "参照コンテキスト:",
-    context,
-  ].join("\n")
-
-  const answer = await generateAnswer({
+  const fsAnswer = await answerWithOpenAiFileSearch({
+    vectorStoreId,
     model: selectedModel,
     fallbackModel,
-    systemPrompt,
-    userPrompt,
+    systemPrompt: [
+      "あなたは企業向けサポートAIです。",
+      "検索結果が不足する場合は不足を明示してください。",
+      "回答は簡潔に要点をまとめ、根拠を示してください。",
+    ].join("\n"),
+    message,
     conversation: normalizedConversation,
     maxOutputTokens: Number.isFinite(maxOutputTokens) ? maxOutputTokens : 900,
   })
+  const answer = { model: fsAnswer.model, text: fsAnswer.text, usage: fsAnswer.usage }
 
-  const topChunks = chunks.slice(0, 5)
-  const sourceIds = [...new Set(topChunks.map((chunk) => chunk.source_id))]
-  const { data: sourceRows } = await admin
-    .from("sources")
-    .select("id, type, url, file_name, file_path")
-    .in("id", sourceIds)
-
-  const sourceById = new Map<string, SourceRow>()
-  for (const row of sourceRows ?? []) {
-    sourceById.set(row.id as string, row as SourceRow)
+  if (fsAnswer.citationFileIds.length > 0) {
+    const { data: sourceRows } = await admin
+      .from("sources")
+      .select("id, type, url, file_name, file_path")
+      .eq("bot_id", bot.id)
+      .in("file_search_file_id", fsAnswer.citationFileIds)
+      .limit(5)
+    citations = await buildCitationsFromSources(admin, (sourceRows ?? []) as SourceRow[])
   }
 
-  const citations = [] as Array<{
-    rank: number
-    sourceId: string
-    score: number
-    url: string | null
-    title: string | null
-    excerpt: string
-    sourceType: "url" | "pdf" | "file"
-    linkLabel: string
-  }>
-
-  for (let i = 0; i < topChunks.length; i += 1) {
-    const chunk = topChunks[i]
-    const source = sourceById.get(chunk.source_id)
-    const sourceType = source?.type ?? "url"
-    let link: string | null = chunk.meta?.source_url ?? null
-    let linkLabel = "URLはこちら"
-
-    if (sourceType === "url") {
-      link = source?.url ?? link
-      linkLabel = "URLはこちら"
-    } else if ((sourceType === "pdf" || sourceType === "file") && source?.file_path) {
-      const signed = await admin.storage.from("source-files").createSignedUrl(source.file_path, 60 * 60)
-      link = signed.data?.signedUrl ?? null
-      linkLabel = "PDF資料はこちら"
-    }
-
-    citations.push({
-      rank: i + 1,
-      sourceId: chunk.source_id,
-      score: chunk.score,
-      url: link,
-      title: source?.file_name ?? (chunk.meta?.source_title as string | undefined) ?? null,
-      excerpt: chunk.text.slice(0, 180),
-      sourceType,
-      linkLabel,
-    })
-  }
-
-  const inputTokens = Number(answer.usage.input_tokens ?? estimateTokens(message + context))
+  const inputTokens = Number(answer.usage.input_tokens ?? estimateTokens(message))
   const outputTokens = Number(answer.usage.output_tokens ?? estimateTokens(answer.text))
   const today = new Date().toISOString().slice(0, 10)
 

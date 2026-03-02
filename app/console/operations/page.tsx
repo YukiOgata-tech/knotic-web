@@ -132,12 +132,12 @@ export default async function ConsoleOperationsPage({ searchParams }: PageProps)
             </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-2 text-sm">
-            <p>Queued: {ops.jobsQueued}</p>
-            <p>Running: {ops.jobsRunning}</p>
-            <p>Done: {ops.jobsDone7d}</p>
-            <p>Failed: {ops.jobsFailed7d}</p>
-            <p>Source失敗件数: {ops.sourceFailed}</p>
-            <p>Source処理中件数: {ops.sourceRunning}</p>
+            <p>待機中: {ops.jobsQueued}</p>
+            <p>実行中: {ops.jobsRunning}</p>
+            <p>完了（7日）: {ops.jobsDone7d}</p>
+            <p>失敗（7日）: {ops.jobsFailed7d}</p>
+            <p>ソース失敗件数: {ops.sourceFailed}</p>
+            <p>ソース処理中件数: {ops.sourceRunning}</p>
           </CardContent>
         </Card>
 
@@ -152,7 +152,7 @@ export default async function ConsoleOperationsPage({ searchParams }: PageProps)
           <CardContent className="grid gap-2 text-sm">
             {ops.auditError ? (
               <p className="rounded-md bg-amber-100 px-3 py-2 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-                監査ログテーブル未適用です。`supabase/patch-20260226-audit-and-ops.sql` を実行してください。
+                監査ログの読み込みに失敗しました。サポートにお問い合わせください。
               </p>
             ) : null}
             {ops.recentAudit.map((event) => (
@@ -181,7 +181,7 @@ export default async function ConsoleOperationsPage({ searchParams }: PageProps)
         <CardHeader>
           <CardTitle>ソース運用（統合）</CardTitle>
           <CardDescription>
-            `Sources` ページ機能を Operations に統合しました。Botごとの追加は Bot設定のAIタブで実行できます。
+            全Botのソースデータを横断管理します。Botごとの追加は各Bot設定のAIタブで行えます。
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
@@ -197,15 +197,16 @@ export default async function ConsoleOperationsPage({ searchParams }: PageProps)
 
           <form action={runIndexingWorkerAction} className="rounded-xl border border-black/20 p-4 dark:border-white/10">
             <input type="hidden" name="redirect_to" value="/console/operations" />
-            <h3 className="font-medium">キュー実行（開発用）</h3>
+            <h3 className="font-medium">インデックス手動実行</h3>
             <p className="mt-1 text-xs text-muted-foreground">
-              queued のジョブを1件実行します。将来はCron/Workerから `POST /api/internal/indexing/run` を呼び出します。
+              待機中のインデックスジョブを1件実行します。
             </p>
             <Button type="submit" className="mt-3 rounded-full" disabled={!isEditor}>
-              キューを1件実行
+              インデックスを実行
             </Button>
           </form>
 
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -226,7 +227,14 @@ export default async function ConsoleOperationsPage({ searchParams }: PageProps)
                     <TableCell>{bot?.name ?? "-"}</TableCell>
                     <TableCell>{source.type}</TableCell>
                     <TableCell>{formatMbFromBytes(source.file_size_bytes)}</TableCell>
-                    <TableCell>{source.status}</TableCell>
+                    <TableCell>{
+                      source.status === "indexed" ? "インデックス済み" :
+                      source.status === "queued" ? "待機中" :
+                      source.status === "running" ? "処理中" :
+                      source.status === "failed" ? "失敗" :
+                      source.status === "pending" ? "保留中" :
+                      source.status
+                    }</TableCell>
                     <TableCell>
                       <form action={queueIndexAction}>
                         <input type="hidden" name="redirect_to" value="/console/operations" />
@@ -242,6 +250,7 @@ export default async function ConsoleOperationsPage({ searchParams }: PageProps)
               })}
             </TableBody>
           </Table>
+          </div>
 
           <div className="grid gap-2 rounded-lg border border-black/20 p-3 text-xs text-muted-foreground dark:border-white/10">
             <p>BotごとのURL/PDF追加は各Bot設定画面の「AI設定」タブで行ってください。</p>

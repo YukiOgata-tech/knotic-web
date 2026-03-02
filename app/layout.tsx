@@ -19,9 +19,20 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "knotic | URL/PDFナレッジ投入型AIチャット",
+  title: {
+    default: "knotic | URLとPDFでAIチャットボットを作成・公開",
+    template: "%s | knotic",
+  },
   description:
-    "URLとPDFを投入するだけで専用AIチャットボットを作成・公開できるknoticのマーケティングサイトです。",
+    "URLやPDFを登録するだけで、Webサイト埋め込み・共有URLで公開できるAIチャットボット作成サービス。問い合わせ自動化・マニュアル案内・社内ナレッジ検索に。",
+  openGraph: {
+    type: "website",
+    locale: "ja_JP",
+    siteName: "knotic",
+  },
+  twitter: {
+    card: "summary_large_image",
+  },
 }
 
 export default function RootLayout({

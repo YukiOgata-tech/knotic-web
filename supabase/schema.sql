@@ -803,6 +803,8 @@ alter table public.bots
   add column if not exists disclaimer_text text,
   add column if not exists show_citations boolean not null default true,
   add column if not exists history_turn_limit integer not null default 8,
+  add column if not exists file_search_provider text,
+  add column if not exists file_search_vector_store_id text,
   add column if not exists require_auth_for_hosted boolean not null default false,
   add column if not exists ui_header_bg_color text not null default '#0f172a',
   add column if not exists ui_header_text_color text not null default '#f8fafc',
@@ -810,7 +812,11 @@ alter table public.bots
   add column if not exists ui_footer_text_color text not null default '#0f172a';
 
 alter table public.sources
-  add column if not exists file_size_bytes bigint not null default 0;
+  add column if not exists file_size_bytes bigint not null default 0,
+  add column if not exists file_search_provider text,
+  add column if not exists file_search_file_id text,
+  add column if not exists file_search_last_synced_at timestamptz,
+  add column if not exists file_search_error text;
 
 alter table public.source_pages
   add column if not exists raw_bytes bigint not null default 0,
@@ -880,6 +886,8 @@ create index if not exists idx_tenant_notifications_tenant_created on public.ten
 create index if not exists idx_tenant_notifications_unread on public.tenant_notifications(tenant_id) where read_at is null;
 create index if not exists idx_bots_access_mode on public.bots(access_mode);
 create index if not exists idx_bots_chat_purpose on public.bots(chat_purpose);
+create index if not exists idx_bots_file_search_vector_store_id on public.bots(file_search_vector_store_id);
+create index if not exists idx_sources_file_search_file_id on public.sources(file_search_file_id);
 create index if not exists idx_embeddings_vector on public.embeddings using ivfflat (embedding vector_cosine_ops) with (lists = 100);
 
 -- D) function final forms

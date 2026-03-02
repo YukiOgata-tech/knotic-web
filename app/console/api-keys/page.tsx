@@ -29,13 +29,13 @@ export default async function ConsoleApiKeysPage({ searchParams }: PageProps) {
 
       <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
         <CardHeader>
-          <CardTitle>APIキー管理（契約者公開用）</CardTitle>
-          <CardDescription>LINE連携などは顧客側API実装前提。キーは顧客側サーバーのみで保管してください。</CardDescription>
+          <CardTitle>APIキー管理</CardTitle>
+          <CardDescription>自社システムやアプリからBotを呼び出す際に使用します。APIキーはサーバーサイドで安全に保管してください。</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
           {data.apiKeyError ? (
             <p className="rounded-md bg-amber-100 px-3 py-2 text-sm text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-              tenant_api_keys テーブルが未作成です。`supabase/patch-20260224-console-management.sql` を適用してください。
+              APIキーの読み込みに失敗しました。しばらく時間をおいて再試行するか、サポートにお問い合わせください。
             </p>
           ) : null}
 
@@ -49,6 +49,7 @@ export default async function ConsoleApiKeysPage({ searchParams }: PageProps) {
             </Button>
           </form>
 
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -83,6 +84,7 @@ export default async function ConsoleApiKeysPage({ searchParams }: PageProps) {
               ))}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

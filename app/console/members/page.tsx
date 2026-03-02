@@ -49,7 +49,7 @@ export default async function ConsoleMembersPage({ searchParams }: PageProps) {
         <CardHeader>
           <CardTitle>メンバー招待</CardTitle>
           <CardDescription>
-            editor 以上のユーザーがテナント招待リンクを発行できます。招待参加時のロールは reader となります。
+            Editorロールのメンバーが招待リンクを発行できます。招待参加時のロールはReaderになります。
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -68,6 +68,7 @@ export default async function ConsoleMembersPage({ searchParams }: PageProps) {
           <CardTitle>所属メンバー</CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -82,12 +83,13 @@ export default async function ConsoleMembersPage({ searchParams }: PageProps) {
                 <TableRow key={member.user_id}>
                   <TableCell>{data.emailByUserId.get(member.user_id) ?? member.user_id}</TableCell>
                   <TableCell>{member.role}</TableCell>
-                  <TableCell>{member.is_active ? "active" : "inactive"}</TableCell>
+                  <TableCell>{member.is_active ? "有効" : "無効"}</TableCell>
                   <TableCell>{fmtDate(member.created_at)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 
@@ -104,7 +106,9 @@ export default async function ConsoleMembersPage({ searchParams }: PageProps) {
               <div className="text-sm">
                 <p className="font-medium">{invite.email}</p>
                 <p className="text-muted-foreground">
-                  role: {invite.role} / status: {invite.status} / expires: {fmtDate(invite.expires_at)}
+                  ロール: {invite.role === "editor" ? "Editor" : "Reader"} ／
+                  状態: {invite.status === "pending" ? "承認待ち" : invite.status === "accepted" ? "参加済み" : "失効"} ／
+                  期限: {fmtDate(invite.expires_at)}
                 </p>
               </div>
               {invite.status === "pending" ? (

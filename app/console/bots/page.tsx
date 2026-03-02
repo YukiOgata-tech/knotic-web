@@ -143,6 +143,7 @@ export default async function ConsoleBotsPage({ searchParams }: PageProps) {
             </p>
           </div>
 
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -167,7 +168,7 @@ export default async function ConsoleBotsPage({ searchParams }: PageProps) {
                       <p className="text-xs text-muted-foreground">{bot.public_id}</p>
                     </TableCell>
                     <TableCell className="space-y-1">
-                      <p>{bot.status}</p>
+                      <p>{bot.status === "active" ? "稼働中" : bot.status === "archived" ? "アーカイブ" : bot.status}</p>
                       <div className="flex flex-wrap items-center gap-1">
                         <Badge variant={Boolean(bot.is_public) ? "secondary" : "outline"}>
                           {bot.is_public ? "有効" : "無効"}
@@ -204,6 +205,7 @@ export default async function ConsoleBotsPage({ searchParams }: PageProps) {
               })}
             </TableBody>
           </Table>
+          </div>
 
           <form action={createBotAction} className="grid gap-3 rounded-xl border border-black/20 p-4 dark:border-white/10">
             <input type="hidden" name="redirect_to" value="/console/bots" />
@@ -215,13 +217,13 @@ export default async function ConsoleBotsPage({ searchParams }: PageProps) {
             </Button>
           </form>
 
-          <div className="grid gap-2 rounded-lg border border-black/20 p-3 text-xs text-muted-foreground dark:border-white/10">
+          {/* <div className="grid gap-2 rounded-lg border border-black/20 p-3 text-xs text-muted-foreground dark:border-white/10">
             <div className="flex items-center gap-2">
               <Badge variant="outline">運用メモ</Badge>
             </div>
             <p>有効/無効とHostedアクセスモードは別管理です。有効でも access_mode=internal ならログインが必要です。</p>
             <p>Widgetはトークンで実行され、origin制限は `許可オリジン` で制御します。</p>
-          </div>
+          </div> */}
         </CardContent>
       </Card>
     </div>

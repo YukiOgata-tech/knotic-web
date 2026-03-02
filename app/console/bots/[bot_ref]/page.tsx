@@ -4,6 +4,7 @@ import {
   addPdfSourceAction,
   addUrlSourceAction,
   queueIndexAction,
+  runIndexingWorkerAction,
   rotateWidgetTokenAction,
   toggleBotPublicAction,
   updateAllowedOriginsAction,
@@ -69,6 +70,7 @@ export default async function ConsoleBotDetailPage({ params, searchParams }: Pag
         addUrlSourceAction={addUrlSourceAction}
         addPdfSourceAction={addPdfSourceAction}
         queueIndexAction={queueIndexAction}
+        runIndexingWorkerAction={runIndexingWorkerAction}
       />
     </div>
   )

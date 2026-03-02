@@ -77,13 +77,13 @@ export default async function ConsoleBillingPage({ searchParams }: PageProps) {
   }
   const errorMap: Record<string, string> = {
     retry_failed: "再同期処理に失敗しました。時間をおいて再実行してください。",
-    stripe_forbidden: "Stripe APIが403を返しました。制限付きキーではなく通常の Secret key を使用し、Price IDのモード（test/live）一致を確認してください。",
-    stripe_unauthorized: "Stripe API認証に失敗しました。STRIPE_SECRET_KEYを確認してください。",
-    stripe_resource_missing: "指定したPrice IDが見つかりません。環境変数のPrice IDを確認してください。",
-    stripe_invalid_request: "Stripeへのリクエストが不正です。Price/Customer/Subscription設定を確認してください。",
-    checkout_failed: "Checkoutの作成に失敗しました。サーバーログの [stripe.checkout] を確認してください。",
+    stripe_forbidden: "決済システムとの通信に失敗しました。サポートにお問い合わせください。",
+    stripe_unauthorized: "決済システムへの接続に失敗しました。サポートにお問い合わせください。",
+    stripe_resource_missing: "プラン情報の取得に失敗しました。サポートにお問い合わせください。",
+    stripe_invalid_request: "決済リクエストに問題が発生しました。サポートにお問い合わせください。",
+    checkout_failed: "決済画面の作成に失敗しました。時間をおいて再試行するか、サポートにお問い合わせください。",
     checkout_canceled: "決済をキャンセルしました。",
-    subscription_item_missing: "既存契約の明細取得に失敗しました。Stripe側のSubscription設定を確認してください。",
+    subscription_item_missing: "契約情報の取得に失敗しました。サポートにお問い合わせください。",
     permission_denied: "この操作はEditor権限が必要です。",
   }
 
@@ -227,19 +227,28 @@ export default async function ConsoleBillingPage({ searchParams }: PageProps) {
       <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
         <CardHeader>
           <CardTitle>契約情報</CardTitle>
-          <CardDescription>自動更新（ON）/ 日割りなし の運用方針に基づく現在の契約状態です。</CardDescription>
+          <CardDescription>現在の契約状態とご利用プランを確認できます。</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-2 text-sm">
           <p>現在プラン: {subscription?.plans?.name ?? "未契約"}</p>
           <p>料金: {formatJpy(subscription?.plans?.monthly_price_jpy)}</p>
-          <p>契約ステータス: {subscription?.status ?? "未設定"}</p>
+          <p>
+            契約ステータス: {
+              subscription?.status === "active" ? "有効" :
+              subscription?.status === "trialing" ? "トライアル中" :
+              subscription?.status === "past_due" ? "支払い遅延" :
+              subscription?.status === "unpaid" ? "未払い" :
+              subscription?.status === "canceled" ? "解約済み" :
+              subscription?.status === "paused" ? "一時停止中" :
+              subscription?.status ?? "未設定"
+            }
+          </p>
           <p>契約開始日: {fmtDate(subscription?.current_period_start)}</p>
           <p>次回更新日: {fmtDate(subscription?.current_period_end)}</p>
-          <p>自動更新: {subscription?.cancel_at_period_end ? "停止予約中（期間終了で終了）" : "ON"}</p>
-          <p>日割り精算: なし（プラン変更時は次回更新タイミングで反映）</p>
+          <p>自動更新: {subscription?.cancel_at_period_end ? "停止予約中（期間終了で解約）" : "有効"}</p>
           {!stripeReady ? (
             <p className="rounded-md bg-amber-100 px-3 py-2 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-              Stripeの環境変数が不足しています。`.env.local` に stripe値を設定してください。
+              決済システムのセットアップが完了していません。サポートにお問い合わせください。
             </p>
           ) : null}
         </CardContent>
@@ -286,11 +295,20 @@ export default async function ConsoleBillingPage({ searchParams }: PageProps) {
           const isCurrent = currentCode === code
           const disabled = !isEditor || !stripeReady
           return (
-            <Card key={code} className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
+            <Card
+              key={code}
+              className={isCurrent
+                ? "border-cyan-400/70 bg-cyan-50/60 ring-1 ring-cyan-400/40 dark:border-cyan-500/50 dark:bg-cyan-950/30 dark:ring-cyan-500/30"
+                : "border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80"
+              }
+            >
               <CardHeader>
-                <CardTitle className="text-base">{PLAN_LABELS[code]}</CardTitle>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  {PLAN_LABELS[code]}
+                  {isCurrent ? <span className="rounded-full bg-cyan-600 px-2 py-0.5 text-xs text-white dark:bg-cyan-500">利用中</span> : null}
+                </CardTitle>
                 <CardDescription>
-                  {code === "lite" ? "1万円 / 月" : code === "standard" ? "2.48万円 / 月" : "10万円 / 月"}
+                  {code === "lite" ? "¥10,000 / 月" : code === "standard" ? "¥24,800 / 月" : "¥100,000 / 月"}
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-2">
@@ -336,7 +354,7 @@ export default async function ConsoleBillingPage({ searchParams }: PageProps) {
             {invoices.map((invoice) => (
               <div key={invoice.id} className="flex flex-wrap items-center justify-between gap-2">
                 <span>
-                  {fmtDate(invoice.created ? new Date(invoice.created * 1000).toISOString() : null)} / {formatInvoiceAmount(invoice)} / {invoice.status ?? "-"}
+                  {fmtDate(invoice.created ? new Date(invoice.created * 1000).toISOString() : null)} ／ {formatInvoiceAmount(invoice)} ／ {invoice.status === "paid" ? "支払い済み" : invoice.status === "open" ? "未払い" : invoice.status === "void" ? "無効" : invoice.status === "draft" ? "下書き" : invoice.status ?? "-"}
                 </span>
                 <div className="flex items-center gap-2">
                   {invoice.hosted_invoice_url ? (

@@ -4,6 +4,7 @@ import { assertTenantCanIndexData } from "@/lib/billing/limits"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { chunkPlainText } from "@/lib/indexing/chunking"
 import { createEmbeddings } from "@/lib/indexing/embeddings"
+import { syncSourceTextToOpenAiFileSearch } from "@/lib/filesearch/openai"
 import {
   getEmbeddingModel,
   MAX_CRAWL_PAGES_PER_JOB,
@@ -195,9 +196,10 @@ async function processUrlSource(job: IndexingJob, source: SourceRow) {
   const pageUrls = discovered.length ? discovered : [source.url]
 
   let pagesIndexed = 0
-  let chunksCreated = 0
-  let tokensEmbedded = 0
+  const chunksCreated = 0
+  const tokensEmbedded = 0
   const pageHashes: string[] = []
+  const aggregatedSections: string[] = []
 
   for (const pageUrl of pageUrls) {
     const page = await fetchPage(pageUrl)
@@ -222,30 +224,31 @@ async function processUrlSource(job: IndexingJob, source: SourceRow) {
       textBytes: Buffer.byteLength(page.text, "utf-8"),
     })
     pageHashes.push(page.contentHash)
-
-    const version = await getNextDocumentVersion(source.id)
-    const documentId = await createDocument({
-      source_id: source.id,
-      version,
-      title: page.title,
-      raw_path: rawPath,
-      text_path: textPath,
-    })
-
-    const chunked = chunkPlainText(page.text)
-    const chunkRes = await insertChunksAndEmbeddings({
-      documentId,
-      sourceId: source.id,
-      botId: source.bot_id,
-      tenantId: job.tenant_id,
-      chunks: chunked,
-      citationUrl: page.url,
-      citationTitle: page.title,
-    })
+    aggregatedSections.push(
+      [`## ${page.title ?? page.url}`, `URL: ${page.url}`, "", page.text].join("\n")
+    )
 
     pagesIndexed += 1
-    chunksCreated += chunkRes.chunksCreated
-    tokensEmbedded += chunkRes.tokensEmbedded
+  }
+
+  if (aggregatedSections.length > 0) {
+    const admin = createAdminClient()
+    const { data: bot } = await admin
+      .from("bots")
+      .select("id, public_id, name")
+      .eq("id", source.bot_id)
+      .maybeSingle()
+    if (!bot?.public_id) {
+      throw new Error("Bot public_id is missing while syncing file search.")
+    }
+    await syncSourceTextToOpenAiFileSearch({
+      botId: source.bot_id,
+      botPublicId: String(bot.public_id),
+      sourceId: source.id,
+      sourceType: "url",
+      sourceLabel: source.url ?? String(bot.name ?? "URL source"),
+      text: aggregatedSections.join("\n\n---\n\n"),
+    })
   }
 
   const { error: sourceUpdateError } = await admin
@@ -312,24 +315,21 @@ async function processPdfSource(job: IndexingJob, source: SourceRow) {
   await uploadArtifactBytes(rawPath, fileBuffer, "application/pdf")
   await uploadArtifact(textPath, extracted.text, "text/plain; charset=utf-8")
 
-  const version = await getNextDocumentVersion(source.id)
-  const documentId = await createDocument({
-    source_id: source.id,
-    version,
-    title: source.file_name ?? extracted.title,
-    raw_path: rawPath,
-    text_path: textPath,
-  })
-
-  const chunked = chunkPlainText(extracted.text)
-  const chunkRes = await insertChunksAndEmbeddings({
-    documentId,
-    sourceId: source.id,
+  const { data: bot } = await admin
+    .from("bots")
+    .select("id, public_id, name")
+    .eq("id", source.bot_id)
+    .maybeSingle()
+  if (!bot?.public_id) {
+    throw new Error("Bot public_id is missing while syncing file search.")
+  }
+  await syncSourceTextToOpenAiFileSearch({
     botId: source.bot_id,
-    tenantId: job.tenant_id,
-    chunks: chunked,
-    citationUrl: `file://${source.file_name ?? "pdf"}`,
-    citationTitle: source.file_name ?? extracted.title,
+    botPublicId: String(bot.public_id),
+    sourceId: source.id,
+    sourceType: "pdf",
+    sourceLabel: source.file_name ?? String(bot.name ?? "PDF source"),
+    text: extracted.text,
   })
 
   const { error: sourceUpdateError } = await admin
@@ -346,8 +346,8 @@ async function processPdfSource(job: IndexingJob, source: SourceRow) {
   return {
     pagesDiscovered: extracted.pages,
     pagesIndexed: extracted.pages > 0 ? extracted.pages : 1,
-    chunksCreated: chunkRes.chunksCreated,
-    tokensEmbedded: chunkRes.tokensEmbedded,
+    chunksCreated: 0,
+    tokensEmbedded: 0,
   }
 }
 

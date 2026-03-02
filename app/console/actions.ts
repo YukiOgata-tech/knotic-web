@@ -24,6 +24,8 @@ const ALLOWED_MODELS = [
 ] as const
 const STORAGE_BUCKET = "source-files"
 const MAX_PDF_SIZE_BYTES = 20 * 1024 * 1024
+const BOT_IDENTITY_CHANGE_LIMIT = 3
+const BOT_IDENTITY_CHANGE_WINDOW_DAYS = 30
 
 function normalizeModel(value: string, fallback: (typeof ALLOWED_MODELS)[number]) {
   const normalized = value.trim()
@@ -132,6 +134,7 @@ export async function createBotAction(formData: FormData) {
         description: description || null,
         status: "draft",
         is_public: false,
+        file_search_provider: "openai",
         created_by: user.id,
       })
       .select("id, public_id, name, is_public, status")
@@ -544,6 +547,43 @@ export async function runIndexingWorkerAction(formData: FormData) {
   }
 }
 
+export async function testAuditLogAction(formData: FormData) {
+  try {
+    const redirectTo = String(formData.get("redirect_to") ?? "/console/audit")
+    const { supabase, tenantId, user } = await getTenantContext(true)
+    const result = await writeAuditLog(supabase, {
+      tenantId,
+      action: "audit.test.write",
+      targetType: "tenant",
+      targetId: tenantId,
+      metadata: {
+        requested_by: user.id,
+        triggered_at: new Date().toISOString(),
+      },
+    })
+
+    if (!result.ok) {
+      redirect(
+        toAppUrl(redirectTo, {
+          error: `監査ログテスト失敗: ${result.error ?? "unknown"}`,
+        })
+      )
+    }
+
+    redirect(
+      toAppUrl(redirectTo, {
+        notice: `監査ログテスト成功 (via=${result.via}, id=${result.id ?? "n/a"})`,
+      })
+    )
+  } catch (error) {
+    redirect(
+      toAppUrl(String(formData.get("redirect_to") ?? "/console/audit"), {
+        error: error instanceof Error ? error.message : "監査ログテストに失敗しました。",
+      })
+    )
+  }
+}
+
 
 
 export async function updateHostedConfigAction(formData: FormData) {
@@ -562,6 +602,7 @@ export async function updateHostedConfigAction(formData: FormData) {
     const chatPurpose = normalizeChatPurpose(String(formData.get("chat_purpose") ?? "customer_support").trim())
     const requestedAccessMode = normalizeAccessMode(String(formData.get("access_mode") ?? "public").trim())
     const displayName = String(formData.get("display_name") ?? "").trim()
+    const normalizedDisplayName = displayName || null
     const welcomeMessage = String(formData.get("welcome_message") ?? "").trim()
     const placeholderText = String(formData.get("placeholder_text") ?? "").trim()
     const disclaimerText = String(formData.get("disclaimer_text") ?? "").trim()
@@ -585,6 +626,43 @@ export async function updateHostedConfigAction(formData: FormData) {
     const aiMaxOutputTokens = Number.isFinite(aiMaxOutputTokensRaw)
       ? Math.max(200, Math.min(4000, Math.floor(aiMaxOutputTokensRaw)))
       : 1200
+    const { data: currentBot, error: currentBotError } = await supabase
+      .from("bots")
+      .select("name, display_name")
+      .eq("id", botId)
+      .maybeSingle()
+
+    if (currentBotError) throw currentBotError
+    if (!currentBot) {
+      redirect(toAppUrl(redirectTo, { error: "対象Botが見つかりません。" }))
+    }
+
+    const identityChanged =
+      currentBot.name !== botName || (currentBot.display_name ?? null) !== normalizedDisplayName
+
+    if (identityChanged) {
+      const windowStartIso = new Date(
+        Date.now() - BOT_IDENTITY_CHANGE_WINDOW_DAYS * 24 * 60 * 60 * 1000
+      ).toISOString()
+      const { count: recentIdentityChanges, error: recentIdentityChangesError } = await supabase
+        .from("audit_logs")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId)
+        .eq("action", "bot.identity.update")
+        .eq("target_type", "bot")
+        .eq("target_id", botId)
+        .gte("created_at", windowStartIso)
+
+      if (recentIdentityChangesError) throw recentIdentityChangesError
+      if ((recentIdentityChanges ?? 0) >= BOT_IDENTITY_CHANGE_LIMIT) {
+        redirect(
+          toAppUrl(redirectTo, {
+            error: `Bot名/サービス表示名の変更は${BOT_IDENTITY_CHANGE_WINDOW_DAYS}日で${BOT_IDENTITY_CHANGE_LIMIT}回までです。期間経過後に再試行してください。`,
+          })
+        )
+      }
+    }
+
     const plan = await getTenantPlanSnapshot(tenantId)
     const accessMode = plan.hasHostedPage ? requestedAccessMode : "public"
     const normalizedRequireAuth = plan.hasHostedPage
@@ -601,7 +679,7 @@ export async function updateHostedConfigAction(formData: FormData) {
         name: botName,
         chat_purpose: chatPurpose,
         access_mode: accessMode,
-        display_name: displayName || null,
+        display_name: normalizedDisplayName,
         welcome_message: welcomeMessage || null,
         placeholder_text: placeholderText || null,
         disclaimer_text: disclaimerText || null,
@@ -623,6 +701,7 @@ export async function updateHostedConfigAction(formData: FormData) {
         ai_model: aiModel,
         ai_fallback_model: aiFallbackModel,
         ai_max_output_tokens: aiMaxOutputTokens,
+        file_search_provider: "openai",
       })
       .eq("id", botId)
 
@@ -634,6 +713,7 @@ export async function updateHostedConfigAction(formData: FormData) {
       targetId: botId,
       after: {
         name: botName,
+        display_name: normalizedDisplayName,
         chat_purpose: chatPurpose,
         access_mode: accessMode,
         show_citations: showCitations,
@@ -645,8 +725,29 @@ export async function updateHostedConfigAction(formData: FormData) {
         ai_model: aiModel,
         ai_fallback_model: aiFallbackModel,
         ai_max_output_tokens: aiMaxOutputTokens,
+        rag_backend: "openai_file_search",
       },
     })
+    if (identityChanged) {
+      await writeAuditLog(supabase, {
+        tenantId,
+        action: "bot.identity.update",
+        targetType: "bot",
+        targetId: botId,
+        before: {
+          name: currentBot.name,
+          display_name: currentBot.display_name ?? null,
+        },
+        after: {
+          name: botName,
+          display_name: normalizedDisplayName,
+        },
+        metadata: {
+          limit: BOT_IDENTITY_CHANGE_LIMIT,
+          window_days: BOT_IDENTITY_CHANGE_WINDOW_DAYS,
+        },
+      })
+    }
     redirect(toAppUrl(redirectTo, { notice: "Hostedチャット設定を更新しました。" }))
   } catch (error) {
     redirect(
@@ -907,12 +1008,41 @@ export async function createMemberInviteAction(formData: FormData) {
 
     const token = `inv_${crypto.randomBytes(24).toString("base64url")}`
     const tokenHash = crypto.createHash("sha256").update(token).digest("hex")
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-
-    const { error } = await admin
+    const expiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
+    const { data: existingPending, error: existingPendingError } = await admin
       .from("tenant_member_invites")
-      .upsert(
-        {
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("email", email)
+      .eq("status", "pending")
+      .maybeSingle()
+
+    if (existingPendingError) {
+      throw new Error(`招待作成の事前確認に失敗しました: ${existingPendingError.message}`)
+    }
+
+    if (existingPending?.id) {
+      const { error: updateError } = await admin
+        .from("tenant_member_invites")
+        .update({
+          role,
+          token_hash: tokenHash,
+          invited_by: user.id,
+          expires_at: expiresAt,
+          accepted_at: null,
+          accepted_by: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existingPending.id)
+        .eq("tenant_id", tenantId)
+
+      if (updateError) {
+        throw new Error(`既存招待の更新に失敗しました: ${updateError.message}`)
+      }
+    } else {
+      const { error: insertError } = await admin
+        .from("tenant_member_invites")
+        .insert({
           tenant_id: tenantId,
           email,
           role,
@@ -922,12 +1052,11 @@ export async function createMemberInviteAction(formData: FormData) {
           expires_at: expiresAt,
           accepted_at: null,
           accepted_by: null,
-        },
-        { onConflict: "tenant_id,email" }
-      )
+        })
 
-    if (error) {
-      throw new Error("招待作成に失敗しました。patch SQLの適用状態を確認してください。")
+      if (insertError) {
+        throw new Error(`招待作成に失敗しました: ${insertError.message}`)
+      }
     }
 
     await writeAuditLog(admin, {

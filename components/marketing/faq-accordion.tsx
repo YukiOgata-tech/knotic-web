@@ -36,17 +36,17 @@ function FaqAccordion({ items, defaultOpenIndex = 0, compactMobile = false }: Fa
               onClick={() => setOpenIndex((prev) => (prev === index ? null : index))}
               className={
                 compactMobile
-                  ? "flex w-full items-center justify-between gap-4 px-1 py-4 text-left sm:px-6 sm:py-5"
-                  : "flex w-full items-center justify-between gap-4 px-5 py-4 text-left sm:px-6 sm:py-5"
+                  ? "flex w-full items-center justify-between gap-4 px-1 py-3 text-left sm:px-6 sm:py-5"
+                  : "flex w-full items-center justify-between gap-4 px-5 py-3 text-left sm:px-6 sm:py-5"
               }
               aria-expanded={isOpen}
               aria-controls={`faq-panel-${index}`}
             >
               <div className="flex items-start gap-3">
-                <span className="mt-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-cyan-100 text-xs font-semibold text-cyan-700 dark:bg-cyan-900/45 dark:text-cyan-300">
+                <span className="sm:mt-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-cyan-100 text-xs font-semibold text-cyan-700 dark:bg-cyan-900/45 dark:text-cyan-300">
                   {String(index + 1).padStart(2, "0")}
                 </span>
-                <span className="text-base font-semibold leading-8 text-zinc-900 dark:text-zinc-100 sm:text-lg">
+                <span className="text-base font-semibold leading-6 sm:leading-8 text-zinc-900 dark:text-zinc-100 sm:text-lg">
                   {item.q}
                 </span>
               </div>
@@ -70,8 +70,8 @@ function FaqAccordion({ items, defaultOpenIndex = 0, compactMobile = false }: Fa
                   <div
                     className={
                       compactMobile
-                        ? "border-t border-zinc-200/90 px-1 pb-5 pt-4 text-base leading-8 text-zinc-700 dark:border-white/10 dark:text-zinc-300 sm:border-black/5 sm:px-6 sm:pb-6"
-                        : "border-t border-black/5 px-5 pb-5 pt-4 text-base leading-8 text-zinc-700 dark:border-white/10 dark:text-zinc-300 sm:px-6 sm:pb-6"
+                        ? "border-t border-zinc-200/90 px-1 py-3 text-sm sm:text-base leading-6 sm:leading-8 text-zinc-700 dark:border-white/10 dark:text-zinc-300 sm:border-black/5 sm:px-6 sm:pb-6"
+                        : "border-t border-black/5 px-5 py-3 text-sm sm:text-base leading-6 sm:leading-8 text-zinc-700 dark:border-white/10 dark:text-zinc-300 sm:px-6 sm:pb-6"
                     }
                   >
                     {item.a}
