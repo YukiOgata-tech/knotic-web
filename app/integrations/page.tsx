@@ -1,8 +1,18 @@
+import type { Metadata } from "next"
 import Link from "next/link"
 
 import { CTASection, PageFrame } from "@/components/marketing/page-frame"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { buildMarketingMetadata } from "@/lib/seo/metadata"
+
+export const metadata: Metadata = buildMarketingMetadata({
+  title: "連携",
+  description:
+    "共有URL公開、埋め込みWidget、API連携などknoticの提供形態を紹介。運用フェーズに応じて段階的に拡張できます。",
+  path: "/integrations",
+  keywords: ["チャットボット連携", "API連携", "Widget", "共有URL"],
+})
 
 const integrationItems = [
   {

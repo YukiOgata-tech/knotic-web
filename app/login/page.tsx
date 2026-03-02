@@ -1,10 +1,19 @@
+import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 
 import { LoginForm } from "@/components/auth/login-form"
 import { RedirectTargetPicker } from "@/components/auth/redirect-target-picker"
 import { PageFrame } from "@/components/marketing/page-frame"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { buildMarketingMetadata } from "@/lib/seo/metadata"
 import { createClient } from "@/lib/supabase/server"
+
+export const metadata: Metadata = buildMarketingMetadata({
+  title: "ログイン",
+  description: "knotic管理画面へログインします。",
+  path: "/login",
+  noIndex: true,
+})
 
 export default async function LoginPage() {
   const supabase = await createClient()

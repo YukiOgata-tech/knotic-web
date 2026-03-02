@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import Link from "next/link"
 import { AlertTriangle } from "lucide-react"
 
@@ -8,6 +9,14 @@ import {
   commercialLawSections,
   subscriptionImportantNotices,
 } from "@/content/specified-commercial-transactions"
+import { buildMarketingMetadata } from "@/lib/seo/metadata"
+
+export const metadata: Metadata = buildMarketingMetadata({
+  title: "特定商取引法に基づく表記",
+  description:
+    "knoticの特定商取引法に基づく表記です。販売事業者情報、料金、支払時期、解約条件など法定表示事項を掲載しています。",
+  path: "/specified-commercial-transactions",
+})
 
 export default function SpecifiedCommercialTransactionsPage() {
   return (

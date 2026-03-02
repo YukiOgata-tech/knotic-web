@@ -1,10 +1,19 @@
+import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 
 import { RedirectTargetPicker } from "@/components/auth/redirect-target-picker"
 import { SignupForm } from "@/components/auth/signup-form"
 import { PageFrame } from "@/components/marketing/page-frame"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { buildMarketingMetadata } from "@/lib/seo/metadata"
 import { createClient } from "@/lib/supabase/server"
+
+export const metadata: Metadata = buildMarketingMetadata({
+  title: "ユーザーアカウント作成",
+  description: "既存テナント参加向けのknoticユーザーアカウント作成ページです。",
+  path: "/signup-user",
+  noIndex: true,
+})
 
 export default async function SignupUserPage() {
   const supabase = await createClient()

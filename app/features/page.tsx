@@ -1,5 +1,16 @@
+import type { Metadata } from "next"
+
 import { FeaturesExperience } from "@/components/marketing/features-experience"
 import { CTASection, PageFrame } from "@/components/marketing/page-frame"
+import { buildMarketingMetadata } from "@/lib/seo/metadata"
+
+export const metadata: Metadata = buildMarketingMetadata({
+  title: "機能一覧",
+  description:
+    "URLとPDFを登録してAIチャットボットを公開できるknoticの主要機能を紹介。Widget埋め込み、共有URL公開、運用設定まで一元管理できます。",
+  path: "/features",
+  keywords: ["AIチャットボット機能", "URL学習", "PDF学習", "Widget埋め込み"],
+})
 
 export default function FeaturesPage() {
   return (

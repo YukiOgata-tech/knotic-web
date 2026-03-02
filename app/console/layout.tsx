@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { AlertCircle } from "lucide-react"
 import Link from "next/link"
 
@@ -13,6 +14,21 @@ import { stopImpersonationAction } from "@/app/sub-domain/actions"
 import { createTenantWorkspaceAction } from "@/app/console/actions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+
+export const metadata: Metadata = {
+  title: "Console",
+  description: "knotic 管理コンソール",
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+    googleBot: {
+      index: false,
+      follow: false,
+      noimageindex: true,
+    },
+  },
+}
 
 export default async function ConsoleLayout({ children }: { children: React.ReactNode }) {
   const { user, membership, membershipError, impersonation } = await requireConsoleContext()

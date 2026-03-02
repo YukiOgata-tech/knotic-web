@@ -1,7 +1,16 @@
+import type { Metadata } from "next"
 import { termsMeta, termsSections } from "@/content/terms-of-service"
 import Link from "next/link"
 import { PageFrame } from "@/components/marketing/page-frame"
 import { Button } from "@/components/ui/button"
+import { buildMarketingMetadata } from "@/lib/seo/metadata"
+
+export const metadata: Metadata = buildMarketingMetadata({
+  title: "利用規約",
+  description:
+    "knoticの利用規約を掲載しています。契約者と利用者が本サービスを利用する際の条件、責任範囲、禁止事項を確認できます。",
+  path: "/terms",
+})
 
 export default function TermsPage() {
   return (
@@ -45,4 +54,3 @@ export default function TermsPage() {
     </PageFrame>
   )
 }
-

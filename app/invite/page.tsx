@@ -1,10 +1,19 @@
 import crypto from "node:crypto"
+import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 
 import { PageFrame } from "@/components/marketing/page-frame"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { buildMarketingMetadata } from "@/lib/seo/metadata"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
+
+export const metadata: Metadata = buildMarketingMetadata({
+  title: "テナント招待",
+  description: "knoticテナント招待の受諾ページです。",
+  path: "/invite",
+  noIndex: true,
+})
 
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>

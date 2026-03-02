@@ -1,8 +1,18 @@
+import type { Metadata } from "next"
 import Link from "next/link"
 
 import { CTASection, PageFrame } from "@/components/marketing/page-frame"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { buildMarketingMetadata } from "@/lib/seo/metadata"
+
+export const metadata: Metadata = buildMarketingMetadata({
+  title: "セキュリティ",
+  description:
+    "knoticのセキュリティ設計方針。テナント分離、トークン管理、ログ運用などB2B利用を前提とした基本方針を公開しています。",
+  path: "/security",
+  keywords: ["セキュリティ", "テナント分離", "B2B SaaS", "AIチャットボット"],
+})
 
 const securityTopics = [
   {

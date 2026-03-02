@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { AlertCircle, ShieldCheck } from "lucide-react"
@@ -8,6 +9,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { requirePlatformAdminContext } from "@/app/sub-domain/_lib/data"
 import { isPlatformAdminAccessHost } from "@/lib/platform-admin-host"
+
+export const metadata: Metadata = {
+  title: "Platform Admin",
+  description: "knotic platform admin console",
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+    googleBot: {
+      index: false,
+      follow: false,
+      noimageindex: true,
+    },
+  },
+}
 
 export default async function SubDomainLayout({ children }: { children: React.ReactNode }) {
   const host = (await headers()).get("host") ?? ""
@@ -63,4 +79,3 @@ export default async function SubDomainLayout({ children }: { children: React.Re
     )
   }
 }
-

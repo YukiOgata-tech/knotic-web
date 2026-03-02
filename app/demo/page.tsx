@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import Link from "next/link"
 import { CheckCircle2 } from "lucide-react"
 
@@ -5,6 +6,15 @@ import { AuthAwareCtaButton } from "@/components/auth/auth-aware"
 import { CTASection, PageFrame } from "@/components/marketing/page-frame"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { buildMarketingMetadata } from "@/lib/seo/metadata"
+
+export const metadata: Metadata = buildMarketingMetadata({
+  title: "デモ",
+  description:
+    "knotic導入の流れをデモ形式で確認。Bot作成、URL/PDF登録、回答確認、公開までの手順を短時間で把握できます。",
+  path: "/demo",
+  keywords: ["チャットボットデモ", "導入フロー", "PoC"],
+})
 
 const steps = [
   "サインアップしてBotを1つ作成",

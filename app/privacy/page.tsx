@@ -1,7 +1,16 @@
+import type { Metadata } from "next"
 import { privacyPolicyMeta, privacyPolicySections } from "@/content/privacy-policy"
 import Link from "next/link"
 import { PageFrame } from "@/components/marketing/page-frame"
 import { Button } from "@/components/ui/button"
+import { buildMarketingMetadata } from "@/lib/seo/metadata"
+
+export const metadata: Metadata = buildMarketingMetadata({
+  title: "プライバシーポリシー",
+  description:
+    "knoticにおける個人情報および利用者情報の取扱い方針を掲載しています。施行日・改定日・問い合わせ窓口を確認できます。",
+  path: "/privacy",
+})
 
 export default function PrivacyPage() {
   return (

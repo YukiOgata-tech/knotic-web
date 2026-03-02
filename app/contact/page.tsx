@@ -1,8 +1,18 @@
+import type { Metadata } from "next"
 import Link from "next/link"
 
 import { ContactForm } from "@/components/contact/contact-form"
 import { CTASection, PageFrame } from "@/components/marketing/page-frame"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { buildMarketingMetadata } from "@/lib/seo/metadata"
+
+export const metadata: Metadata = buildMarketingMetadata({
+  title: "お問い合わせ",
+  description:
+    "knoticの導入相談、プラン比較、運用設計の問い合わせはこちら。要件に合わせて公開方法や連携方針をご案内します。",
+  path: "/contact",
+  keywords: ["knotic問い合わせ", "導入相談", "AIチャットボット相談"],
+})
 
 export default function ContactPage() {
   return (
