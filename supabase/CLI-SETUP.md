@@ -64,3 +64,36 @@ npx supabase migration list --project-ref wbsrawibepsvcvkyzwtm
 | `patch-20260228-hosted-rooms-and-invites.sql` | Hosted招待・ルーム機能 |
 
 > 新しいパッチを追加した場合はこの表を更新すること。
+
+## Edge Functions デプロイ
+
+### 初回セットアップ
+
+```bash
+# CLIにログイン
+npx supabase login
+
+# プロジェクトにリンク
+npx supabase link --project-ref wbsrawibepsvcvkyzwtm
+```
+
+### index-url 関数のデプロイ
+
+```bash
+# 関数をデプロイ
+npx supabase functions deploy index-url --project-ref wbsrawibepsvcvkyzwtm
+
+# シークレット設定（OPENAI_API_KEYは必須）
+npx supabase secrets set OPENAI_API_KEY=<your-key> --project-ref wbsrawibepsvcvkyzwtm
+```
+
+またはダッシュボードから:
+1. [Supabase Dashboard](https://supabase.com/dashboard/project/wbsrawibepsvcvkyzwtm) → Edge Functions
+2. `supabase/functions/index-url/index.ts` の内容を貼り付けてデプロイ
+3. Settings → Edge Function Secrets → `OPENAI_API_KEY` を追加
+
+### Vercel Pro に移行する場合（インライン SSE に切り替え）
+
+`hosted-config-editor.tsx` の `handleUrlSubmit` で呼び出し先を変更するだけ:
+- **Supabase Functions（現在）**: Step1 `/api/v1/index-url-init` → Step2 Edge Function SSE
+- **Vercel Pro（切替後）**: `/api/v1/index-url` に直接 POST（既存ルート、変更なし）

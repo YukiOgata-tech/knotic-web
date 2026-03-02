@@ -1,8 +1,7 @@
 import { notFound } from "next/navigation"
 
 import {
-  addPdfSourceAction,
-  addUrlSourceAction,
+  addFileSourceAction,
   queueIndexAction,
   runIndexingWorkerAction,
   rotateWidgetTokenAction,
@@ -67,8 +66,7 @@ export default async function ConsoleBotDetailPage({ params, searchParams }: Pag
         togglePublicAction={toggleBotPublicAction}
         rotateWidgetTokenAction={rotateWidgetTokenAction}
         updateAllowedOriginsAction={updateAllowedOriginsAction}
-        addUrlSourceAction={addUrlSourceAction}
-        addPdfSourceAction={addPdfSourceAction}
+        addFileSourceAction={addFileSourceAction}
         queueIndexAction={queueIndexAction}
         runIndexingWorkerAction={runIndexingWorkerAction}
       />

@@ -386,7 +386,7 @@ export function HostedChatClient({
                           <div className="mb-1 flex flex-wrap items-center gap-2">
                             <Badge variant="outline">[{c.rank}]</Badge>
                             <Badge variant={c.sourceType === "url" ? "secondary" : "outline"}>
-                              {c.sourceType === "url" ? "Web" : "PDF"}
+                              {c.sourceType === "url" ? "Web" : c.sourceType === "pdf" ? "PDF" : "ファイル"}
                             </Badge>
                             <p className="font-medium">{c.title ?? "source"}</p>
                           </div>

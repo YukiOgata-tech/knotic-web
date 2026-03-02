@@ -14,6 +14,7 @@ import { createClient } from "@/lib/supabase/server"
 import { writeAuditLog } from "@/app/console/_lib/audit"
 import { requireConsoleContext } from "@/app/console/_lib/data"
 import { getAppUrl } from "@/lib/env"
+import { ALLOWED_FILE_EXTENSIONS, syncBinaryFileToOpenAiFileSearch } from "@/lib/filesearch/openai"
 
 const ALLOWED_MODELS = [
   "5-nano",
@@ -23,7 +24,7 @@ const ALLOWED_MODELS = [
   "4o",
 ] as const
 const STORAGE_BUCKET = "source-files"
-const MAX_PDF_SIZE_BYTES = 20 * 1024 * 1024
+const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024
 const BOT_IDENTITY_CHANGE_LIMIT = 3
 const BOT_IDENTITY_CHANGE_WINDOW_DAYS = 30
 
@@ -194,25 +195,16 @@ export async function toggleBotPublicAction(formData: FormData) {
 }
 
 export async function addUrlSourceAction(formData: FormData) {
+  const redirectTo = String(formData.get("redirect_to") ?? "")
   try {
-    const redirectTo = String(formData.get("redirect_to") ?? "")
     const { supabase, user, tenantId } = await getTenantContext(true)
     const botId = String(formData.get("bot_id") ?? "")
     const url = String(formData.get("url") ?? "").trim()
-
-    if (!botId || !url) {
-      redirect(toAppUrl(redirectTo, { error: "BotとURLを入力してください。" }))
-    }
+    if (!botId || !url) redirect(toAppUrl(redirectTo, { error: "BotとURLを入力してください。" }))
     await assertTenantCanIndexData(tenantId, 0)
-
-    const { error } = await supabase.from("sources").insert({
-      bot_id: botId,
-      type: "url",
-      status: "queued",
-      url,
-      created_by: user.id,
-    })
-
+    const { error } = await supabase
+      .from("sources")
+      .insert({ bot_id: botId, type: "url", status: "queued", url, created_by: user.id })
     if (error) throw error
     await writeAuditLog(supabase, {
       tenantId,
@@ -223,38 +215,34 @@ export async function addUrlSourceAction(formData: FormData) {
     })
     redirect(toAppUrl(redirectTo, { notice: "URLソースを追加しました。" }))
   } catch (error) {
-    redirect(
-      toAppUrl(String(formData.get("redirect_to") ?? ""), {
-        error: error instanceof Error ? error.message : "URLソース追加に失敗しました。",
-      })
-    )
+    redirect(toAppUrl(redirectTo, { error: error instanceof Error ? error.message : "URLソース追加に失敗しました。" }))
   }
 }
 
-export async function addPdfSourceAction(formData: FormData) {
+export async function addFileSourceAction(formData: FormData) {
   const redirectTo = String(formData.get("redirect_to") ?? "")
 
   try {
     const { supabase, user, tenantId } = await getTenantContext(true)
     const botId = String(formData.get("bot_id") ?? "")
-    const file = formData.get("pdf")
+    const file = formData.get("file")
 
     if (!botId) {
       redirect(toAppUrl(redirectTo, { error: "Botを選択してください。" }))
     }
 
     if (!(file instanceof File) || file.size === 0) {
-      redirect(toAppUrl(redirectTo, { error: "PDFファイルを選択してください。" }))
+      redirect(toAppUrl(redirectTo, { error: "ファイルを選択してください。" }))
     }
 
-    const fileName = file.name || "upload.pdf"
-    const ext = fileName.split(".").pop()?.toLowerCase()
-    if (ext !== "pdf") {
-      redirect(toAppUrl(redirectTo, { error: "PDF形式のみアップロードできます。" }))
+    const fileName = file.name || "upload"
+    const ext = fileName.split(".").pop()?.toLowerCase() ?? ""
+    if (!ALLOWED_FILE_EXTENSIONS.has(ext)) {
+      redirect(toAppUrl(redirectTo, { error: "対応していないファイル形式です。" }))
     }
 
-    if (file.size > MAX_PDF_SIZE_BYTES) {
-      redirect(toAppUrl(redirectTo, { error: "PDFサイズは20MB以下にしてください。" }))
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      redirect(toAppUrl(redirectTo, { error: "ファイルサイズは20MB以下にしてください。" }))
     }
     await assertTenantCanIndexData(tenantId, file.size)
 
@@ -265,45 +253,67 @@ export async function addPdfSourceAction(formData: FormData) {
     const admin = createAdminClient()
     const { error: uploadError } = await admin.storage
       .from(STORAGE_BUCKET)
-      .upload(storagePath, bytes, {
-        contentType: "application/pdf",
-        upsert: false,
-      })
+      .upload(storagePath, bytes, { upsert: false })
 
     if (uploadError) {
       throw new Error(
-        "PDFアップロードに失敗しました。Storageバケット source-files の作成と権限設定を確認してください。"
+        "ファイルアップロードに失敗しました。Storageバケット source-files の作成と権限設定を確認してください。"
       )
     }
 
-    const { error: insertError } = await supabase.from("sources").insert({
-      bot_id: botId,
-      type: "pdf",
-      status: "queued",
-      file_path: storagePath,
-      file_name: fileName,
-      file_size_bytes: file.size,
-      content_hash: contentHash,
-      created_by: user.id,
-    })
+    const { data: insertedSource, error: insertError } = await supabase
+      .from("sources")
+      .insert({
+        bot_id: botId,
+        type: ext === "pdf" ? "pdf" : "file",
+        status: "queued",
+        file_path: storagePath,
+        file_name: fileName,
+        file_size_bytes: file.size,
+        content_hash: contentHash,
+        created_by: user.id,
+      })
+      .select("id")
+      .single()
 
-    if (insertError) {
+    if (insertError || !insertedSource) {
       await admin.storage.from(STORAGE_BUCKET).remove([storagePath])
-      throw insertError
+      throw insertError ?? new Error("ソース作成に失敗しました。")
+    }
+
+    const { data: bot } = await admin
+      .from("bots")
+      .select("id, public_id")
+      .eq("id", botId)
+      .maybeSingle()
+
+    if (bot?.public_id) {
+      await syncBinaryFileToOpenAiFileSearch({
+        botId,
+        botPublicId: String(bot.public_id),
+        sourceId: insertedSource.id,
+        filename: fileName,
+        buffer: bytes,
+      })
+      await admin
+        .from("sources")
+        .update({ status: "ready" })
+        .eq("id", insertedSource.id)
+      await admin.from("bots").update({ status: "ready" }).eq("id", botId)
     }
 
     await writeAuditLog(supabase, {
       tenantId,
-      action: "source.pdf.add",
+      action: "source.file.add",
       targetType: "source",
       targetId: botId,
       after: { bot_id: botId, file_name: fileName, file_size_bytes: file.size },
     })
-    redirect(toAppUrl(redirectTo, { notice: "PDFソースを追加しました。" }))
+    redirect(toAppUrl(redirectTo, { notice: "ファイルを追加しました。" }))
   } catch (error) {
     redirect(
       toAppUrl(redirectTo, {
-        error: error instanceof Error ? error.message : "PDFソース追加に失敗しました。",
+        error: error instanceof Error ? error.message : "ファイル追加に失敗しました。",
       })
     )
   }

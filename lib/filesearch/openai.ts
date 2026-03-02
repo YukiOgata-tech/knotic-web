@@ -1,5 +1,36 @@
 import { createAdminClient } from "@/lib/supabase/admin"
 
+export const ALLOWED_FILE_EXTENSIONS = new Set([
+  "pdf", "doc", "docx", "pptx", "tex",
+  "txt", "md", "html", "css", "json",
+  "c", "cpp", "cs", "go", "java", "js", "ts", "py", "rb", "rs", "sh", "php",
+])
+
+const MIME_BY_EXT: Record<string, string> = {
+  pdf: "application/pdf",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  tex: "text/x-tex",
+  txt: "text/plain",
+  md: "text/markdown",
+  html: "text/html",
+  css: "text/css",
+  json: "application/json",
+  c: "text/x-c",
+  cpp: "text/x-c++",
+  cs: "text/x-csharp",
+  go: "text/x-go",
+  java: "text/x-java",
+  js: "text/javascript",
+  ts: "text/typescript",
+  py: "text/x-python",
+  rb: "text/x-ruby",
+  rs: "text/x-rust",
+  sh: "text/x-sh",
+  php: "text/x-php",
+}
+
 function getOpenAiApiKey() {
   const value = process.env.OPENAI_API_KEY?.trim()
   if (!value) {
@@ -206,6 +237,63 @@ export async function syncSourceTextToOpenAiFileSearch(params: {
     }
     throw sourceUpdateError
   }
+
+  return { vectorStoreId, fileId }
+}
+
+export async function syncBinaryFileToOpenAiFileSearch(params: {
+  botId: string
+  botPublicId: string
+  sourceId: string
+  filename: string
+  buffer: Buffer
+}) {
+  const admin = createAdminClient()
+  const { vectorStoreId } = await ensureOpenAiVectorStoreForBot(params.botId, params.botPublicId)
+
+  const { data: sourceRow, error: sourceSelectError } = await admin
+    .from("sources")
+    .select("id, file_search_file_id")
+    .eq("id", params.sourceId)
+    .maybeSingle()
+
+  if (sourceSelectError) throw sourceSelectError
+
+  const previousFileId = String((sourceRow as { file_search_file_id?: string | null } | null)?.file_search_file_id ?? "") || null
+
+  const ext = params.filename.split(".").pop()?.toLowerCase() ?? "bin"
+  const mimeType = MIME_BY_EXT[ext] ?? "application/octet-stream"
+
+  const form = new FormData()
+  form.set("purpose", "assistants")
+  const blob = new Blob([new Uint8Array(params.buffer)], { type: mimeType })
+  form.set("file", blob, toSafeFileName(params.filename))
+
+  const uploadedRes = await openAiFetch("/files", {
+    method: "POST",
+    body: form,
+  })
+  const uploaded = (await uploadedRes.json()) as { id?: string }
+  const fileId = String(uploaded.id ?? "")
+  if (!fileId) throw new Error("OpenAI file upload returned empty id.")
+
+  await attachFileToVectorStore(vectorStoreId, fileId)
+
+  if (previousFileId) {
+    await detachFileFromVectorStore(vectorStoreId, previousFileId)
+  }
+
+  const { error: sourceUpdateError } = await admin
+    .from("sources")
+    .update({
+      file_search_provider: "openai",
+      file_search_file_id: fileId,
+      file_search_last_synced_at: new Date().toISOString(),
+      file_search_error: null,
+    })
+    .eq("id", params.sourceId)
+
+  if (sourceUpdateError) throw sourceUpdateError
 
   return { vectorStoreId, fileId }
 }

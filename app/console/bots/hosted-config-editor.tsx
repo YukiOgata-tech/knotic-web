@@ -1,11 +1,14 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import * as React from "react"
 import {
   Brain,
+  Check,
   ChevronLeft,
   ExternalLink,
+  Loader2,
   MonitorSmartphone,
   Palette,
   Settings2,
@@ -20,6 +23,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 
 type BotHostedConfig = {
@@ -87,8 +91,7 @@ type Props = {
   togglePublicAction: ActionFn
   rotateWidgetTokenAction: ActionFn
   updateAllowedOriginsAction: ActionFn
-  addUrlSourceAction: ActionFn
-  addPdfSourceAction: ActionFn
+  addFileSourceAction: ActionFn
   queueIndexAction: ActionFn
   runIndexingWorkerAction: ActionFn
 }
@@ -142,6 +145,23 @@ function formatDateTime(value: string | null | undefined) {
   return parsed.toLocaleString("ja-JP", { hour12: false })
 }
 
+const SOURCE_STATUS_MAP: Record<string, { label: string; className: string }> = {
+  ready:   { label: "同期済み", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
+  queued:  { label: "待機中",   className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
+  running: { label: "処理中",   className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
+  failed:  { label: "失敗",     className: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400" },
+  deleted: { label: "削除済み", className: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400" },
+}
+
+function SourceStatusBadge({ status }: { status: string }) {
+  const config = SOURCE_STATUS_MAP[status] ?? { label: status, className: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400" }
+  return (
+    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium", config.className)}>
+      {config.label}
+    </span>
+  )
+}
+
 function Panel({ active, children }: { active: boolean; children: React.ReactNode }) {
   return <section className={cn("grid gap-4", !active && "hidden")}>{children}</section>
 }
@@ -159,8 +179,7 @@ export function HostedConfigEditor({
   togglePublicAction,
   rotateWidgetTokenAction,
   updateAllowedOriginsAction,
-  addUrlSourceAction,
-  addPdfSourceAction,
+  addFileSourceAction,
   queueIndexAction,
   runIndexingWorkerAction,
 }: Props) {
@@ -193,6 +212,138 @@ export function HostedConfigEditor({
   const [aiModel, setAiModel] = React.useState(bot.ai_model ?? "5-mini")
   const [aiFallbackModel, setAiFallbackModel] = React.useState(bot.ai_fallback_model ?? "")
   const [aiMaxOutputTokens, setAiMaxOutputTokens] = React.useState(String(bot.ai_max_output_tokens ?? 1200))
+  const [addSourceTab, setAddSourceTab] = React.useState<"url" | "file">("url")
+
+  type IndexStep = { id: string; label: string; status: "pending" | "active" | "done" }
+  type UrlIndexingState = {
+    phase: "idle" | "running" | "done" | "error"
+    steps: IndexStep[]
+    pageProgress: { done: number; total: number } | null
+    error: string | null
+  }
+  const IDLE_STATE: UrlIndexingState = { phase: "idle", steps: [], pageProgress: null, error: null }
+  const [urlIndexing, setUrlIndexing] = React.useState<UrlIndexingState>(IDLE_STATE)
+  const urlInputRef = React.useRef<HTMLInputElement>(null)
+  const router = useRouter()
+
+  React.useEffect(() => {
+    if (urlIndexing.phase === "done") {
+      router.refresh()
+      const t = setTimeout(() => setUrlIndexing(IDLE_STATE), 2500)
+      return () => clearTimeout(t)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlIndexing.phase])
+
+  async function handleUrlSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const url = urlInputRef.current?.value.trim() ?? ""
+    if (!url || urlIndexing.phase === "running") return
+
+    setUrlIndexing({
+      phase: "running",
+      steps: [
+        { id: "fetch", label: "ページを取得中", status: "active" },
+        { id: "openai", label: "OpenAIへ送信", status: "pending" },
+      ],
+      pageProgress: null,
+      error: null,
+    })
+
+    try {
+      // Step 1: Create source + job in DB via Next.js API (handles auth + billing check)
+      const initRes = await fetch("/api/v1/index-url-init", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ botId: bot.id, url }),
+      })
+      if (!initRes.ok) {
+        const err = (await initRes.json().catch(() => ({ error: "初期化に失敗しました。" }))) as { error?: string }
+        setUrlIndexing((s) => ({ ...s, phase: "error", error: err.error ?? "エラーが発生しました。" }))
+        return
+      }
+      const { jobId } = (await initRes.json()) as { jobId: string }
+
+      // Step 2: Stream SSE from Supabase Edge Function (no Vercel timeout constraint)
+      const supabase = createSupabaseBrowserClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      const edgeFnUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/index-url`
+      const res = await fetch(edgeFnUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token ?? ""}`,
+        },
+        body: JSON.stringify({ jobId }),
+      })
+
+      if (!res.ok || !res.body) {
+        const err = (await res.json().catch(() => ({ error: "エラーが発生しました。" }))) as { error?: string }
+        setUrlIndexing((s) => ({ ...s, phase: "error", error: err.error ?? "エラーが発生しました。" }))
+        return
+      }
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ""
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const parts = buffer.split("\n\n")
+        buffer = parts.pop() ?? ""
+        for (const part of parts) {
+          const line = part.trimStart()
+          if (!line.startsWith("data: ")) continue
+          try {
+            const event = JSON.parse(line.slice(6)) as { type: string; [k: string]: unknown }
+            setUrlIndexing((s) => {
+              const steps = s.steps.map((step) => ({ ...step }))
+              const mark = (id: string, status: IndexStep["status"], label?: string) => {
+                const idx = steps.findIndex((st) => st.id === id)
+                if (idx >= 0) steps[idx] = { ...steps[idx], status, ...(label ? { label } : {}) }
+              }
+              switch (event.type) {
+                case "fetching_sitemap":
+                  mark("fetch", "active", "サイトマップを取得中")
+                  return { ...s, steps }
+                case "sitemap_ready":
+                  mark("fetch", "active", `サイトマップ取得完了 (${event.total as number}件のURL)`)
+                  return { ...s, steps }
+                case "single_page":
+                  mark("fetch", "active", "ページを取得中")
+                  return { ...s, steps }
+                case "page_progress":
+                  mark("fetch", "active", `ページ取得中 ${event.done as number} / ${event.total as number}`)
+                  return { ...s, steps, pageProgress: { done: event.done as number, total: event.total as number } }
+                case "syncing_openai":
+                  mark("fetch", "done")
+                  mark("openai", "active", "OpenAIへ送信中")
+                  return { ...s, steps, pageProgress: null }
+                case "source_ready":
+                  mark("fetch", "done")
+                  mark("openai", "done")
+                  if (urlInputRef.current) urlInputRef.current.value = ""
+                  return { ...s, steps, phase: "done", pageProgress: null }
+                case "error":
+                  return { ...s, phase: "error", error: (event.message as string) ?? "エラーが発生しました。" }
+              }
+              return s
+            })
+          } catch {
+            // JSON parse 失敗は無視
+          }
+        }
+      }
+    } catch (err) {
+      setUrlIndexing((s) => ({
+        ...s,
+        phase: "error",
+        error: err instanceof Error ? err.message : "エラーが発生しました。",
+      }))
+    }
+  }
 
   const internalOptionEnabled = hasHostedPage
 
@@ -743,96 +894,217 @@ export function HostedConfigEditor({
         </div>
       </section>
 
-      <section className={cn("grid gap-3 rounded-xl border border-black/20 bg-white/90 p-4 dark:border-white/10 dark:bg-slate-900/80", activeTab !== "ai" && "hidden")}>
+      <section className={cn("grid gap-4 rounded-xl border border-black/20 bg-white/90 p-4 dark:border-white/10 dark:bg-slate-900/80", activeTab !== "ai" && "hidden")}>
         <div className="grid gap-1">
           <p className="text-sm font-semibold">情報ソース管理</p>
-          <p className="text-xs text-muted-foreground">このBot専用のURL/PDFソースを登録し、インデックス処理を行います。</p>
-        </div>
-
-        <form action={runIndexingWorkerAction} className="grid gap-2 rounded-lg border border-black/20 p-3 dark:border-white/10">
-          <input type="hidden" name="redirect_to" value={redirectTo} />
-          <p className="text-sm font-medium">インデックス手動実行</p>
           <p className="text-xs text-muted-foreground">
-            待機中のインデックスジョブを1件実行します。
+            URL/PDFを追加 → 一覧で確認 → インデックス実行、の順で進めます。URL・PDFどちらも再インデックスできます。
           </p>
-          <Button type="submit" size="sm" className="w-fit" disabled={!isEditor}>
-            インデックスを実行
-          </Button>
-        </form>
-
-        <div className="grid gap-3 lg:grid-cols-2">
-          <form action={addUrlSourceAction} className="grid gap-2 rounded-lg border border-black/20 p-3 dark:border-white/10">
-            <input type="hidden" name="redirect_to" value={redirectTo} />
-            <input type="hidden" name="bot_id" value={bot.id} />
-            <Label htmlFor={`url_source_${bot.id}`}>URLソース追加</Label>
-            <Input
-              id={`url_source_${bot.id}`}
-              name="url"
-              type="url"
-              placeholder="https://example.com/page"
-              required
-              disabled={!isEditor}
-            />
-            <Button type="submit" size="sm" className="w-fit" disabled={!isEditor}>
-              URLを追加
-            </Button>
-          </form>
-
-          <form action={addPdfSourceAction} className="grid gap-2 rounded-lg border border-black/20 p-3 dark:border-white/10">
-            <input type="hidden" name="redirect_to" value={redirectTo} />
-            <input type="hidden" name="bot_id" value={bot.id} />
-            <Label htmlFor={`pdf_source_${bot.id}`}>PDFソース追加</Label>
-            <Input
-              id={`pdf_source_${bot.id}`}
-              name="pdf"
-              type="file"
-              accept="application/pdf,.pdf"
-              required
-              disabled={!isEditor}
-            />
-            <p className="text-[11px] text-muted-foreground">1ファイル20MBまで</p>
-            <Button type="submit" size="sm" className="w-fit" disabled={!isEditor}>
-              PDFを追加
-            </Button>
-          </form>
         </div>
 
+        {/* ① ソース追加（URL / PDF タブ切り替え） */}
+        <div className="rounded-lg border border-black/20 p-3 dark:border-white/10">
+          <p className="mb-2.5 text-xs font-medium">ソースを追加</p>
+          <div className="mb-3 inline-flex rounded-lg bg-slate-100 p-0.5 dark:bg-slate-800/80">
+            <button
+              type="button"
+              onClick={() => setAddSourceTab("url")}
+              className={cn(
+                "rounded-md px-3 py-1 text-xs font-medium transition-all",
+                addSourceTab === "url"
+                  ? "bg-white text-slate-900 shadow-sm dark:bg-slate-950 dark:text-slate-100"
+                  : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+              )}
+            >
+              URL
+            </button>
+            <button
+              type="button"
+              onClick={() => setAddSourceTab("file")}
+              className={cn(
+                "rounded-md px-3 py-1 text-xs font-medium transition-all",
+                addSourceTab === "file"
+                  ? "bg-white text-slate-900 shadow-sm dark:bg-slate-950 dark:text-slate-100"
+                  : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+              )}
+            >
+              ファイル
+            </button>
+          </div>
+
+          {addSourceTab !== "file" ? (
+            <div className="grid gap-2">
+              {urlIndexing.phase === "idle" ? (
+                <form onSubmit={handleUrlSubmit} className="grid gap-2">
+                  <div className="flex gap-2">
+                    <Input
+                      ref={urlInputRef}
+                      id={`url_source_${bot.id}`}
+                      name="url"
+                      type="url"
+                      placeholder="https://example.com/page またはサイトマップXMLのURL"
+                      required
+                      disabled={!isEditor}
+                      className="flex-1"
+                    />
+                    <Button type="submit" size="sm" disabled={!isEditor}>追加</Button>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    ページURLを直接指定するか、サイトマップXML（.xml）を指定すると最大50ページを自動収集します。
+                  </p>
+                </form>
+              ) : (
+                <div className={cn(
+                  "rounded-lg border p-3 transition-colors",
+                  urlIndexing.phase === "running" && "border-cyan-200/60 bg-cyan-50/40 dark:border-cyan-800/40 dark:bg-cyan-950/20",
+                  urlIndexing.phase === "done" && "border-emerald-200/60 bg-emerald-50/40 dark:border-emerald-800/40 dark:bg-emerald-950/20",
+                  urlIndexing.phase === "error" && "border-rose-200/60 bg-rose-50/40 dark:border-rose-800/40 dark:bg-rose-950/20",
+                )}>
+                  <div className="mb-2 flex items-center gap-1.5">
+                    {urlIndexing.phase === "running" && <div className="h-1.5 w-1.5 rounded-full bg-cyan-500 animate-pulse" />}
+                    {urlIndexing.phase === "done" && <Check className="h-3.5 w-3.5 text-emerald-500" />}
+                    {urlIndexing.phase === "error" && <div className="h-1.5 w-1.5 rounded-full bg-rose-500" />}
+                    <span className={cn(
+                      "text-xs font-medium",
+                      urlIndexing.phase === "running" && "text-cyan-700 dark:text-cyan-300",
+                      urlIndexing.phase === "done" && "text-emerald-700 dark:text-emerald-300",
+                      urlIndexing.phase === "error" && "text-rose-700 dark:text-rose-400",
+                    )}>
+                      {urlIndexing.phase === "running" && "インデックス中..."}
+                      {urlIndexing.phase === "done" && "インデックス完了"}
+                      {urlIndexing.phase === "error" && "エラーが発生しました"}
+                    </span>
+                  </div>
+
+                  {urlIndexing.phase === "error" ? (
+                    <div className="grid gap-2">
+                      <p className="text-[11px] text-rose-600 dark:text-rose-400">{urlIndexing.error}</p>
+                      <button
+                        type="button"
+                        onClick={() => setUrlIndexing(IDLE_STATE)}
+                        className="w-fit text-[11px] underline text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                      >
+                        やり直す
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid gap-1.5">
+                      {urlIndexing.steps.map((step) => (
+                        <div key={step.id} className="flex items-center gap-1.5">
+                          {step.status === "done" && <Check className="h-3 w-3 shrink-0 text-emerald-500" />}
+                          {step.status === "active" && <Loader2 className="h-3 w-3 shrink-0 text-cyan-500 animate-spin" />}
+                          {step.status === "pending" && <div className="h-3 w-3 shrink-0 rounded-full border border-slate-300 dark:border-slate-600" />}
+                          <span className={cn(
+                            "text-[11px]",
+                            step.status === "done" && "text-slate-500 dark:text-slate-400",
+                            step.status === "active" && "font-medium text-slate-700 dark:text-slate-200",
+                            step.status === "pending" && "text-slate-400 dark:text-slate-500",
+                          )}>
+                            {step.label}
+                          </span>
+                        </div>
+                      ))}
+                      {urlIndexing.pageProgress && (
+                        <div className="pl-[18px] mt-0.5">
+                          <div className="h-1 w-36 rounded-full bg-slate-200 dark:bg-slate-700">
+                            <div
+                              className="h-full rounded-full bg-cyan-400 transition-all duration-300"
+                              style={{ width: `${Math.round((urlIndexing.pageProgress.done / urlIndexing.pageProgress.total) * 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <form action={addFileSourceAction} className="grid gap-2">
+              <input type="hidden" name="redirect_to" value={redirectTo} />
+              <input type="hidden" name="bot_id" value={bot.id} />
+              <div className="flex gap-2 items-center">
+                <Input
+                  id={`file_source_${bot.id}`}
+                  name="file"
+                  type="file"
+                  accept=".pdf,.doc,.docx,.pptx,.tex,.txt,.md,.html,.css,.json,.c,.cpp,.cs,.go,.java,.js,.ts,.py,.rb,.rs,.sh,.php"
+                  required
+                  disabled={!isEditor}
+                  className="flex-1"
+                />
+                <Button type="submit" size="sm" disabled={!isEditor}>追加</Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                PDF・Word・PowerPoint・テキスト・コードなど対応。1ファイル最大20MB。
+              </p>
+            </form>
+          )}
+        </div>
+
+        {/* ② 登録済みソース一覧 */}
         <div className="grid gap-2">
+          <p className="text-xs font-medium text-muted-foreground">
+            登録済みソース{botSources.length > 0 ? `（${botSources.length}件）` : ""}
+          </p>
           {botSources.length === 0 ? (
-            <p className="text-xs text-muted-foreground">このBotに登録された情報ソースはありません。</p>
+            <div className="rounded-lg border border-dashed border-black/20 px-4 py-6 text-center dark:border-white/15">
+              <p className="text-xs text-muted-foreground">まだソースが登録されていません。上のフォームから追加してください。</p>
+            </div>
           ) : (
             botSources.map((source) => (
               <div
                 key={source.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-black/20 p-2 text-xs dark:border-white/10"
+                className="flex items-start justify-between gap-3 rounded-lg border border-black/20 p-3 dark:border-white/10"
               >
-                <div className="grid gap-0.5">
-                  <p className="font-medium">{source.url ?? source.file_name ?? "-"}</p>
-                  <p className="text-muted-foreground">
-                    {source.type === "url" ? "URL" : source.type === "pdf" ? "PDF" : "ファイル"} ／{" "}
-                    {source.status === "ready" ? "同期済み" : source.status === "queued" ? "待機中" : source.status === "running" ? "処理中" : source.status === "failed" ? "失敗" : source.status === "deleted" ? "削除済み" : source.status} ／{" "}
-                    {formatMbFromBytes(source.file_size_bytes)}
-                  </p>
-                  <p className="text-muted-foreground">
-                    同期方式: {source.file_search_provider === "openai" ? "OpenAI File Search" : "OpenAI File Search（未同期）"} ／
+                <div className="min-w-0 grid gap-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                      {source.type === "url" ? "URL" : "PDF"}
+                    </span>
+                    <SourceStatusBadge status={source.status} />
+                    {source.file_size_bytes ? (
+                      <span className="text-[10px] text-muted-foreground">{formatMbFromBytes(source.file_size_bytes)}</span>
+                    ) : null}
+                  </div>
+                  <p className="truncate text-xs font-medium">{source.url ?? source.file_name ?? "-"}</p>
+                  <p className="text-[11px] text-muted-foreground">
                     最終同期: {formatDateTime(source.file_search_last_synced_at)}
+                    {!source.file_search_provider ? "（未同期）" : ""}
                   </p>
                   {source.file_search_error ? (
-                    <p className="text-rose-600 dark:text-rose-400">同期エラー: {source.file_search_error}</p>
+                    <p className="text-[11px] text-rose-600 dark:text-rose-400">エラー: {source.file_search_error}</p>
                   ) : null}
                 </div>
-                <form action={queueIndexAction}>
+                <form action={queueIndexAction} className="shrink-0">
                   <input type="hidden" name="redirect_to" value={redirectTo} />
                   <input type="hidden" name="source_id" value={source.id} />
                   <input type="hidden" name="bot_id" value={bot.id} />
                   <Button type="submit" size="sm" variant="outline" disabled={!isEditor}>
-                    インデックス実行
+                    再インデックス
                   </Button>
                 </form>
               </div>
             ))
           )}
         </div>
+
+        {/* ③ インデックスワーカー実行（操作フローの最後） */}
+        <form
+          action={runIndexingWorkerAction}
+          className="flex items-center justify-between gap-3 rounded-lg border border-black/20 bg-slate-50/80 px-3 py-2.5 dark:border-white/10 dark:bg-slate-800/30"
+        >
+          <input type="hidden" name="redirect_to" value={redirectTo} />
+          <div className="grid gap-0.5">
+            <p className="text-xs font-medium">インデックスを実行</p>
+            <p className="text-[11px] text-muted-foreground">
+              追加・再インデックス後に実行します。待機中のジョブを1件処理します。
+            </p>
+          </div>
+          <Button type="submit" size="sm" className="shrink-0" disabled={!isEditor}>
+            実行
+          </Button>
+        </form>
       </section>
 
       {!hasHostedPage ? (

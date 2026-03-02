@@ -6,6 +6,7 @@ import { SiteHeader } from "@/components/layout/site-header"
 import { SiteBreadcrumbs } from "@/components/layout/site-breadcrumbs"
 import { ThemeProvider } from "@/components/theme-provider"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { getAppUrl } from "@/lib/env"
 import "./globals.css"
 
 const geistSans = Geist({
@@ -19,6 +20,7 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
+  metadataBase: new URL(getAppUrl()),
   title: {
     default: "knotic | URLとPDFでAIチャットボットを作成・公開",
     template: "%s | knotic",

@@ -2,12 +2,19 @@ import crypto from "node:crypto"
 
 import { assertTenantCanIndexData } from "@/lib/billing/limits"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { syncSourceTextToOpenAiFileSearch } from "@/lib/filesearch/openai"
+import { syncSourceTextToOpenAiFileSearch, syncBinaryFileToOpenAiFileSearch } from "@/lib/filesearch/openai"
 import {
   MAX_CRAWL_PAGES_PER_JOB,
   STORAGE_BUCKET_ARTIFACTS,
 } from "@/lib/indexing/config"
-import { fetchPage, filterUrlsByHost, parseSitemapUrls } from "@/lib/indexing/html"
+import { fetchPage, fetchWithRetry, filterUrlsByHost, parseSitemapUrls, USER_AGENT } from "@/lib/indexing/html"
+
+export type IndexProgressEvent =
+  | { type: "fetching_sitemap" }
+  | { type: "sitemap_ready"; total: number }
+  | { type: "single_page" }
+  | { type: "page_progress"; done: number; total: number }
+  | { type: "syncing_openai" }
 
 type IndexingJob = {
   id: string
@@ -25,13 +32,20 @@ type SourceRow = {
   file_name: string | null
 }
 
+const FETCH_CONCURRENCY = 3
+
 function artifactPath(tenantId: string, sourceId: string, kind: "raw" | "text", suffix: string) {
-  return `${tenantId}/${sourceId}/${Date.now()}-${kind}.${suffix}`
+  // crypto.randomUUID slice で並列アップロード時のパス衝突を防ぐ
+  return `${tenantId}/${sourceId}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}-${kind}.${suffix}`
 }
 
 function maybeSitemap(url: string) {
-  const lower = url.toLowerCase()
-  return lower.endsWith(".xml") || lower.includes("sitemap")
+  try {
+    const path = new URL(url).pathname.toLowerCase()
+    return path.endsWith(".xml") || /(?:^|\/)sitemap(?:[-_]index)?$/.test(path)
+  } catch {
+    return url.toLowerCase().endsWith(".xml")
+  }
 }
 
 async function uploadArtifact(path: string, content: string, contentType: string) {
@@ -46,17 +60,6 @@ async function uploadArtifact(path: string, content: string, contentType: string
   }
 }
 
-async function uploadArtifactBytes(path: string, content: Buffer, contentType: string) {
-  const admin = createAdminClient()
-  const { error } = await admin.storage
-    .from(STORAGE_BUCKET_ARTIFACTS)
-    .upload(path, content, { contentType, upsert: false })
-  if (error) {
-    throw new Error(
-      `Storage upload failed for ${path}. Ensure bucket '${STORAGE_BUCKET_ARTIFACTS}' exists.`
-    )
-  }
-}
 
 async function upsertSourcePage(params: {
   sourceId: string
@@ -92,74 +95,114 @@ async function upsertSourcePage(params: {
   if (error) throw error
 }
 
-async function processUrlSource(job: IndexingJob, source: SourceRow) {
+type PageResult = { contentHash: string; section: string }
+
+async function fetchAndStorePage(params: {
+  pageUrl: string
+  tenantId: string
+  sourceId: string
+  botId: string
+}): Promise<PageResult | null> {
+  const page = await fetchPage(params.pageUrl)
+  if (!page.text) return null
+
+  const rawPath = artifactPath(params.tenantId, params.sourceId, "raw", "html")
+  const textPath = artifactPath(params.tenantId, params.sourceId, "text", "txt")
+  await uploadArtifact(rawPath, page.rawHtml, "text/html; charset=utf-8")
+  await uploadArtifact(textPath, page.text, "text/plain; charset=utf-8")
+
+  await upsertSourcePage({
+    sourceId: params.sourceId,
+    tenantId: params.tenantId,
+    botId: params.botId,
+    canonicalUrl: page.url,
+    title: page.title,
+    statusCode: page.statusCode,
+    contentHash: page.contentHash,
+    rawPath,
+    textPath,
+    rawBytes: Buffer.byteLength(page.rawHtml, "utf-8"),
+    textBytes: Buffer.byteLength(page.text, "utf-8"),
+  })
+
+  return {
+    contentHash: page.contentHash,
+    section: [`## ${page.title ?? page.url}`, `URL: ${page.url}`, "", page.text].join("\n"),
+  }
+}
+
+async function processUrlSource(
+  job: IndexingJob,
+  source: SourceRow,
+  onProgress?: (event: IndexProgressEvent) => void
+) {
   if (!source.url) throw new Error("URL source has no URL.")
   const admin = createAdminClient()
   await assertTenantCanIndexData(job.tenant_id, 0)
 
-  const discovered = maybeSitemap(source.url)
-    ? filterUrlsByHost(
-        source.url,
-        parseSitemapUrls(await (await fetch(source.url)).text(), MAX_CRAWL_PAGES_PER_JOB)
-      )
-    : [source.url]
-  const pageUrls = discovered.length ? discovered : [source.url]
+  let pageUrls: string[]
+  if (maybeSitemap(source.url)) {
+    onProgress?.({ type: "fetching_sitemap" })
+    const sitemapRes = await fetchWithRetry(source.url, {
+      headers: { "User-Agent": USER_AGENT, Accept: "application/xml,text/xml,*/*;q=0.8" },
+      cache: "no-store",
+      redirect: "follow",
+    })
+    const discovered = filterUrlsByHost(source.url, parseSitemapUrls(await sitemapRes.text(), MAX_CRAWL_PAGES_PER_JOB))
+    pageUrls = discovered.length ? discovered : [source.url]
+    onProgress?.({ type: "sitemap_ready", total: pageUrls.length })
+  } else {
+    onProgress?.({ type: "single_page" })
+    pageUrls = [source.url]
+  }
 
-  let pagesIndexed = 0
-  const chunksCreated = 0
-  const tokensEmbedded = 0
   const pageHashes: string[] = []
   const aggregatedSections: string[] = []
+  let pagesIndexed = 0
 
-  for (const pageUrl of pageUrls) {
-    const page = await fetchPage(pageUrl)
-    if (!page.text) continue
-
-    const rawPath = artifactPath(job.tenant_id, source.id, "raw", "html")
-    const textPath = artifactPath(job.tenant_id, source.id, "text", "txt")
-    await uploadArtifact(rawPath, page.rawHtml, "text/html; charset=utf-8")
-    await uploadArtifact(textPath, page.text, "text/plain; charset=utf-8")
-
-    await upsertSourcePage({
-      sourceId: source.id,
-      tenantId: job.tenant_id,
-      botId: source.bot_id,
-      canonicalUrl: page.url,
-      title: page.title,
-      statusCode: page.statusCode,
-      contentHash: page.contentHash,
-      rawPath,
-      textPath,
-      rawBytes: Buffer.byteLength(page.rawHtml, "utf-8"),
-      textBytes: Buffer.byteLength(page.text, "utf-8"),
-    })
-    pageHashes.push(page.contentHash)
-    aggregatedSections.push(
-      [`## ${page.title ?? page.url}`, `URL: ${page.url}`, "", page.text].join("\n")
+  // FETCH_CONCURRENCY 件ずつ並列処理
+  for (let i = 0; i < pageUrls.length; i += FETCH_CONCURRENCY) {
+    const chunk = pageUrls.slice(i, i + FETCH_CONCURRENCY)
+    const results = await Promise.allSettled(
+      chunk.map((pageUrl) =>
+        fetchAndStorePage({ pageUrl, tenantId: job.tenant_id, sourceId: source.id, botId: source.bot_id })
+      )
     )
-
-    pagesIndexed += 1
-  }
-
-  if (aggregatedSections.length > 0) {
-    const admin = createAdminClient()
-    const { data: bot } = await admin
-      .from("bots")
-      .select("id, public_id, name")
-      .eq("id", source.bot_id)
-      .maybeSingle()
-    if (!bot?.public_id) {
-      throw new Error("Bot public_id is missing while syncing file search.")
+    for (const result of results) {
+      if (result.status === "fulfilled" && result.value) {
+        pageHashes.push(result.value.contentHash)
+        aggregatedSections.push(result.value.section)
+        pagesIndexed += 1
+      }
+      // rejected（robots.txt 拒否、ネットワークエラー等）は該当ページをスキップ
     }
-    await syncSourceTextToOpenAiFileSearch({
-      botId: source.bot_id,
-      botPublicId: String(bot.public_id),
-      sourceId: source.id,
-      sourceType: "url",
-      sourceLabel: source.url ?? String(bot.name ?? "URL source"),
-      text: aggregatedSections.join("\n\n---\n\n"),
-    })
+    onProgress?.({ type: "page_progress", done: pagesIndexed, total: pageUrls.length })
   }
+
+  // ② テキストが1件も取得できなかった場合はエラーにする
+  if (aggregatedSections.length === 0) {
+    throw new Error("URLからテキストを取得できませんでした。ページにテキストが含まれているか確認してください。")
+  }
+
+  onProgress?.({ type: "syncing_openai" })
+
+  // ⑥ 外側のadminをそのまま使用（シャドーイング解消）
+  const { data: bot } = await admin
+    .from("bots")
+    .select("id, public_id, name")
+    .eq("id", source.bot_id)
+    .maybeSingle()
+  if (!bot?.public_id) {
+    throw new Error("Bot public_id is missing while syncing file search.")
+  }
+  await syncSourceTextToOpenAiFileSearch({
+    botId: source.bot_id,
+    botPublicId: String(bot.public_id),
+    sourceId: source.id,
+    sourceType: "url",
+    sourceLabel: source.url ?? String(bot.name ?? "URL source"),
+    text: aggregatedSections.join("\n\n---\n\n"),
+  })
 
   const { error: sourceUpdateError } = await admin
     .from("sources")
@@ -178,30 +221,11 @@ async function processUrlSource(job: IndexingJob, source: SourceRow) {
     .update({ status: "ready" })
     .eq("id", source.bot_id)
 
-  return {
-    pagesDiscovered: pageUrls.length,
-    pagesIndexed,
-    chunksCreated,
-    tokensEmbedded,
-  }
+  return { pagesDiscovered: pageUrls.length, pagesIndexed }
 }
 
-async function extractPdfText(buffer: Buffer) {
-  const { PDFParse } = await import("pdf-parse")
-  const parser = new PDFParse({ data: buffer })
-  const info = await parser.getInfo().catch(() => null)
-  const parsed = await parser.getText()
-  await parser.destroy().catch(() => {})
-  const text = parsed.text?.replace(/\r/g, "").replace(/\n{3,}/g, "\n\n").trim() ?? ""
-  return {
-    text,
-    pages: parsed.total ?? 0,
-    title: (info?.info?.title as string | undefined) ?? (info?.info?.Title as string | undefined) ?? null,
-  }
-}
-
-async function processPdfSource(job: IndexingJob, source: SourceRow) {
-  if (!source.file_path) throw new Error("PDF source has no file path.")
+async function processFileSource(job: IndexingJob, source: SourceRow) {
+  if (!source.file_path) throw new Error("File source has no file path.")
   const admin = createAdminClient()
   await assertTenantCanIndexData(job.tenant_id, 0)
 
@@ -209,21 +233,11 @@ async function processPdfSource(job: IndexingJob, source: SourceRow) {
     .from("source-files")
     .download(source.file_path)
   if (fileError || !fileBlob) {
-    throw new Error("PDFファイルの取得に失敗しました。source-files バケットを確認してください。")
+    throw new Error("ファイルの取得に失敗しました。source-files バケットを確認してください。")
   }
 
   const fileBuffer = Buffer.from(await fileBlob.arrayBuffer())
   await assertTenantCanIndexData(job.tenant_id, fileBuffer.length)
-
-  const extracted = await extractPdfText(fileBuffer)
-  if (!extracted.text) {
-    throw new Error("PDFからテキストを抽出できませんでした。テキストPDFか確認してください。")
-  }
-
-  const rawPath = artifactPath(job.tenant_id, source.id, "raw", "pdf")
-  const textPath = artifactPath(job.tenant_id, source.id, "text", "txt")
-  await uploadArtifactBytes(rawPath, fileBuffer, "application/pdf")
-  await uploadArtifact(textPath, extracted.text, "text/plain; charset=utf-8")
 
   const { data: bot } = await admin
     .from("bots")
@@ -233,39 +247,30 @@ async function processPdfSource(job: IndexingJob, source: SourceRow) {
   if (!bot?.public_id) {
     throw new Error("Bot public_id is missing while syncing file search.")
   }
-  await syncSourceTextToOpenAiFileSearch({
+
+  await syncBinaryFileToOpenAiFileSearch({
     botId: source.bot_id,
     botPublicId: String(bot.public_id),
     sourceId: source.id,
-    sourceType: "pdf",
-    sourceLabel: source.file_name ?? String(bot.name ?? "PDF source"),
-    text: extracted.text,
+    filename: source.file_name ?? `file-${source.id}`,
+    buffer: fileBuffer,
   })
 
   const { error: sourceUpdateError } = await admin
     .from("sources")
     .update({
       status: "ready",
-      content_hash: crypto.createHash("sha256").update(extracted.text).digest("hex"),
+      content_hash: crypto.createHash("sha256").update(fileBuffer).digest("hex"),
     })
     .eq("id", source.id)
   if (sourceUpdateError) throw sourceUpdateError
 
   await admin.from("bots").update({ status: "ready" }).eq("id", source.bot_id)
 
-  return {
-    pagesDiscovered: extracted.pages,
-    pagesIndexed: extracted.pages > 0 ? extracted.pages : 1,
-    chunksCreated: 0,
-    tokensEmbedded: 0,
-  }
+  return { pagesDiscovered: 1, pagesIndexed: 1 }
 }
 
-async function processFileLikeSource(source: SourceRow) {
-  throw new Error(`Source type '${source.type}' is not supported for indexing.`)
-}
-
-export async function processIndexingJob(jobId: string) {
+export async function processIndexingJob(jobId: string, onProgress?: (event: IndexProgressEvent) => void) {
   const admin = createAdminClient()
   const workerId = `api-${crypto.randomUUID().slice(0, 8)}`
 
@@ -309,12 +314,9 @@ export async function processIndexingJob(jobId: string) {
   try {
     let metrics
     if (sourceRow.type === "url") {
-      metrics = await processUrlSource(claimedJob, sourceRow)
-    } else if (sourceRow.type === "pdf") {
-      metrics = await processPdfSource(claimedJob, sourceRow)
+      metrics = await processUrlSource(claimedJob, sourceRow, onProgress)
     } else {
-      await processFileLikeSource(sourceRow)
-      metrics = { pagesDiscovered: 0, pagesIndexed: 0, chunksCreated: 0, tokensEmbedded: 0 }
+      metrics = await processFileSource(claimedJob, sourceRow)
     }
 
     const { error: doneError } = await admin
@@ -324,8 +326,6 @@ export async function processIndexingJob(jobId: string) {
         finished_at: new Date().toISOString(),
         pages_discovered: metrics.pagesDiscovered,
         pages_indexed: metrics.pagesIndexed,
-        chunks_created: metrics.chunksCreated,
-        tokens_embedded: metrics.tokensEmbedded,
       })
       .eq("id", claimedJob.id)
     if (doneError) throw doneError

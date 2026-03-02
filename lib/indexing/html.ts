@@ -19,7 +19,7 @@ const TRACKING_QUERY_KEYS = new Set([
   "mc_eid",
 ])
 
-const USER_AGENT = "knotic-indexer/1.0 (+https://knotic.make-it-tech.com)"
+export const USER_AGENT = "knotic-indexer/1.0 (+https://knotic.make-it-tech.com)"
 const ROBOTS_CACHE = new Map<string, string | null>()
 
 function decodeHtmlEntities(text: string) {
@@ -167,7 +167,7 @@ function selectRobotsBlock(robotsText: string) {
   return best
 }
 
-async function fetchWithRetry(url: string, init: RequestInit, maxAttempts = 3) {
+export async function fetchWithRetry(url: string, init: RequestInit, maxAttempts = 3) {
   let lastError: unknown = null
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
