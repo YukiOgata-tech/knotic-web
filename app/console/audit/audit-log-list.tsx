@@ -156,7 +156,7 @@ export function AuditLogList({ rows }: { rows: Row[] }) {
                 <span className="flex-1" />
 
                 {/* 操作者 */}
-                <span className="max-w-[180px] truncate font-mono text-[11px] text-slate-400 dark:text-slate-500">
+                <span className="max-w-45 truncate font-mono text-[11px] text-slate-400 dark:text-slate-500">
                   {row.actor_user_id ?? "—"}
                 </span>
 

@@ -1,9 +1,10 @@
-// Supabase Edge Function: index-url
-// Handles URL indexing with SSE progress streaming.
-// Invoked from the browser after /api/v1/index-url-init creates the source + job.
+// Supabase Edge Function: index-url-llm
+// Same pipeline as index-url, but adds an LLM structuring step (gpt-4o-mini)
+// after raw text extraction. The structured content is stored in artifacts
+// and synced to OpenAI File Search.
 //
-// To switch to Vercel Pro (inline SSE route), update handleUrlSubmit in
-// hosted-config-editor.tsx to call /api/v1/index-url directly instead of this function.
+// System prompt forbids over-summarization; the LLM is instructed to faithfully
+// extract ALL content from the page without hallucination.
 
 // deno-lint-ignore-file no-explicit-any
 import { createClient } from "npm:@supabase/supabase-js@2"
@@ -15,6 +16,16 @@ const MAX_CRAWL_PAGES_PER_JOB = 50
 const STORAGE_BUCKET_ARTIFACTS = "source-artifacts"
 const FETCH_CONCURRENCY = 3
 const USER_AGENT = "Mozilla/5.0 (compatible; knotic-indexer/1.0; +https://knotic.make-it-tech.com)"
+
+const LLM_STRUCTURE_SYSTEM_PROMPT = `あなたはWebページ情報の構造化アシスタントです。提供されたWebページのテキストから、すべての情報を忠実に抽出・整理してください。
+
+【必須ルール】
+- 過度な要約・省略は絶対禁止。ページ内のすべての情報を網羅すること
+- 本文に存在しない情報を追加・創作しないこと（ハルシネーション厳禁）
+- このLLMはページの内容をAIが完全把握するための情報整理ツールとして動作しており、回答品質に直結する
+- 構造化形式: 見出し（##/###）・箇条書き・番号付きリストを適切に使用
+- 日本語・英語どちらのページでも、原文の言語を維持して整理すること
+- 数値・固有名詞・URLなどの具体的情報は必ず保持すること`
 
 // ─── Supabase ───────────────────────────────────────────────────────────────
 
@@ -47,6 +58,32 @@ async function openAiFetch(path: string, init: RequestInit) {
     throw new Error(`OpenAI API failed (${res.status}) ${path}: ${body}`)
   }
   return res
+}
+
+// ─── LLM Structuring ─────────────────────────────────────────────────────────
+
+async function structureWithLLM(pageUrl: string, rawText: string): Promise<string> {
+  const truncatedText = rawText.slice(0, 28000)
+  const res = await openAiFetch("/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: LLM_STRUCTURE_SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: `以下のWebページテキストをすべての情報を保持しながら整理してください。\n\nページURL: ${pageUrl}\n\n---\n${truncatedText}`,
+        },
+      ],
+      max_tokens: 4000,
+      temperature: 0,
+    }),
+  })
+  const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> }
+  const content = data.choices?.[0]?.message?.content?.trim()
+  if (!content) throw new Error("LLM structuring returned empty content.")
+  return content
 }
 
 // ─── HTML Utilities (inlined from lib/indexing/html.ts) ─────────────────────
@@ -312,6 +349,7 @@ type SseEvent =
   | { type: "sitemap_ready"; total: number }
   | { type: "single_page" }
   | { type: "page_progress"; done: number; total: number }
+  | { type: "structuring_llm"; done: number; total: number }
   | { type: "syncing_openai" }
   | { type: "source_ready" }
   | { type: "error"; message: string }
@@ -327,7 +365,7 @@ function maybeSitemap(url: string) {
   }
 }
 
-function artifactPath(tenantId: string, sourceId: string, kind: "raw" | "text", suffix: string) {
+function artifactPath(tenantId: string, sourceId: string, kind: "raw" | "text" | "llm", suffix: string) {
   return `${tenantId}/${sourceId}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}-${kind}.${suffix}`
 }
 
@@ -376,16 +414,23 @@ async function upsertSourcePage(admin: AdminClient, params: {
   if (error) throw error
 }
 
-async function fetchAndStorePage(
+// Fetches a page, structures it with LLM, and stores artifacts + source_page row.
+async function fetchStructureAndStorePage(
   admin: AdminClient,
   params: { pageUrl: string; tenantId: string; sourceId: string; botId: string }
 ): Promise<{ contentHash: string; section: string } | null> {
   const page = await fetchPage(params.pageUrl)
   if (!page.text) return null
+
+  // LLM structuring step
+  const structuredText = await structureWithLLM(page.url, page.text)
+
   const rawPath = artifactPath(params.tenantId, params.sourceId, "raw", "html")
-  const textPath = artifactPath(params.tenantId, params.sourceId, "text", "txt")
+  const textPath = artifactPath(params.tenantId, params.sourceId, "llm", "md")
   await uploadArtifact(admin, rawPath, page.rawHtml, "text/html; charset=utf-8")
-  await uploadArtifact(admin, textPath, page.text, "text/plain; charset=utf-8")
+  await uploadArtifact(admin, textPath, structuredText, "text/plain; charset=utf-8")
+
+  const textBytes = new TextEncoder().encode(structuredText).byteLength
   await upsertSourcePage(admin, {
     sourceId: params.sourceId,
     tenantId: params.tenantId,
@@ -397,11 +442,11 @@ async function fetchAndStorePage(
     rawPath,
     textPath,
     rawBytes: new TextEncoder().encode(page.rawHtml).byteLength,
-    textBytes: new TextEncoder().encode(page.text).byteLength,
+    textBytes,
   })
   return {
     contentHash: page.contentHash,
-    section: [`## ${page.title ?? page.url}`, `URL: ${page.url}`, "", page.text].join("\n"),
+    section: [`## ${page.title ?? page.url}`, `URL: ${page.url}`, "", structuredText].join("\n"),
   }
 }
 
@@ -468,7 +513,7 @@ async function syncSourceText(admin: AdminClient, params: {
     [[`# ${params.sourceLabel}`, "", params.text].join("\n")],
     { type: "text/plain;charset=utf-8" }
   )
-  form.set("file", blob, toSafeFileName(`url-${params.sourceId}.txt`))
+  form.set("file", blob, toSafeFileName(`url-${params.sourceId}.md`))
 
   const uploadedRes = await openAiFetch("/files", { method: "POST", body: form })
   const uploaded = (await uploadedRes.json()) as { id?: string }
@@ -501,7 +546,7 @@ async function syncSourceText(admin: AdminClient, params: {
 // ─── Main Job Processor ───────────────────────────────────────────────────────
 
 async function processJob(admin: AdminClient, jobId: string, send: (event: SseEvent) => void) {
-  const workerId = `edge-${crypto.randomUUID().slice(0, 8)}`
+  const workerId = `edge-llm-${crypto.randomUUID().slice(0, 8)}`
 
   const { data: job } = await admin
     .from("indexing_jobs")
@@ -518,7 +563,7 @@ async function processJob(admin: AdminClient, jobId: string, send: (event: SseEv
       status: "running",
       started_at: new Date().toISOString(),
       worker_id: workerId,
-      lock_expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+      lock_expires_at: new Date(Date.now() + 20 * 60 * 1000).toISOString(), // 20 min for LLM calls
       error_message: null,
     })
     .eq("id", (job as any).id)
@@ -564,12 +609,14 @@ async function processJob(admin: AdminClient, jobId: string, send: (event: SseEv
     const pageHashes: string[] = []
     const aggregatedSections: string[] = []
     let pagesIndexed = 0
+    // Keep reference for error surfacing below
+    let lastResults: PromiseSettledResult<{ contentHash: string; section: string } | null>[] = []
 
     for (let i = 0; i < pageUrls.length; i += FETCH_CONCURRENCY) {
       const chunk = pageUrls.slice(i, i + FETCH_CONCURRENCY)
       const results = await Promise.allSettled(
         chunk.map((pageUrl) =>
-          fetchAndStorePage(admin, {
+          fetchStructureAndStorePage(admin, {
             pageUrl,
             tenantId: String(claimedAny.tenant_id),
             sourceId: String(sourceAny.id),
@@ -577,6 +624,7 @@ async function processJob(admin: AdminClient, jobId: string, send: (event: SseEv
           })
         )
       )
+      lastResults = results as typeof lastResults
       for (const result of results) {
         if (result.status === "fulfilled" && result.value) {
           pageHashes.push(result.value.contentHash)
@@ -584,11 +632,11 @@ async function processJob(admin: AdminClient, jobId: string, send: (event: SseEv
           pagesIndexed++
         }
       }
-      send({ type: "page_progress", done: pagesIndexed, total: pageUrls.length })
+      send({ type: "structuring_llm", done: pagesIndexed, total: pageUrls.length })
     }
 
     if (aggregatedSections.length === 0) {
-      const firstRejected = results.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined
+      const firstRejected = lastResults.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined
       const detail = firstRejected
         ? ` (${firstRejected.reason instanceof Error ? firstRejected.reason.message : String(firstRejected.reason)})`
         : ""
@@ -616,7 +664,7 @@ async function processJob(admin: AdminClient, jobId: string, send: (event: SseEv
 
     await admin.from("sources").update({
       status: "ready",
-      index_mode: "raw",
+      index_mode: "llm",
       content_hash: crypto.createHash("sha256").update(pageHashes.join("|")).digest("hex"),
     }).eq("id", sourceAny.id)
 
@@ -660,7 +708,6 @@ Deno.serve(async (req: Request) => {
     return new Response("Method not allowed", { status: 405, headers: CORS_HEADERS })
   }
 
-  // Parse request body
   let body: { jobId?: string }
   try {
     body = await req.json()

@@ -67,6 +67,7 @@ export type OperationSummary = {
   jobsDone7d: number
   unreadNotifications: number
   recentAudit: AuditLogRow[]
+  auditLast24h: AuditLogRow[]
   auditError: { message?: string } | null
 }
 
@@ -235,7 +236,7 @@ export async function fetchConsoleData(tenantId: string) {
     supabase
       .from("sources")
       .select(
-        "id, bot_id, type, status, url, file_name, file_size_bytes, file_search_provider, file_search_last_synced_at, file_search_error, created_at"
+        "id, bot_id, type, status, url, file_name, file_size_bytes, file_search_provider, file_search_last_synced_at, file_search_error, index_mode, created_at"
       )
       .order("created_at", { ascending: false })
       .limit(100),
@@ -339,6 +340,7 @@ export async function fetchOperationSummary(tenantId: string): Promise<Operation
   const sevenDayStart = dayStartISO(6)
   const today = dayStartISO(0)
   const jobsStart = timestampISO(7)
+  const auditWindowStart = timestampISO(1)
 
   const [
     { data: bots },
@@ -381,8 +383,9 @@ export async function fetchOperationSummary(tenantId: string): Promise<Operation
       .from("audit_logs")
       .select("id, tenant_id, actor_user_id, action, target_type, target_id, before_json, after_json, metadata, created_at")
       .eq("tenant_id", tenantId)
+      .gte("created_at", auditWindowStart)
       .order("created_at", { ascending: false })
-      .limit(8),
+      .limit(120),
   ])
 
   const rows = usage ?? []
@@ -407,6 +410,7 @@ export async function fetchOperationSummary(tenantId: string): Promise<Operation
   const botRows = bots ?? []
   const sourceRows = sources ?? []
   const jobRows = jobs ?? []
+  const auditRows = ((recentAudit ?? []) as AuditLogRow[])
 
   return {
     messagesToday,
@@ -430,7 +434,8 @@ export async function fetchOperationSummary(tenantId: string): Promise<Operation
     jobsFailed7d: jobRows.filter((job) => job.status === "failed").length,
     jobsDone7d: jobRows.filter((job) => job.status === "done" || job.status === "ready").length,
     unreadNotifications: notificationsMeta.count ?? 0,
-    recentAudit: (recentAudit ?? []) as AuditLogRow[],
+    recentAudit: auditRows.slice(0, 5),
+    auditLast24h: auditRows,
     auditError,
   }
 }

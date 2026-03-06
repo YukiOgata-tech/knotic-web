@@ -9,7 +9,10 @@
       "Bash(npm install:*)",
       "Bash(npx supabase:*)",
       "WebFetch(domain:supabase.com)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(SUPABASE_ACCESS_TOKEN=sbp_1ff9b62280b3b00adab601c30caca9797d83b61d npx supabase:*)",
+      "WebFetch(domain:make-it-tech.com)",
+      "Bash(curl:*)"
     ]
   }
 }

@@ -2,15 +2,45 @@ import { runIndexingWorkerAction, queueIndexAction } from "@/app/console/actions
 import { ConsoleAlerts } from "@/app/console/_components/console-alerts"
 import { fetchConsoleData, fetchOperationSummary, requireConsoleContext } from "@/app/console/_lib/data"
 import { firstParam, fmtDate } from "@/app/console/_lib/ui"
+import { AuditPreviewModal } from "@/app/console/operations/audit-preview-modal"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import Link from "next/link"
 import { Activity, AlertTriangle, Database, MessagesSquare, ShieldCheck } from "lucide-react"
 
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
+}
+
+const ACTION_LABELS: Record<string, string> = {
+  "bot.create": "Bot作成",
+  "bot.public.toggle": "Bot公開設定変更",
+  "bot.identity.update": "Bot情報更新",
+  "bot.hosted_config.update": "Hosted設定更新",
+  "source.url.add": "URLソース追加",
+  "source.pdf.add": "PDFソース追加",
+  "indexing.queue": "インデックス登録",
+  "widget.token.rotate": "Widgetトークン再発行",
+  "widget.allowed_origins.update": "Widget許可オリジン更新",
+  "api_key.create": "APIキー発行",
+  "api_key.revoke": "APIキー失効",
+  "tenant.create": "テナント作成",
+  "tenant.profile.update": "テナント情報更新",
+  "tenant.ai_settings.update": "AI設定更新",
+  "tenant.member.invite.create": "メンバー招待",
+  "tenant.member.invite.revoke": "招待取り消し",
+  "auth.email.update.requested": "メールアドレス変更申請",
+  "auth.password.updated": "パスワード変更",
+  "audit.test.write": "監査ログテスト",
+  "platform.impersonation.start": "閲覧モード開始（管理者）",
+  "platform.impersonation.stop": "閲覧モード終了（管理者）",
+  "platform.tenant.force_stop.enable": "テナント強制停止（管理者）",
+  "platform.tenant.force_stop.disable": "テナント強制停止解除（管理者）",
+  "platform.bot.force_stop.enable": "Bot強制停止（管理者）",
+  "platform.bot.force_stop.disable": "Bot強制停止解除（管理者）",
 }
 
 function toRateLabel(value: number | null) {
@@ -131,7 +161,7 @@ export default async function ConsoleOperationsPage({ searchParams }: PageProps)
               インデックスジョブ（過去7日）
             </CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-2 text-sm">
+          <CardContent className="grid gap-2 text-sm font-medium sm:text-lg">
             <p>待機中: {ops.jobsQueued}</p>
             <p>実行中: {ops.jobsRunning}</p>
             <p>完了（7日）: {ops.jobsDone7d}</p>
@@ -147,7 +177,7 @@ export default async function ConsoleOperationsPage({ searchParams }: PageProps)
               <ShieldCheck className="size-4" />
               直近の監査イベント
             </CardTitle>
-            <CardDescription>設定変更・公開切替・トークン操作などの記録</CardDescription>
+            <CardDescription>設定変更・公開切替・トークン操作などの記録（最新5件）</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-2 text-sm">
             {ops.auditError ? (
@@ -161,7 +191,10 @@ export default async function ConsoleOperationsPage({ searchParams }: PageProps)
                 className="rounded-md border border-black/20 bg-white/70 p-3 dark:border-white/10 dark:bg-slate-900/60"
               >
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline">{event.action}</Badge>
+                  <span className="text-sm font-medium">{ACTION_LABELS[event.action] ?? event.action}</span>
+                  <Badge variant="outline" className="font-mono text-[10px]">
+                    {event.action}
+                  </Badge>
                   <span className="text-xs text-muted-foreground">{fmtDate(event.created_at)}</span>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -173,6 +206,12 @@ export default async function ConsoleOperationsPage({ searchParams }: PageProps)
             {!ops.auditError && ops.recentAudit.length === 0 ? (
               <p className="text-xs text-muted-foreground">監査イベントはまだありません。</p>
             ) : null}
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <AuditPreviewModal rows={ops.auditLast24h} auditError={ops.auditError} />
+              <Button asChild size="sm" variant="ghost" className="h-8 px-2 text-xs">
+                <Link href="/console/audit">監査ログページへ</Link>
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </section>

@@ -199,7 +199,7 @@ function FeaturesExperience() {
           <h2 className="mt-3 text-2xl font-semibold leading-snug tracking-tight sm:text-3xl">
             URLを貼るか、PDFをアップロードするだけ。
             <br />
-            <span className="bg-gradient-to-r from-cyan-700 to-emerald-600 bg-clip-text text-transparent dark:from-cyan-300 dark:to-emerald-300">
+            <span className="bg-linear-to-r from-cyan-700 to-emerald-600 bg-clip-text text-transparent dark:from-cyan-300 dark:to-emerald-300">
               AIチャットボットが自動で完成します。
             </span>
           </h2>

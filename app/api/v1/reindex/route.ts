@@ -6,14 +6,10 @@ import { requireConsoleContext } from "@/app/console/_lib/data"
 import { assertTenantCanIndexData } from "@/lib/billing/limits"
 import { createAdminClient } from "@/lib/supabase/admin"
 
-// Lightweight route that handles auth, billing, and job creation for URL indexing.
-// Returns { jobId } which the client then passes to the Supabase Edge Function
-// to run the actual crawl+index pipeline with SSE streaming.
-//
-// To switch to Vercel Pro (inline SSE), remove this route and use /api/v1/index-url directly.
+// Queues a re-index job for an existing source and returns { jobId }.
+// The client then passes jobId to the Supabase Edge Function for actual processing.
 
 export async function POST(request: NextRequest) {
-  // Auth must be resolved outside any async streams
   let tenantId: string
   let userId: string
   let auditSupabase: Parameters<typeof writeAuditLog>[0]
@@ -33,40 +29,44 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "認証が必要です。" }, { status: 401 })
   }
 
-  let body: { botId?: string; url?: string; mode?: string }
+  let body: { sourceId?: string; botId?: string; mode?: string }
   try {
-    body = (await request.json()) as { botId?: string; url?: string; mode?: string }
+    body = (await request.json()) as { sourceId?: string; botId?: string; mode?: string }
   } catch {
     return Response.json({ error: "リクエストの形式が正しくありません。" }, { status: 400 })
   }
 
-  const { botId, url: rawUrl, mode } = body
+  const { sourceId, botId, mode } = body
   const indexMode = mode === "llm" ? "llm" : "raw"
-  if (!botId || !rawUrl) {
-    return Response.json({ error: "botId と url は必須です。" }, { status: 400 })
-  }
-
-  const url = rawUrl.trim()
-  try {
-    const parsed = new URL(url)
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      return Response.json({ error: "http/https 形式の URL を入力してください。" }, { status: 400 })
-    }
-  } catch {
-    return Response.json({ error: "正しい URL 形式で入力してください。" }, { status: 400 })
+  if (!sourceId) {
+    return Response.json({ error: "sourceId は必須です。" }, { status: 400 })
   }
 
   const admin = createAdminClient()
 
-  const { data: bot } = await admin
-    .from("bots")
-    .select("id")
-    .eq("id", botId)
-    .eq("tenant_id", tenantId)
+  // Verify source belongs to this tenant
+  const { data: source } = await admin
+    .from("sources")
+    .select("id, bot_id, type")
+    .eq("id", sourceId)
     .maybeSingle()
 
-  if (!bot) {
-    return Response.json({ error: "Bot が見つかりません。" }, { status: 404 })
+  if (!source) {
+    return Response.json({ error: "ソースが見つかりません。" }, { status: 404 })
+  }
+
+  // Verify bot belongs to this tenant
+  const resolvedBotId = botId ?? (source.bot_id as string | null) ?? ""
+  if (resolvedBotId) {
+    const { data: bot } = await admin
+      .from("bots")
+      .select("id")
+      .eq("id", resolvedBotId)
+      .eq("tenant_id", tenantId)
+      .maybeSingle()
+    if (!bot) {
+      return Response.json({ error: "Bot が見つかりません。" }, { status: 404 })
+    }
   }
 
   try {
@@ -78,30 +78,20 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const { data: insertedSource, error: insertError } = await admin
-    .from("sources")
-    .insert({
-      bot_id: botId,
-      type: "url",
-      status: "queued",
-      url,
-      created_by: userId,
-    })
-    .select("id")
-    .single()
-
-  if (insertError || !insertedSource) {
-    return Response.json({ error: "ソース作成に失敗しました。" }, { status: 500 })
+  // Reset source status to queued
+  await admin.from("sources").update({ status: "queued" }).eq("id", sourceId)
+  if (resolvedBotId) {
+    await admin.from("bots").update({ status: "queued" }).eq("id", resolvedBotId)
   }
 
   const jobId = crypto.randomUUID()
   const { error: jobError } = await admin.from("indexing_jobs").insert({
     id: jobId,
     tenant_id: tenantId,
-    bot_id: botId,
-    source_id: insertedSource.id,
+    bot_id: resolvedBotId || null,
+    source_id: sourceId,
     status: "queued",
-    job_type: "auto",
+    job_type: "manual",
     embedding_model: "text-embedding-3-small",
     requested_by: userId,
     index_mode: indexMode,
@@ -113,10 +103,10 @@ export async function POST(request: NextRequest) {
 
   await writeAuditLog(auditSupabase, {
     tenantId,
-    action: "source.url.add",
+    action: "indexing.queue",
     targetType: "source",
-    targetId: botId,
-    after: { bot_id: botId, url },
+    targetId: sourceId,
+    after: { bot_id: resolvedBotId || null, embedding_model: "text-embedding-3-small" },
   })
 
   return Response.json({ jobId })

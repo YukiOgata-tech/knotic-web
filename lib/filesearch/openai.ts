@@ -241,6 +241,27 @@ export async function syncSourceTextToOpenAiFileSearch(params: {
   return { vectorStoreId, fileId }
 }
 
+export async function cleanupSourceFromOpenAiFileSearch(params: {
+  vectorStoreId: string | null
+  fileId: string | null
+}) {
+  const { vectorStoreId, fileId } = params
+  if (!fileId) return
+
+  if (vectorStoreId) {
+    try {
+      await openAiFetch(
+        `/vector_stores/${encodeURIComponent(vectorStoreId)}/files/${encodeURIComponent(fileId)}`,
+        { method: "DELETE" }
+      )
+    } catch { /* best effort */ }
+  }
+
+  try {
+    await openAiFetch(`/files/${encodeURIComponent(fileId)}`, { method: "DELETE" })
+  } catch { /* best effort */ }
+}
+
 export async function syncBinaryFileToOpenAiFileSearch(params: {
   botId: string
   botPublicId: string

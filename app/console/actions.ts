@@ -14,7 +14,7 @@ import { createClient } from "@/lib/supabase/server"
 import { writeAuditLog } from "@/app/console/_lib/audit"
 import { requireConsoleContext } from "@/app/console/_lib/data"
 import { getAppUrl } from "@/lib/env"
-import { ALLOWED_FILE_EXTENSIONS, syncBinaryFileToOpenAiFileSearch } from "@/lib/filesearch/openai"
+import { ALLOWED_FILE_EXTENSIONS, cleanupSourceFromOpenAiFileSearch, syncBinaryFileToOpenAiFileSearch } from "@/lib/filesearch/openai"
 
 const ALLOWED_MODELS = [
   "5-nano",
@@ -554,6 +554,124 @@ export async function runIndexingWorkerAction(formData: FormData) {
         error: error instanceof Error ? error.message : "インデックス実行に失敗しました。",
       })
     )
+  }
+}
+
+export async function deleteSourceAction(formData: FormData) {
+  const redirectTo = String(formData.get("redirect_to") ?? "")
+  try {
+    const { supabase, tenantId } = await getTenantContext(true)
+    const sourceId = String(formData.get("source_id") ?? "")
+    const botId = String(formData.get("bot_id") ?? "")
+    if (!sourceId || !botId) throw new Error("sourceId と botId は必須です。")
+
+    const admin = createAdminClient()
+
+    // Verify source + bot belong to this tenant
+    const { data: source } = await admin
+      .from("sources")
+      .select("id, type, file_path, file_search_file_id")
+      .eq("id", sourceId)
+      .maybeSingle()
+    if (!source) throw new Error("ソースが見つかりません。")
+
+    const { data: bot } = await admin
+      .from("bots")
+      .select("id, file_search_vector_store_id")
+      .eq("id", botId)
+      .eq("tenant_id", tenantId)
+      .maybeSingle()
+    if (!bot) throw new Error("Bot が見つかりません。")
+
+    // Clean up OpenAI file search resources (best effort)
+    await cleanupSourceFromOpenAiFileSearch({
+      vectorStoreId: (bot as { file_search_vector_store_id?: string | null }).file_search_vector_store_id ?? null,
+      fileId: (source as { file_search_file_id?: string | null }).file_search_file_id ?? null,
+    })
+
+    // Delete storage file if present
+    const filePath = (source as { file_path?: string | null }).file_path ?? null
+    if (filePath) {
+      await admin.storage.from("source-files").remove([filePath])
+    }
+
+    // Hard delete source (cascades to source_pages, indexing_jobs via FK)
+    const { error: deleteError } = await admin.from("sources").delete().eq("id", sourceId)
+    if (deleteError) throw deleteError
+
+    // If no sources remain, reset bot status
+    const { data: remaining } = await admin
+      .from("sources")
+      .select("id")
+      .eq("bot_id", botId)
+      .limit(1)
+    if (!remaining?.length) {
+      await admin.from("bots").update({ status: "created" }).eq("id", botId)
+    }
+
+    await writeAuditLog(supabase, {
+      tenantId,
+      action: "source.delete",
+      targetType: "source",
+      targetId: sourceId,
+      after: { bot_id: botId },
+    })
+    redirect(toAppUrl(redirectTo, { notice: "ソースを削除しました。" }))
+  } catch (error) {
+    redirect(toAppUrl(redirectTo, { error: error instanceof Error ? error.message : "削除に失敗しました。" }))
+  }
+}
+
+export type SourcePage = {
+  canonical_url: string
+  title: string | null
+  status_code: number | null
+  fetched_at: string | null
+  text_bytes: number | null
+  text_path: string | null
+}
+
+export async function getSourcePagesAction(sourceId: string): Promise<{ pages: SourcePage[]; error?: string }> {
+  try {
+    const { tenantId } = await getTenantContext(false)
+    const admin = createAdminClient()
+    const { data, error } = await admin
+      .from("source_pages")
+      .select("canonical_url, title, status_code, fetched_at, text_bytes, text_path")
+      .eq("source_id", sourceId)
+      .eq("tenant_id", tenantId)
+      .order("fetched_at", { ascending: true })
+      .limit(200)
+    if (error) return { pages: [], error: error.message }
+    return { pages: (data ?? []) as SourcePage[] }
+  } catch (err) {
+    return { pages: [], error: err instanceof Error ? err.message : "取得に失敗しました。" }
+  }
+}
+
+export async function getSourceTextAction(
+  sourceId: string,
+  textPath: string
+): Promise<{ text: string | null; error?: string }> {
+  try {
+    const { tenantId } = await getTenantContext(false)
+    const admin = createAdminClient()
+    // Verify source belongs to tenant via source_pages
+    const { data: page } = await admin
+      .from("source_pages")
+      .select("text_path")
+      .eq("source_id", sourceId)
+      .eq("tenant_id", tenantId)
+      .eq("text_path", textPath)
+      .maybeSingle()
+    if (!page) return { text: null, error: "ファイルが見つかりません。" }
+
+    const { data, error } = await admin.storage.from("source-artifacts").download(textPath)
+    if (error || !data) return { text: null, error: error?.message ?? "ダウンロードに失敗しました。" }
+    const text = await data.text()
+    return { text }
+  } catch (err) {
+    return { text: null, error: err instanceof Error ? err.message : "取得に失敗しました。" }
   }
 }
 

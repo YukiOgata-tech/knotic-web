@@ -8,22 +8,31 @@ import {
   Check,
   ChevronLeft,
   ExternalLink,
+  FileText,
   Loader2,
   MonitorSmartphone,
   Palette,
   Settings2,
   SlidersHorizontal,
   Sparkles,
+  Trash2,
 } from "lucide-react"
 
+import { getSourcePagesAction, getSourceTextAction, type SourcePage } from "@/app/console/actions"
 import { HostedChatClient } from "@/app/chat-by-knotic/[public_id]/hosted-chat-client"
 import { PublicToggle } from "@/app/console/bots/public-toggle"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/client"
+import { getSupabasePublicEnv } from "@/lib/env"
 import { cn } from "@/lib/utils"
 
 type BotHostedConfig = {
@@ -67,6 +76,7 @@ type BotSourceRow = {
   file_search_provider: string | null
   file_search_last_synced_at: string | null
   file_search_error: string | null
+  index_mode: string | null
 }
 
 type WidgetTokenRow = {
@@ -92,8 +102,7 @@ type Props = {
   rotateWidgetTokenAction: ActionFn
   updateAllowedOriginsAction: ActionFn
   addFileSourceAction: ActionFn
-  queueIndexAction: ActionFn
-  runIndexingWorkerAction: ActionFn
+  deleteSourceAction: ActionFn
 }
 
 type ConfigTab = "basic" | "bot" | "ai" | "theme" | "widget" | "preview"
@@ -180,8 +189,7 @@ export function HostedConfigEditor({
   rotateWidgetTokenAction,
   updateAllowedOriginsAction,
   addFileSourceAction,
-  queueIndexAction,
-  runIndexingWorkerAction,
+  deleteSourceAction,
 }: Props) {
   const [activeTab, setActiveTab] = React.useState<ConfigTab>("basic")
 
@@ -213,6 +221,7 @@ export function HostedConfigEditor({
   const [aiFallbackModel, setAiFallbackModel] = React.useState(bot.ai_fallback_model ?? "")
   const [aiMaxOutputTokens, setAiMaxOutputTokens] = React.useState(String(bot.ai_max_output_tokens ?? 1200))
   const [addSourceTab, setAddSourceTab] = React.useState<"url" | "file">("url")
+  const [indexMode, setIndexMode] = React.useState<"raw" | "llm">("raw")
 
   type IndexStep = { id: string; label: string; status: "pending" | "active" | "done" }
   type UrlIndexingState = {
@@ -226,6 +235,15 @@ export function HostedConfigEditor({
   const urlInputRef = React.useRef<HTMLInputElement>(null)
   const router = useRouter()
 
+  type ReindexState = { sourceId: string | null; phase: "idle" | "running" | "done" | "error"; error: string | null }
+  const [reindexState, setReindexState] = React.useState<ReindexState>({ sourceId: null, phase: "idle", error: null })
+  const [confirmDeleteId, setConfirmDeleteId] = React.useState<string | null>(null)
+  const [confirmReindexId, setConfirmReindexId] = React.useState<string | null>(null)
+  const [deletingId, setDeletingId] = React.useState<string | null>(null)
+  const [addFileLoading, setAddFileLoading] = React.useState(false)
+  type SourceDetailState = { sourceId: string; pages: SourcePage[]; loading: boolean; error?: string; viewingPage: SourcePage | null; pageText: string | null; pageTextLoading: boolean; pageTextError?: string }
+  const [sourceDetail, setSourceDetail] = React.useState<SourceDetailState | null>(null)
+
   React.useEffect(() => {
     if (urlIndexing.phase === "done") {
       router.refresh()
@@ -234,6 +252,15 @@ export function HostedConfigEditor({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlIndexing.phase])
+
+  React.useEffect(() => {
+    if (reindexState.phase === "done") {
+      router.refresh()
+      const t = setTimeout(() => setReindexState({ sourceId: null, phase: "idle", error: null }), 2500)
+      return () => clearTimeout(t)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reindexState.phase])
 
   async function handleUrlSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -244,6 +271,7 @@ export function HostedConfigEditor({
       phase: "running",
       steps: [
         { id: "fetch", label: "ページを取得中", status: "active" },
+        ...(indexMode === "llm" ? [{ id: "llm", label: "LLM構造化", status: "pending" as const }] : []),
         { id: "openai", label: "OpenAIへ送信", status: "pending" },
       ],
       pageProgress: null,
@@ -255,7 +283,7 @@ export function HostedConfigEditor({
       const initRes = await fetch("/api/v1/index-url-init", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ botId: bot.id, url }),
+        body: JSON.stringify({ botId: bot.id, url, mode: indexMode }),
       })
       if (!initRes.ok) {
         const err = (await initRes.json().catch(() => ({ error: "初期化に失敗しました。" }))) as { error?: string }
@@ -265,25 +293,25 @@ export function HostedConfigEditor({
       const { jobId } = (await initRes.json()) as { jobId: string }
 
       // Step 2: Stream SSE from Supabase Edge Function (no Vercel timeout constraint)
-      const supabase = createSupabaseBrowserClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      const edgeFnUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/index-url`
-      const res = await fetch(edgeFnUrl, {
+      // verify_jwt=false: jobId (UUID) acts as auth — only created by authenticated editors
+      const { supabaseUrl, supabaseAnonKey } = getSupabasePublicEnv()
+      const edgeFn = indexMode === "llm" ? "index-url-llm" : "index-url"
+      const fnResponse = await fetch(`${supabaseUrl}/functions/v1/${edgeFn}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${session?.access_token ?? ""}`,
+          "apikey": supabaseAnonKey,
         },
         body: JSON.stringify({ jobId }),
       })
 
-      if (!res.ok || !res.body) {
-        const err = (await res.json().catch(() => ({ error: "エラーが発生しました。" }))) as { error?: string }
-        setUrlIndexing((s) => ({ ...s, phase: "error", error: err.error ?? "エラーが発生しました。" }))
+      if (!fnResponse.ok) {
+        const errText = await fnResponse.text().catch(() => "")
+        setUrlIndexing((s) => ({ ...s, phase: "error", error: `Edge Function エラー (${fnResponse.status}): ${errText}` }))
         return
       }
 
-      const reader = res.body.getReader()
+      const reader = fnResponse.body!.getReader()
       const decoder = new TextDecoder()
       let buffer = ""
 
@@ -317,8 +345,13 @@ export function HostedConfigEditor({
                 case "page_progress":
                   mark("fetch", "active", `ページ取得中 ${event.done as number} / ${event.total as number}`)
                   return { ...s, steps, pageProgress: { done: event.done as number, total: event.total as number } }
+                case "structuring_llm":
+                  mark("fetch", "done")
+                  mark("llm", "active", `LLM構造化中 ${event.done as number} / ${event.total as number}`)
+                  return { ...s, steps, pageProgress: { done: event.done as number, total: event.total as number } }
                 case "syncing_openai":
                   mark("fetch", "done")
+                  mark("llm", "done")
                   mark("openai", "active", "OpenAIへ送信中")
                   return { ...s, steps, pageProgress: null }
                 case "source_ready":
@@ -342,6 +375,93 @@ export function HostedConfigEditor({
         phase: "error",
         error: err instanceof Error ? err.message : "エラーが発生しました。",
       }))
+    }
+  }
+
+  async function handleOpenSourceDetail(sourceId: string) {
+    setSourceDetail({ sourceId, pages: [], loading: true, viewingPage: null, pageText: null, pageTextLoading: false })
+    const result = await getSourcePagesAction(sourceId)
+    setSourceDetail((s) => s ? { ...s, pages: result.pages, loading: false, error: result.error } : null)
+  }
+
+  async function handleViewPageText(page: SourcePage) {
+    if (!sourceDetail) return
+    setSourceDetail((s) => s ? { ...s, viewingPage: page, pageText: null, pageTextLoading: true, pageTextError: undefined } : null)
+    if (!page.text_path) {
+      setSourceDetail((s) => s ? { ...s, pageTextLoading: false, pageTextError: "このページのテキストパスが記録されていません。再インデックスを実行してください。" } : null)
+      return
+    }
+    const result = await getSourceTextAction(sourceDetail.sourceId, page.text_path)
+    setSourceDetail((s) => s ? { ...s, pageText: result.text, pageTextLoading: false, pageTextError: result.error } : null)
+  }
+
+  async function handleDeleteConfirm(sourceId: string) {
+    setDeletingId(sourceId)
+    const fd = new FormData()
+    fd.set("source_id", sourceId)
+    fd.set("bot_id", bot.id)
+    fd.set("redirect_to", redirectTo ?? "/console/bots")
+    await deleteSourceAction(fd)
+    // redirect() inside deleteSourceAction will navigate away; this line is unreachable
+    setDeletingId(null)
+  }
+
+  async function handleReindex(sourceId: string, mode: "raw" | "llm" = indexMode) {
+    if (reindexState.phase === "running") return
+    setReindexState({ sourceId, phase: "running", error: null })
+    try {
+      const initRes = await fetch("/api/v1/reindex", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceId, botId: bot.id, mode }),
+      })
+      if (!initRes.ok) {
+        const err = (await initRes.json().catch(() => ({ error: "再インデックスの開始に失敗しました。" }))) as { error?: string }
+        setReindexState({ sourceId, phase: "error", error: err.error ?? "エラーが発生しました。" })
+        return
+      }
+      const { jobId } = (await initRes.json()) as { jobId: string }
+
+      const { supabaseUrl, supabaseAnonKey } = getSupabasePublicEnv()
+      const edgeFn = mode === "llm" ? "index-url-llm" : "index-url"
+      const fnResponse = await fetch(`${supabaseUrl}/functions/v1/${edgeFn}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": supabaseAnonKey,
+        },
+        body: JSON.stringify({ jobId }),
+      })
+      if (!fnResponse.ok) {
+        const errText = await fnResponse.text().catch(() => "")
+        setReindexState({ sourceId, phase: "error", error: `Edge Function エラー (${fnResponse.status}): ${errText}` })
+        return
+      }
+
+      const reader = fnResponse.body!.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ""
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const parts = buffer.split("\n\n")
+        buffer = parts.pop() ?? ""
+        for (const part of parts) {
+          const line = part.trimStart()
+          if (!line.startsWith("data: ")) continue
+          try {
+            const event = JSON.parse(line.slice(6)) as { type: string; message?: string }
+            if (event.type === "source_ready") {
+              setReindexState({ sourceId, phase: "done", error: null })
+            } else if (event.type === "error") {
+              setReindexState({ sourceId, phase: "error", error: event.message ?? "エラーが発生しました。" })
+            }
+          } catch { /* JSON parse 失敗は無視 */ }
+        }
+      }
+    } catch (err) {
+      setReindexState({ sourceId, phase: "error", error: err instanceof Error ? err.message : "エラーが発生しました。" })
     }
   }
 
@@ -949,6 +1069,45 @@ export function HostedConfigEditor({
                     />
                     <Button type="submit" size="sm" disabled={!isEditor}>追加</Button>
                   </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] text-muted-foreground">インデックス方式:</span>
+                    <div className="inline-flex rounded-md bg-slate-100 p-0.5 dark:bg-slate-800/80">
+                      <button
+                        type="button"
+                        onClick={() => setIndexMode("raw")}
+                        className={cn(
+                          "rounded px-2.5 py-1 text-[11px] font-medium transition-all",
+                          indexMode === "raw"
+                            ? "bg-white text-slate-900 shadow-sm dark:bg-slate-950 dark:text-slate-100"
+                            : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                        )}
+                      >
+                        Rawテキスト
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIndexMode("llm")}
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded px-2.5 py-1 text-[11px] font-medium transition-all",
+                          indexMode === "llm"
+                            ? "bg-white text-slate-900 shadow-sm dark:bg-slate-950 dark:text-slate-100"
+                            : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                        )}
+                      >
+                        <Sparkles className="h-2.5 w-2.5" />
+                        LLM構造化
+                      </button>
+                    </div>
+                    {indexMode === "llm" ? (
+                      <span className="text-[11px] text-cyan-600 dark:text-cyan-400">
+                        gpt-4o-mini でページ内容を整理します（処理時間が増加します）
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-muted-foreground/60">
+                        HTMLからテキストを直接抽出します
+                      </span>
+                    )}
+                  </div>
                   <p className="text-[11px] text-muted-foreground">
                     ページURLを直接指定するか、サイトマップXML（.xml）を指定すると最大50ページを自動収集します。
                   </p>
@@ -1020,7 +1179,14 @@ export function HostedConfigEditor({
               )}
             </div>
           ) : (
-            <form action={addFileSourceAction} className="grid gap-2">
+            <form
+              action={async (fd) => {
+                setAddFileLoading(true)
+                await addFileSourceAction(fd)
+                setAddFileLoading(false)
+              }}
+              className="grid gap-2"
+            >
               <input type="hidden" name="redirect_to" value={redirectTo} />
               <input type="hidden" name="bot_id" value={bot.id} />
               <div className="flex gap-2 items-center">
@@ -1030,10 +1196,12 @@ export function HostedConfigEditor({
                   type="file"
                   accept=".pdf,.doc,.docx,.pptx,.tex,.txt,.md,.html,.css,.json,.c,.cpp,.cs,.go,.java,.js,.ts,.py,.rb,.rs,.sh,.php"
                   required
-                  disabled={!isEditor}
+                  disabled={!isEditor || addFileLoading}
                   className="flex-1"
                 />
-                <Button type="submit" size="sm" disabled={!isEditor}>追加</Button>
+                <Button type="submit" size="sm" disabled={!isEditor || addFileLoading}>
+                  {addFileLoading ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />アップロード中</> : "追加"}
+                </Button>
               </div>
               <p className="text-[11px] text-muted-foreground">
                 PDF・Word・PowerPoint・テキスト・コードなど対応。1ファイル最大20MB。
@@ -1063,6 +1231,16 @@ export function HostedConfigEditor({
                       {source.type === "url" ? "URL" : "PDF"}
                     </span>
                     <SourceStatusBadge status={source.status} />
+                    {source.index_mode === "llm" ? (
+                      <span className="inline-flex items-center gap-0.5 rounded-full bg-cyan-100 px-1.5 py-0.5 text-[10px] font-medium text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400">
+                        <Sparkles className="h-2.5 w-2.5" />
+                        LLM構造化
+                      </span>
+                    ) : source.index_mode === "raw" ? (
+                      <span className="inline-flex items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                        Raw
+                      </span>
+                    ) : null}
                     {source.file_size_bytes ? (
                       <span className="text-[10px] text-muted-foreground">{formatMbFromBytes(source.file_size_bytes)}</span>
                     ) : null}
@@ -1076,35 +1254,131 @@ export function HostedConfigEditor({
                     <p className="text-[11px] text-rose-600 dark:text-rose-400">エラー: {source.file_search_error}</p>
                   ) : null}
                 </div>
-                <form action={queueIndexAction} className="shrink-0">
-                  <input type="hidden" name="redirect_to" value={redirectTo} />
-                  <input type="hidden" name="source_id" value={source.id} />
-                  <input type="hidden" name="bot_id" value={bot.id} />
-                  <Button type="submit" size="sm" variant="outline" disabled={!isEditor}>
-                    再インデックス
-                  </Button>
-                </form>
+                <div className="shrink-0 grid gap-1 text-right">
+                  {deletingId === source.id ? (
+                    <div className="flex items-center gap-1.5 text-rose-600 dark:text-rose-400">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span className="text-[11px]">削除中...</span>
+                    </div>
+                  ) : confirmDeleteId === source.id ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400">削除しますか？</span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => { setConfirmDeleteId(null); void handleDeleteConfirm(source.id) }}
+                      >
+                        削除する
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setConfirmDeleteId(null)}
+                      >
+                        キャンセル
+                      </Button>
+                    </div>
+                  ) : confirmReindexId === source.id ? (
+                    <div className="grid gap-1.5 text-right">
+                      <div className="flex items-center gap-1.5 justify-end">
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400">再実行しますか？</span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => { setConfirmReindexId(null); void handleReindex(source.id, indexMode) }}
+                        >
+                          実行
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setConfirmReindexId(null)}
+                        >
+                          キャンセル
+                        </Button>
+                      </div>
+                      <div className="inline-flex items-center gap-1 justify-end">
+                        <span className="text-[10px] text-muted-foreground">方式:</span>
+                        <div className="inline-flex rounded bg-slate-100 p-0.5 dark:bg-slate-800">
+                          <button
+                            type="button"
+                            onClick={() => setIndexMode("raw")}
+                            className={cn(
+                              "rounded px-2 py-0.5 text-[10px] font-medium transition-all",
+                              indexMode === "raw"
+                                ? "bg-white text-slate-900 shadow-sm dark:bg-slate-950 dark:text-slate-100"
+                                : "text-slate-400 hover:text-slate-600 dark:text-slate-500"
+                            )}
+                          >
+                            Raw
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setIndexMode("llm")}
+                            className={cn(
+                              "inline-flex items-center gap-0.5 rounded px-2 py-0.5 text-[10px] font-medium transition-all",
+                              indexMode === "llm"
+                                ? "bg-white text-slate-900 shadow-sm dark:bg-slate-950 dark:text-slate-100"
+                                : "text-slate-400 hover:text-slate-600 dark:text-slate-500"
+                            )}
+                          >
+                            <Sparkles className="h-2 w-2" />
+                            LLM
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={!isEditor || reindexState.phase === "running"}
+                        onClick={() => setConfirmReindexId(source.id)}
+                      >
+                        {reindexState.sourceId === source.id && reindexState.phase === "running" ? (
+                          <><Loader2 className="mr-1 h-3 w-3 animate-spin" />処理中</>
+                        ) : reindexState.sourceId === source.id && reindexState.phase === "done" ? (
+                          <><Check className="mr-1 h-3 w-3" />完了</>
+                        ) : "再インデックス"}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => void handleOpenSourceDetail(source.id)}
+                        className="text-slate-400 hover:text-cyan-600 dark:text-slate-500 dark:hover:text-cyan-400"
+                        title="インデックス内容を確認"
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        disabled={!isEditor}
+                        onClick={() => setConfirmDeleteId(source.id)}
+                        className="text-slate-400 hover:text-rose-500 dark:text-slate-500 dark:hover:text-rose-400"
+                        title="ソースを削除"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  )}
+                  {reindexState.sourceId === source.id && reindexState.phase === "error" && (
+                    <p className="text-[10px] text-rose-600 dark:text-rose-400">{reindexState.error}</p>
+                  )}
+                </div>
               </div>
             ))
           )}
         </div>
 
-        {/* ③ インデックスワーカー実行（操作フローの最後） */}
-        <form
-          action={runIndexingWorkerAction}
-          className="flex items-center justify-between gap-3 rounded-lg border border-black/20 bg-slate-50/80 px-3 py-2.5 dark:border-white/10 dark:bg-slate-800/30"
-        >
-          <input type="hidden" name="redirect_to" value={redirectTo} />
-          <div className="grid gap-0.5">
-            <p className="text-xs font-medium">インデックスを実行</p>
-            <p className="text-[11px] text-muted-foreground">
-              追加・再インデックス後に実行します。待機中のジョブを1件処理します。
-            </p>
-          </div>
-          <Button type="submit" size="sm" className="shrink-0" disabled={!isEditor}>
-            実行
-          </Button>
-        </form>
       </section>
 
       {!hasHostedPage ? (
@@ -1148,6 +1422,115 @@ export function HostedConfigEditor({
           </div>
         </div>
       ) : null}
+
+      {/* ソース詳細ダイアログ */}
+      <Dialog open={sourceDetail !== null} onOpenChange={(open) => { if (!open) setSourceDetail(null) }}>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-sm">インデックス内容の確認</DialogTitle>
+          </DialogHeader>
+
+          {sourceDetail?.loading ? (
+            <div className="flex items-center justify-center py-12 text-sm text-muted-foreground gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              読み込み中...
+            </div>
+          ) : sourceDetail?.error ? (
+            <p className="text-sm text-rose-600 dark:text-rose-400 py-4">{sourceDetail.error}</p>
+          ) : sourceDetail?.viewingPage ? (
+            /* ページ本文ビュー */
+            <div className="flex flex-col gap-3 min-h-0">
+              <button
+                type="button"
+                onClick={() => setSourceDetail((s) => s ? { ...s, viewingPage: null, pageText: null } : null)}
+                className="self-start text-xs text-muted-foreground hover:text-slate-700 dark:hover:text-slate-200 flex items-center gap-1"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+                ページ一覧に戻る
+              </button>
+              <div className="min-w-0">
+                <p className="text-xs font-medium truncate">{sourceDetail.viewingPage.title ?? sourceDetail.viewingPage.canonical_url}</p>
+                <p className="text-[11px] text-muted-foreground truncate">{sourceDetail.viewingPage.canonical_url}</p>
+              </div>
+              {sourceDetail.pageTextLoading ? (
+                <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  テキストを読み込み中...
+                </div>
+              ) : sourceDetail.pageText ? (
+                <div className="flex-1 overflow-y-auto rounded-md border border-black/10 dark:border-white/10 bg-slate-50 dark:bg-slate-900/60 p-3">
+                  <pre className="whitespace-pre-wrap text-[11px] leading-relaxed text-slate-700 dark:text-slate-300 font-mono">
+                    {sourceDetail.pageText}
+                  </pre>
+                </div>
+              ) : (
+                <div className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800/50 dark:bg-amber-900/20 px-3 py-3 text-xs text-amber-800 dark:text-amber-300 grid gap-1">
+                  <p className="font-medium">テキストファイルが見つかりません</p>
+                  {sourceDetail.pageTextError ? (
+                    <p className="text-[11px] opacity-80">{sourceDetail.pageTextError}</p>
+                  ) : null}
+                  <p className="text-[11px] opacity-70 mt-0.5">
+                    Supabase Dashboard → Storage で <code className="font-mono bg-amber-100 dark:bg-amber-900/50 px-1 rounded">source-artifacts</code> バケット（Private）を作成後、再インデックスを実行してください。
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* ページ一覧ビュー */
+            <div className="flex flex-col gap-3 min-h-0">
+              {sourceDetail && sourceDetail.pages.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">
+                  インデックス済みページが見つかりません。<br />
+                  URLソースは再インデックスを実行してください。
+                </p>
+              ) : (
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    {sourceDetail?.pages.length ?? 0} ページがインデックスされています。テキストを確認するにはページをクリックしてください。
+                  </p>
+                  <div className="flex-1 overflow-y-auto grid gap-1">
+                    {sourceDetail?.pages.map((page, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => void handleViewPageText(page)}
+                        className="text-left rounded-md border border-black/10 dark:border-white/10 px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors group"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium truncate group-hover:text-cyan-700 dark:group-hover:text-cyan-300">
+                              {page.title ?? "(タイトルなし)"}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                              {page.canonical_url}
+                            </p>
+                          </div>
+                          <div className="shrink-0 flex items-center gap-2 text-[10px] text-muted-foreground">
+                            {page.text_bytes ? (
+                              <span>{(page.text_bytes / 1024).toFixed(1)} KB</span>
+                            ) : null}
+                            <span className={cn(
+                              "rounded-full px-1.5 py-0.5 font-medium",
+                              page.status_code === 200
+                                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                                : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                            )}>
+                              {page.status_code ?? "-"}
+                            </span>
+                          </div>
+                        </div>
+                        {page.fetched_at ? (
+                          <p className="text-[10px] text-muted-foreground/60 mt-1">{formatDateTime(page.fetched_at)}</p>
+                        ) : null}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
