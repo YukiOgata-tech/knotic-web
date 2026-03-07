@@ -41,3 +41,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# audition-pre local assets
+public/images/logo-mhl.avif
+public/images/logo-uni.png
+public/images/kid.png
+public/images/canada.png
+public/images/club.jpg

@@ -1,0 +1,674 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>尾形友輝_自己プレゼン</title>
+<style>
+  :root {
+    --bg:#071a14;
+    --bg2:#0b251d;
+    --panel:rgba(255,255,255,.08);
+    --panel2:rgba(255,255,255,.12);
+    --line:rgba(255,255,255,.18);
+    --text:#f3fbf7;
+    --muted:#d0e7de;
+    --green:#1E7F5A;
+    --green2:#7CC9A9;
+    --green3:#b7ead6;
+    --shadow:0 30px 80px rgba(0,0,0,.35);
+  }
+  * { box-sizing:border-box; }
+  html,body { height:100%; margin:0; }
+  body {
+    font-family:"Yu Gothic","YuGothic","Meiryo",system-ui,sans-serif;
+    background:
+      radial-gradient(circle at 15% 20%, rgba(124,201,169,.18), transparent 25%),
+      radial-gradient(circle at 85% 10%, rgba(30,127,90,.22), transparent 22%),
+      linear-gradient(135deg, #071a14 0%, #0b251d 45%, #123325 100%);
+    color:var(--text);
+    overflow:hidden;
+  }
+  #fx {
+    position:fixed; inset:0; width:100%; height:100%; z-index:0; opacity:.55;
+  }
+  .deck {
+    position:relative; z-index:2; height:100vh; display:flex; align-items:center; justify-content:center;
+    padding:24px;
+  }
+  .slide {
+    width:1280px;
+    height:720px;
+    position:absolute;
+    left:50%;
+    top:50%;
+    margin-left:-640px;
+    margin-top:-360px;
+    border-radius:34px;
+    overflow:hidden;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02)),
+      linear-gradient(135deg, rgba(124,201,169,.07), rgba(255,255,255,.02));
+    border:1px solid rgba(255,255,255,.12);
+    box-shadow:var(--shadow);
+    backdrop-filter: blur(10px);
+    opacity:0; transform: translateX(90px) scale(.98);
+    transition: all .55s cubic-bezier(.2,.8,.2,1);
+    pointer-events:none;
+    transform-origin:center center;
+  }
+  .slide.active {
+    opacity:1; transform: translateX(0) scale(1); pointer-events:auto;
+  }
+  .slide.prev { transform:translateX(-90px) scale(.98); opacity:0; }
+  .noise {
+    position:absolute; inset:0; opacity:.08; pointer-events:none;
+    background-image:
+      radial-gradient(circle at 20% 20%, #fff 0 1px, transparent 1px),
+      radial-gradient(circle at 80% 30%, #fff 0 1px, transparent 1px),
+      radial-gradient(circle at 50% 80%, #fff 0 1px, transparent 1px);
+    background-size: 14px 14px, 18px 18px, 22px 22px;
+    mix-blend-mode:screen;
+  }
+  .frame {
+    position:absolute; inset:0;
+    padding:46px 56px 46px 56px;
+  }
+  .topbar {
+    display:flex; align-items:center; justify-content:space-between; margin-bottom:24px;
+  }
+  .brand {
+    display:inline-flex; align-items:center; gap:14px; font-size:18px; color:var(--muted); letter-spacing:.08em;
+    white-space:nowrap; flex-shrink:0;
+  }
+  .brand .dot {
+    width:14px; height:14px; border-radius:999px; background:linear-gradient(135deg, var(--green2), var(--green));
+    box-shadow:0 0 20px rgba(124,201,169,.45);
+  }
+  .tag {
+    display:inline-flex; align-items:center; gap:10px; padding:10px 16px; border-radius:999px;
+    background:rgba(124,201,169,.10); border:1px solid rgba(124,201,169,.28);
+    color:#dbf7eb; font-weight:700; font-size:14px; letter-spacing:.08em;
+    white-space:nowrap; flex-shrink:0;
+  }
+  .grid-hero {
+    display:grid; grid-template-columns: 1.08fr .92fr; gap:34px; height:calc(100% - 70px);
+  }
+  h1,h2,h3,p { margin:0; }
+  .eyebrow {
+    color:var(--green3); font-size:18px; font-weight:800; letter-spacing:.18em; text-transform:uppercase;
+  }
+  .hero-title {
+    font-size:70px; line-height:1.02; font-weight:900; letter-spacing:-.03em; margin-top:20px;
+  }
+  .hero-sub {
+    margin-top:22px; font-size:26px; line-height:1.45; color:var(--muted); font-weight:700;
+  }
+  .hero-note {
+    margin-top:28px; display:flex; gap:16px; flex-wrap:wrap;
+  }
+  .pill {
+    padding:12px 18px; border-radius:999px; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.10);
+    font-size:16px; color:#eaf8f1; font-weight:700;
+  }
+  .hero-photo-wrap {
+    position:relative; height:100%; min-height:0;
+  }
+  .hero-photo {
+    position:absolute; inset:0;
+    background:
+      linear-gradient(180deg, rgba(7,26,20,.00), rgba(7,26,20,.18)),
+      linear-gradient(135deg, rgba(30,127,90,.25), rgba(124,201,169,.10)),
+      url('/images/logo-mhl.avif');
+    background-size: auto, auto, cover;
+    background-position: center, center, center;
+    background-repeat: no-repeat;
+    border-radius:30px;
+    overflow:hidden;
+  }
+  .hero-photo::after {
+    content:"";
+    position:absolute; inset:0;
+    background:linear-gradient(135deg, rgba(30,127,90,.10), rgba(124,201,169,.00) 45%, rgba(255,255,255,.00));
+  }
+  .hero-photo::before {
+    position:absolute; inset:auto 24px 24px 24px;
+    padding:14px 18px; border-radius:18px;
+    background:rgba(7,26,20,.55); border:1px solid rgba(255,255,255,.10);
+    font-weight:900; letter-spacing:.08em;
+  }
+  .glow {
+    position:absolute; width:320px; height:320px; border-radius:50%;
+    background:radial-gradient(circle, rgba(124,201,169,.18), transparent 60%);
+    filter:blur(10px);
+  }
+  .glow.g1 { left:-80px; top:-80px; }
+  .glow.g2 { right:-80px; bottom:-80px; }
+  .stat-row {
+    display:grid; grid-template-columns: repeat(3, 1fr); gap:18px; margin-top:34px;
+  }
+  .stat {
+    padding:20px 22px; border-radius:24px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.10);
+  }
+  .stat .label { color:var(--muted); font-size:14px; letter-spacing:.10em; font-weight:800; }
+  .stat .value { margin-top:8px; font-size:34px; font-weight:900; }
+  .page-title {
+    font-size:48px; font-weight:900; letter-spacing:-.03em;
+  }
+  .section-grid {
+    display:grid; grid-template-columns: 1.04fr .96fr; gap:28px; height:calc(100% - 80px);
+    margin-top:18px;
+  }
+  .panel {
+    background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.10); border-radius:28px;
+    padding:22px;
+    position:relative; overflow:hidden;
+  }
+  .profile-list {
+    display:grid; gap:16px; margin-top:0px;
+  }
+  .profile-item {
+    display:grid; grid-template-columns: 170px 1fr; align-items:center;
+    padding:6px 0; border-bottom:1px solid rgba(255,255,255,.08);
+  }
+  .profile-item:last-child { border-bottom:none; }
+  .profile-item .k { color:var(--green3); font-weight:900; letter-spacing:.05em; font-size:12px; }
+  .profile-item .v { font-size:28px; font-weight:900; }
+  .mini-note {
+    margin-top:18px; color:var(--muted); font-size:17px; line-height:1.7; font-weight:700;
+  }
+  .collage {
+    display:grid; grid-template-columns: 1.15fr .85fr; grid-template-rows: 1fr 1fr; gap:16px; height:100%;
+  }
+  .photo {
+    border-radius:24px; overflow:hidden; background-size:cover; background-position:center;
+    position:relative;
+    background:linear-gradient(135deg, rgba(30,127,90,.55), rgba(124,201,169,.18));
+  }
+  .photo-campus {
+    background-image:
+      linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.18)),
+      url('/images/logo-uni.png');
+    background-color:#ffffff;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+  .photo-portrait {
+    background-image:
+      url('/images/kid.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+  .photo-canada {
+    background-image:
+      linear-gradient(180deg, rgba(7,26,20,.10), rgba(7,26,20,.28)),
+      url('/images/canada.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+
+  .photo:after {
+    content:""; position:absolute; inset:0; background:linear-gradient(180deg, rgba(7,26,20,.05), rgba(7,26,20,.25));
+  }
+  .photo.large { grid-row:1 / span 2; }
+  .card-label {
+    position:absolute; left:16px; bottom:16px; z-index:2;
+    padding:10px 14px; border-radius:999px; background:rgba(7,26,20,.55); border:1px solid rgba(255,255,255,.10);
+    font-size:14px; font-weight:800; color:#fff;
+  }
+  .impact {
+    display:grid; grid-template-columns: .92fr 1.08fr; gap:28px; height:calc(100% - 80px); margin-top:18px;
+  }
+  .big-number {
+    font-size:112px; line-height:.9; font-weight:1000; letter-spacing:-.06em;
+    background:linear-gradient(180deg, #fff, #bfead8 70%);
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  }
+  .big-unit { font-size:28px; color:var(--muted); font-weight:800; letter-spacing:.14em; }
+  .achievement-list {
+    margin-top:18px; display:grid; gap:10px;
+  }
+  .achievement {
+    padding:12px 16px; border-radius:18px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.10);
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .achievement .year { color:var(--green3); font-size:15px; font-weight:900; }
+  .achievement .desc { font-size:23px; font-weight:900; }
+  .bg-photo-panel {
+    position:relative; border-radius:28px; overflow:hidden; min-height:0;
+    background:
+      linear-gradient(180deg, rgba(7,26,20,.32), rgba(7,26,20,.58)),
+      linear-gradient(135deg, rgba(30,127,90,.22), rgba(124,201,169,.10)),
+      url('/images/club.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    border:1px solid rgba(255,255,255,.10);
+  }
+  .quote {
+    position:absolute; left:28px; bottom:26px; right:28px;
+    font-size:30px; line-height:1.3; font-weight:900;
+  }
+  .timeline-wrap {
+    display:grid; grid-template-columns: .95fr 1.05fr; gap:30px; height:calc(100% - 80px); margin-top:18px;
+  }
+  .timeline {
+    position:relative; padding-left:54px; margin-top:24px;
+  }
+  .timeline:before {
+    content:""; position:absolute; left:20px; top:4px; bottom:8px; width:4px; border-radius:999px;
+    background:linear-gradient(180deg, rgba(124,201,169,.95), rgba(124,201,169,.25));
+  }
+  .step {
+    position:relative; padding:0 0 6px 0;
+  }
+  .step:before {
+    content:""; position:absolute; left:-40px; top:5px; width:18px; height:18px; border-radius:999px;
+    background:linear-gradient(135deg, var(--green2), var(--green)); box-shadow:0 0 0 8px rgba(124,201,169,.10);
+  }
+  .step .when { color:var(--green3); font-size:16px; font-weight:900; letter-spacing:.04em; }
+  .step .what { margin-top:2px; font-size:24px; font-weight:900; }
+  .step .meta { margin-top:1px; color:var(--muted); font-size:17px; line-height:1.6; font-weight:700; }
+  .browser {
+    height:100%; border-radius:28px; overflow:hidden; border:1px solid rgba(255,255,255,.10);
+    background:rgba(255,255,255,.05);
+  }
+  .browser-top {
+    display:flex; align-items:center; gap:10px; padding:16px 18px; border-bottom:1px solid rgba(255,255,255,.08);
+    background:rgba(255,255,255,.05);
+  }
+  .browser-top span {
+    width:12px; height:12px; border-radius:999px; background:rgba(255,255,255,.4);
+  }
+  .browser-body {
+    padding:28px; height:calc(100% - 60px); display:grid; grid-template-rows:auto auto 1fr; gap:16px;
+  }
+  .ui-title {
+    font-size:18px; color:var(--green3); letter-spacing:.12em; font-weight:900;
+  }
+  .hero-ui {
+    padding:28px; border-radius:24px;
+    background:linear-gradient(135deg, rgba(30,127,90,.55), rgba(124,201,169,.18));
+    border:1px solid rgba(255,255,255,.12);
+  }
+  .hero-ui h3 { font-size:34px; font-weight:900; line-height:1.1; }
+  .hero-ui p { margin-top:10px; color:#ebfff5; font-size:18px; line-height:1.7; font-weight:700; }
+  .metric-row {
+    display:grid; grid-template-columns: repeat(3,1fr); gap:14px;
+  }
+  .metric {
+    padding:18px; border-radius:20px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.10);
+  }
+  .metric .n { font-size:34px; font-weight:900; }
+  .metric .l { font-size:13px; color:var(--muted); font-weight:800; letter-spacing:.08em; margin-top:6px; }
+  .site-lines {
+    display:grid; gap:10px;
+  }
+  .site-lines div {
+    height:14px; border-radius:999px; background:linear-gradient(90deg, rgba(255,255,255,.15), rgba(255,255,255,.05));
+  }
+  .insert-image-area {
+    min-height:0;
+    border-radius:24px;
+    border:1px dashed rgba(255,255,255,.22);
+    background:
+      linear-gradient(180deg, rgba(7,26,20,.16), rgba(7,26,20,.32)),
+      linear-gradient(135deg, rgba(30,127,90,.35), rgba(124,201,169,.15));
+    position:relative;
+    overflow:hidden;
+  }
+  .insert-image-area::before {
+    content:"";
+    position:absolute; inset:0;
+    background:
+      radial-gradient(circle at 20% 20%, rgba(124,201,169,.22), transparent 38%),
+      radial-gradient(circle at 80% 70%, rgba(30,127,90,.2), transparent 34%);
+  }
+  .insert-image-area::after {
+    content:"IMAGE AREA";
+    position:absolute; left:18px; bottom:14px;
+    color:rgba(255,255,255,.82);
+    font-size:14px; font-weight:900; letter-spacing:.12em;
+    padding:8px 12px; border-radius:999px;
+    background:rgba(7,26,20,.45);
+    border:1px solid rgba(255,255,255,.16);
+  }
+  .vision {
+    display:grid; grid-template-columns: 1fr .95fr; gap:30px; height:calc(100% - 80px); margin-top:18px;
+  }
+  .vision-core {
+    position:relative; display:flex; align-items:center; justify-content:center;
+    min-height:0;
+  }
+  .rings {
+    position:absolute; width:520px; height:520px; border-radius:50%;
+    border:1px solid rgba(255,255,255,.08);
+    box-shadow:inset 0 0 120px rgba(124,201,169,.05);
+  }
+  .rings.r2 { width:380px; height:380px; }
+  .rings.r3 { width:250px; height:250px; }
+  .vision-text {
+    position:relative; z-index:2; text-align:center;
+  }
+  .vision-text .mini { color:var(--green3); font-size:18px; font-weight:900; letter-spacing:.16em; }
+  .vision-text .main {
+    margin-top:20px; font-size:68px; line-height:1.04; font-weight:1000; letter-spacing:-.05em;
+  }
+  .action-list {
+    display:grid; gap:12px; margin-top:4px;
+  }
+  .action {
+    padding:14px 22px; border-radius:0px; background:rgba(255,255,255,.06); border-bottom:1px solid rgba(255,255,255,.10); border-top:1px solid rgba(255,255,255,.10);
+  }
+  .action .t {
+    color:var(--green3); font-size:15px; font-weight:900; letter-spacing:.1em;
+  }
+  .action .b {
+    margin-top:4px; font-size:28px; font-weight:900; line-height:1.35;
+  }
+  .action .s {
+    margin-top:8px; color:var(--muted); font-size:16px; line-height:1.6; font-weight:700;
+  }
+  .footer-note {
+    position:absolute; right:34px; bottom:26px; color:rgba(255,255,255,.65); font-size:14px; font-weight:700;
+    letter-spacing:.08em;
+  }
+  .controls {
+    position:fixed; left:50%; bottom:22px; transform:translateX(-50%);
+    z-index:4; display:flex; gap:12px; align-items:center;
+    padding:10px 14px; border-radius:999px; background:rgba(7,26,20,.66); border:1px solid rgba(255,255,255,.10);
+    backdrop-filter: blur(10px);
+  }
+  .btn {
+    width:48px; height:48px; border-radius:999px; border:1px solid rgba(255,255,255,.14);
+    background:rgba(255,255,255,.06); color:white; font-size:20px; cursor:pointer;
+  }
+  .counter {
+    min-width:74px; text-align:center; font-weight:900; color:var(--text);
+  }
+  .helper {
+    position:fixed; top:22px; right:22px; z-index:4;
+    padding:10px 14px; border-radius:999px; background:rgba(7,26,20,.66); border:1px solid rgba(255,255,255,.10);
+    color:var(--muted); font-size:13px; font-weight:800; letter-spacing:.08em;
+  }
+  .viewport {
+    position:fixed;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index:1;
+    pointer-events:none;
+  }
+  .stage {
+    width:1280px;
+    height:720px;
+    position:relative;
+    transform-origin:center center;
+    pointer-events:auto;
+  }
+</style>
+</head>
+<body>
+<canvas id="fx"></canvas>
+
+<div class="helper">← → で切替 / プレビュー用</div>
+
+<div class="viewport"><div class="stage"><div class="deck">
+  <section class="slide active" data-title="タイトル">
+    <div class="noise"></div>
+    <div class="frame">
+      <div class="topbar">
+        <div class="brand"><span class="dot"></span>MENTAL HEALTH LABO AUDITION</div>
+        <div class="tag">自己プレゼン資料</div>
+      </div>
+      <div class="grid-hero">
+        <div style="display:flex; flex-direction:column; justify-content:center;">
+          <div class="eyebrow">SUBSIDIARY AUDITION PITCH</div>
+          <h1 class="hero-title">メンタルヘルスラボ<br>子会社オーディション</h1>
+          <p class="hero-sub">新潟大学 工学部 3年 尾形 友輝</p>
+          <div class="hero-note">
+            <div class="pill">ENTP</div>
+            <div class="pill">情報電子分野</div>
+          </div>
+        </div>
+        <div class="hero-photo-wrap">
+          <div class="glow g1"></div>
+          <div class="glow g2"></div>
+          <div class="hero-photo"></div>
+        </div>
+      </div>
+      <div class="footer-note">01 / TITLE</div>
+    </div>
+  </section>
+
+  <section class="slide" data-title="自己紹介">
+    <div class="noise"></div>
+    <div class="frame">
+      <div class="topbar">
+        <div class="brand"><span class="dot"></span>PROFILE</div>
+        <div class="tag">田舎者ENTP</div>
+      </div>
+      <div class="section-grid">
+        <div class="panel">
+          <div class="profile-list">
+            <div class="profile-item"><div class="k">NAME</div><div class="v">尾形 友輝（おがた ゆうき）</div></div>
+            <div class="profile-item"><div class="k">AGE</div><div class="v">22歳</div></div>
+            <div class="profile-item"><div class="k">FROM</div><div class="v">山形県南陽市</div></div>
+            <div class="profile-item"><div class="k">AFFILIATION</div><div class="v">新潟大学 工学部</div></div>
+            <div class="profile-item"><div class="k">MBTI</div><div class="v">ENTP</div></div>
+          </div>
+          <div class="mini-note">議論を恐れず、未知の環境に飛び込む。<br>学生という枠にとどまらず、海外・起業・営業に挑戦してきた</div>
+        </div>
+        <div class="collage">
+          <div class="photo large photo-canada"><div class="card-label">Canada</div></div>
+          <div class="photo photo-portrait"><div class="card-label">Portrait</div></div>
+          <div class="photo photo-campus"><div class="card-label">Campus</div></div>
+        </div>
+      </div>
+      <div class="footer-note">02 / PROFILE</div>
+    </div>
+  </section>
+
+  <section class="slide" data-title="実績">
+    <div class="noise"></div>
+    <div class="frame">
+      <div class="topbar">
+        <div class="brand"><span class="dot"></span>LEADERSHIP & GRIT</div>
+        <div class="tag">天才の背景</div>
+      </div>
+      <div class="impact">
+        <div class="panel" style="display:flex; flex-direction:column; justify-content:center;">
+          <div class="page-title">リーダーシップと継続</div>
+          <div class="achievement-list">
+            <div class="achievement"><div><div class="year">学生活動</div><div class="desc">運動会組頭や生徒会</div></div><div>→</div></div>
+            <div class="achievement"><div><div class="year">部活動</div><div class="desc">12年以上のバスケットボール経験</div></div><div>→</div></div>
+            <div class="achievement"><div><div class="year">2019</div><div class="desc">県選抜・本国体出場</div></div><div>◎</div></div>
+            <div class="achievement"><div><div class="year">2021</div><div class="desc">インターハイ出場</div></div><div>◎</div></div>
+          </div>
+        </div>
+        <div class="bg-photo-panel">
+          <div class="quote">続ける力と、前に出る力。<br>この2つで勝負してきました。</div>
+        </div>
+      </div>
+      <div class="footer-note">03 / ACHIEVEMENTS</div>
+    </div>
+  </section>
+
+  <section class="slide" data-title="キャリア">
+    <div class="noise"></div>
+    <div class="frame">
+      <div class="topbar">
+        <div class="brand"><span class="dot"></span>CAREER MAP</div>
+        <div class="tag">キャリア</div>
+      </div>
+      <div class="timeline-wrap">
+        <div class="panel">
+          <div class="page-title">経歴</div>
+          <div class="timeline">
+            <div class="step">
+              <div class="when">2024 - 2025</div>
+              <div class="what">カナダでワーキングホリデー</div>
+              <div class="meta">休学して海外へ。環境を変え、自分の市場価値を外で試した経験。</div>
+            </div>
+            <div class="step">
+              <div class="when">2025 / 06</div>
+              <div class="what">個人事業 屋号「Make It Tech」</div>
+              <div class="meta">WEB制作などを軸に、営業と開発の両輪で仕事を得て作る動きを開始。</div>
+            </div>
+            <div class="step">
+              <div class="when">2025 / 12 (動画公開)</div>
+              <div class="what">就活ネオ 内定</div>
+              <div class="meta">社内ベンチャーをプレゼン。次は挑戦を、組織の事業開発へ接続していく。</div>
+            </div>
+          </div>
+        </div>
+        <div class="browser">
+          <div class="browser-top"><span></span><span></span><span></span></div>
+          <div class="browser-body">
+            <div class="ui-title">CONCEPT</div>
+            <div class="hero-ui">
+              <h3>どんな環境も関係なし</h3>
+              <p>目標を実現させる。<br>英語環境でも活躍できる人材に</p>
+            </div>
+            <div class="hero-ui">
+              <h3>技術と営業を分けない。</h3>
+              <p>作れる人が売り、売れる人が作る。<br>その両方を理解する人材として、事業の初速を作る。</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="footer-note">04 / CAREER</div>
+    </div>
+  </section>
+
+  <section class="slide" data-title="ビジョン">
+    <div class="noise"></div>
+    <div class="frame">
+      <div class="topbar">
+        <div class="brand"><span class="dot"></span>VISION</div>
+        <div class="tag">幸せの最大化と事業開発</div>
+      </div>
+      <div class="vision">
+        <div class="vision-core panel">
+          <div class="rings"></div>
+          <div class="rings r2"></div>
+          <div class="rings r3"></div>
+          <div class="vision-text">
+            <div class="mini">- Action -</div>
+            <div class="main">世の中に<br>幸せを感じる人を<br>増やしたい</div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="action-list">
+            <div class="action">
+              <div class="t">01 / 残りの学生期間中に</div>
+              <div class="b">新潟での個人事業拡大・行政書士合格</div>
+              <div class="s">活動を伸ばす。× 法律の視点を追加して幅を広げる</div>
+            </div>
+            <div class="action">
+              <div class="t">02 / 子会社オーディション</div>
+              <div class="b">投資型FCオーディションで勝つ</div>
+              <div class="s">メンタルヘルスラボとのFCと就活ネオでの事業案の実際の開発を進めていく。</div>
+            </div>
+            <div class="action">
+              <div class="t">03 / 今後の目標</div>
+              <div class="b">現状維持は退化！</div>
+              <div class="s">目標に向かって、成長していく</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="footer-note">05 / VISION</div>
+    </div>
+  </section>
+</div></div></div>
+
+<div class="controls">
+  <button class="btn" id="prev">‹</button>
+  <div class="counter" id="counter">1 / 5</div>
+  <button class="btn" id="next">›</button>
+</div>
+
+<script>
+const slides = [...document.querySelectorAll('.slide')];
+const stage = document.querySelector('.stage');
+function fitStage() {
+  const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+  stage.style.transform = `scale(${scale})`;
+}
+window.addEventListener('resize', fitStage);
+fitStage();
+let idx = 0;
+function render() {
+  slides.forEach((s, i) => {
+    s.classList.remove('active', 'prev');
+    if (i === idx) s.classList.add('active');
+    if (i < idx) s.classList.add('prev');
+  });
+  document.getElementById('counter').textContent = `${idx+1} / ${slides.length}`;
+}
+document.getElementById('prev').onclick = () => { idx = (idx - 1 + slides.length) % slides.length; render(); };
+document.getElementById('next').onclick = () => { idx = (idx + 1) % slides.length; render(); };
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { idx = Math.min(idx + 1, slides.length - 1); render(); }
+  if (e.key === 'ArrowLeft' || e.key === 'PageUp') { idx = Math.max(idx - 1, 0); render(); }
+});
+
+const canvas = document.getElementById('fx');
+const ctx = canvas.getContext('2d');
+let w, h;
+const dots = Array.from({length: 42}, () => ({
+  x: Math.random(),
+  y: Math.random(),
+  r: 1 + Math.random() * 3.5,
+  dx: (Math.random() - .5) * .0004,
+  dy: (Math.random() - .5) * .0004
+}));
+function resize() {
+  w = canvas.width = innerWidth * devicePixelRatio;
+  h = canvas.height = innerHeight * devicePixelRatio;
+  canvas.style.width = innerWidth + 'px';
+  canvas.style.height = innerHeight + 'px';
+}
+addEventListener('resize', resize);
+resize();
+function tick() {
+  ctx.clearRect(0,0,w,h);
+  for (const d of dots) {
+    d.x += d.dx; d.y += d.dy;
+    if (d.x < 0 || d.x > 1) d.dx *= -1;
+    if (d.y < 0 || d.y > 1) d.dy *= -1;
+  }
+  for (let i=0;i<dots.length;i++) {
+    const a = dots[i];
+    const ax = a.x*w, ay = a.y*h;
+    for (let j=i+1;j<dots.length;j++) {
+      const b = dots[j];
+      const bx = b.x*w, by = b.y*h;
+      const dist = Math.hypot(ax-bx, ay-by);
+      if (dist < 180*devicePixelRatio) {
+        ctx.strokeStyle = `rgba(124,201,169,${0.12 * (1 - dist/(180*devicePixelRatio))})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+      }
+    }
+  }
+  for (const d of dots) {
+    const x = d.x*w, y = d.y*h;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, d.r*12*devicePixelRatio);
+    g.addColorStop(0, 'rgba(124,201,169,.75)');
+    g.addColorStop(1, 'rgba(124,201,169,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y, d.r*12*devicePixelRatio, 0, Math.PI*2); ctx.fill();
+  }
+  requestAnimationFrame(tick);
+}
+tick();
+render();
+</script>
+</body>
+</html>
