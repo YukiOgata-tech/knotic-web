@@ -129,7 +129,12 @@ const DEFAULT_FOOTER_BG = "#f8fafc"
 const DEFAULT_FOOTER_TEXT = "#0f172a"
 const DEFAULT_WIDGET_POLICY =
   "チャット履歴はブラウザ上で24時間保持され、自動的に削除されます。"
-const MODEL_OPTIONS = ["5-nano", "5-mini", "5", "4o-mini", "4o"] as const
+const MODEL_OPTIONS = ["5-nano", "5-mini", "5"] as const
+const MODEL_LABELS: Record<string, string> = {
+  "5-nano": "Knotic Nano",
+  "5-mini": "Knotic Mini",
+  "5": "Knotic Standard",
+}
 const SELECT_CLASS =
   "h-11 rounded-md border border-black/15 bg-white px-3 text-base text-slate-900 [color-scheme:light] sm:h-10 sm:text-sm dark:border-white/15 dark:bg-slate-950 dark:text-slate-100 dark:[color-scheme:dark]"
 
@@ -229,14 +234,15 @@ export function HostedConfigEditor({
     steps: IndexStep[]
     pageProgress: { done: number; total: number } | null
     error: string | null
+    warnings: string[]
   }
-  const IDLE_STATE: UrlIndexingState = { phase: "idle", steps: [], pageProgress: null, error: null }
+  const IDLE_STATE: UrlIndexingState = { phase: "idle", steps: [], pageProgress: null, error: null, warnings: [] }
   const [urlIndexing, setUrlIndexing] = React.useState<UrlIndexingState>(IDLE_STATE)
   const urlInputRef = React.useRef<HTMLInputElement>(null)
   const router = useRouter()
 
-  type ReindexState = { sourceId: string | null; phase: "idle" | "running" | "done" | "error"; error: string | null }
-  const [reindexState, setReindexState] = React.useState<ReindexState>({ sourceId: null, phase: "idle", error: null })
+  type ReindexState = { sourceId: string | null; phase: "idle" | "running" | "done" | "error"; error: string | null; warnings: string[] }
+  const [reindexState, setReindexState] = React.useState<ReindexState>({ sourceId: null, phase: "idle", error: null, warnings: [] })
   const [confirmDeleteId, setConfirmDeleteId] = React.useState<string | null>(null)
   const [confirmReindexId, setConfirmReindexId] = React.useState<string | null>(null)
   const [deletingId, setDeletingId] = React.useState<string | null>(null)
@@ -256,7 +262,7 @@ export function HostedConfigEditor({
   React.useEffect(() => {
     if (reindexState.phase === "done") {
       router.refresh()
-      const t = setTimeout(() => setReindexState({ sourceId: null, phase: "idle", error: null }), 2500)
+      const t = setTimeout(() => setReindexState({ sourceId: null, phase: "idle", error: null, warnings: [] }), 2500)
       return () => clearTimeout(t)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -271,11 +277,12 @@ export function HostedConfigEditor({
       phase: "running",
       steps: [
         { id: "fetch", label: "ページを取得中", status: "active" },
-        ...(indexMode === "llm" ? [{ id: "llm", label: "LLM構造化", status: "pending" as const }] : []),
-        { id: "openai", label: "OpenAIへ送信", status: "pending" },
+        ...(indexMode === "llm" ? [{ id: "llm", label: "AI構造化", status: "pending" as const }] : []),
+        { id: "openai", label: "ナレッジに登録", status: "pending" },
       ],
       pageProgress: null,
       error: null,
+      warnings: [],
     })
 
     try {
@@ -345,20 +352,40 @@ export function HostedConfigEditor({
                 case "page_progress":
                   mark("fetch", "active", `ページ取得中 ${event.done as number} / ${event.total as number}`)
                   return { ...s, steps, pageProgress: { done: event.done as number, total: event.total as number } }
+                case "llm_structuring_page":
+                  mark("fetch", "done")
+                  mark("llm", "active", `AI構造化中...`)
+                  return { ...s, steps }
                 case "structuring_llm":
                   mark("fetch", "done")
-                  mark("llm", "active", `LLM構造化中 ${event.done as number} / ${event.total as number}`)
+                  mark("llm", "active", `AI構造化中 ${event.done as number} / ${event.total as number}`)
                   return { ...s, steps, pageProgress: { done: event.done as number, total: event.total as number } }
                 case "syncing_openai":
                   mark("fetch", "done")
                   mark("llm", "done")
-                  mark("openai", "active", "OpenAIへ送信中")
+                  mark("openai", "active", "ナレッジに登録中")
                   return { ...s, steps, pageProgress: null }
                 case "source_ready":
                   mark("fetch", "done")
                   mark("openai", "done")
                   if (urlInputRef.current) urlInputRef.current.value = ""
                   return { ...s, steps, phase: "done", pageProgress: null }
+                case "llm_input_truncated":
+                  return {
+                    ...s,
+                    warnings: [
+                      ...s.warnings,
+                      `文字数超過のため先頭${(event.limit as number).toLocaleString()}文字を使用: ${event.pageUrl as string}`,
+                    ],
+                  }
+                case "llm_output_truncated":
+                  return {
+                    ...s,
+                    warnings: [
+                      ...s.warnings,
+                      `AI出力が上限に達した可能性があります: ${event.pageUrl as string}`,
+                    ],
+                  }
                 case "error":
                   return { ...s, phase: "error", error: (event.message as string) ?? "エラーが発生しました。" }
               }
@@ -408,7 +435,7 @@ export function HostedConfigEditor({
 
   async function handleReindex(sourceId: string, mode: "raw" | "llm" = indexMode) {
     if (reindexState.phase === "running") return
-    setReindexState({ sourceId, phase: "running", error: null })
+    setReindexState({ sourceId, phase: "running", error: null, warnings: [] })
     try {
       const initRes = await fetch("/api/v1/reindex", {
         method: "POST",
@@ -417,7 +444,7 @@ export function HostedConfigEditor({
       })
       if (!initRes.ok) {
         const err = (await initRes.json().catch(() => ({ error: "再インデックスの開始に失敗しました。" }))) as { error?: string }
-        setReindexState({ sourceId, phase: "error", error: err.error ?? "エラーが発生しました。" })
+        setReindexState((s) => ({ ...s, phase: "error", error: err.error ?? "エラーが発生しました。" }))
         return
       }
       const { jobId } = (await initRes.json()) as { jobId: string }
@@ -434,7 +461,7 @@ export function HostedConfigEditor({
       })
       if (!fnResponse.ok) {
         const errText = await fnResponse.text().catch(() => "")
-        setReindexState({ sourceId, phase: "error", error: `Edge Function エラー (${fnResponse.status}): ${errText}` })
+        setReindexState((s) => ({ ...s, phase: "error", error: `Edge Function エラー (${fnResponse.status}): ${errText}` }))
         return
       }
 
@@ -451,17 +478,27 @@ export function HostedConfigEditor({
           const line = part.trimStart()
           if (!line.startsWith("data: ")) continue
           try {
-            const event = JSON.parse(line.slice(6)) as { type: string; message?: string }
+            const event = JSON.parse(line.slice(6)) as { type: string; message?: string; pageUrl?: string; limit?: number }
             if (event.type === "source_ready") {
-              setReindexState({ sourceId, phase: "done", error: null })
+              setReindexState((s) => ({ ...s, phase: "done" }))
+            } else if (event.type === "llm_input_truncated") {
+              setReindexState((s) => ({
+                ...s,
+                warnings: [...s.warnings, `文字数超過のため先頭${(event.limit ?? 0).toLocaleString()}文字を使用`],
+              }))
+            } else if (event.type === "llm_output_truncated") {
+              setReindexState((s) => ({
+                ...s,
+                warnings: [...s.warnings, "AI出力が上限に達した可能性があります"],
+              }))
             } else if (event.type === "error") {
-              setReindexState({ sourceId, phase: "error", error: event.message ?? "エラーが発生しました。" })
+              setReindexState((s) => ({ ...s, phase: "error", error: event.message ?? "エラーが発生しました。" }))
             }
           } catch { /* JSON parse 失敗は無視 */ }
         }
       }
     } catch (err) {
-      setReindexState({ sourceId, phase: "error", error: err instanceof Error ? err.message : "エラーが発生しました。" })
+      setReindexState((s) => ({ ...s, phase: "error", error: err instanceof Error ? err.message : "エラーが発生しました。" }))
     }
   }
 
@@ -710,7 +747,7 @@ export function HostedConfigEditor({
           <div className="grid gap-3 md:grid-cols-3">
             <div className="grid gap-1.5">
               <Label>RAG方式</Label>
-              <Input value="OpenAI File Search（固定）" disabled />
+              <Input value="ナレッジ検索（固定）" disabled />
               <p className="text-[11px] text-muted-foreground">
                 この環境ではFile Search運用を標準化しており、Legacy Vectorは利用しません。
               </p>
@@ -727,7 +764,7 @@ export function HostedConfigEditor({
               >
                 {MODEL_OPTIONS.map((model) => (
                   <option key={model} value={model}>
-                    {model}
+                    {MODEL_LABELS[model] ?? model}
                   </option>
                 ))}
               </select>
@@ -745,7 +782,7 @@ export function HostedConfigEditor({
                 <option value="">なし</option>
                 {MODEL_OPTIONS.map((model) => (
                   <option key={model} value={model}>
-                    {model}
+                    {MODEL_LABELS[model] ?? model}
                   </option>
                 ))}
               </select>
@@ -1095,12 +1132,12 @@ export function HostedConfigEditor({
                         )}
                       >
                         <Sparkles className="h-2.5 w-2.5" />
-                        LLM構造化
+                        AI構造化
                       </button>
                     </div>
                     {indexMode === "llm" ? (
                       <span className="text-[11px] text-cyan-600 dark:text-cyan-400">
-                        gpt-4o-mini でページ内容を整理します（処理時間が増加します）
+                        AIがページ内容を整理します（処理時間が増加します）
                       </span>
                     ) : (
                       <span className="text-[11px] text-muted-foreground/60">
@@ -1173,6 +1210,13 @@ export function HostedConfigEditor({
                           </div>
                         </div>
                       )}
+                      {urlIndexing.warnings.length > 0 && (
+                        <div className="mt-1.5 grid gap-0.5 pl-[18px]">
+                          {urlIndexing.warnings.map((w, i) => (
+                            <p key={i} className="text-[10px] text-amber-600 dark:text-amber-400">⚠ {w}</p>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1234,7 +1278,7 @@ export function HostedConfigEditor({
                     {source.index_mode === "llm" ? (
                       <span className="inline-flex items-center gap-0.5 rounded-full bg-cyan-100 px-1.5 py-0.5 text-[10px] font-medium text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400">
                         <Sparkles className="h-2.5 w-2.5" />
-                        LLM構造化
+                        AI構造化
                       </span>
                     ) : source.index_mode === "raw" ? (
                       <span className="inline-flex items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">
@@ -1327,7 +1371,7 @@ export function HostedConfigEditor({
                             )}
                           >
                             <Sparkles className="h-2 w-2" />
-                            LLM
+                            AI
                           </button>
                         </div>
                       </div>
@@ -1346,6 +1390,11 @@ export function HostedConfigEditor({
                         ) : reindexState.sourceId === source.id && reindexState.phase === "done" ? (
                           <><Check className="mr-1 h-3 w-3" />完了</>
                         ) : "再インデックス"}
+                      {reindexState.sourceId === source.id && reindexState.warnings.length > 0 && (
+                        <p className="text-[10px] text-amber-600 dark:text-amber-400 text-right">
+                          ⚠ {reindexState.warnings.length}件の警告
+                        </p>
+                      )}
                       </Button>
                       <Button
                         type="button"

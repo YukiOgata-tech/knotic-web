@@ -123,7 +123,7 @@ const customizations = [
     icon: Sparkles,
     title: "AIモデルの選択",
     description:
-      "Standard・Proプランでは複数のモデル（gpt-4o-mini, gpt-4o ほか）から選択可能。速度重視・品質重視など用途に合わせて使い分けられます。",
+      "Standard・Proプランでは複数のAIモデル（Knotic Nano / Mini / Standard ほか）から選択可能。速度重視・品質重視など用途に合わせて使い分けられます。",
   },
   {
     icon: Search,

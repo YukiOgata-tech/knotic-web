@@ -20,8 +20,6 @@ const ALLOWED_MODELS = [
   "5-nano",
   "5-mini",
   "5",
-  "4o-mini",
-  "4o",
 ] as const
 const STORAGE_BUCKET = "source-files"
 const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024

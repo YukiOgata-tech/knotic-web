@@ -620,7 +620,8 @@ alter table public.indexing_jobs
   add column if not exists chunks_created integer not null default 0,
   add column if not exists tokens_embedded integer not null default 0,
   add column if not exists lock_expires_at timestamptz,
-  add column if not exists worker_id text;
+  add column if not exists worker_id text,
+  add column if not exists index_mode text not null default 'raw';
 
 create table if not exists public.source_pages (
   id uuid primary key default gen_random_uuid(),
@@ -681,7 +682,8 @@ alter table public.sources
   add column if not exists file_search_provider text,
   add column if not exists file_search_file_id text,
   add column if not exists file_search_last_synced_at timestamptz,
-  add column if not exists file_search_error text;
+  add column if not exists file_search_error text,
+  add column if not exists index_mode text not null default 'raw';
 
 alter table public.source_pages
   add column if not exists raw_bytes bigint not null default 0,
@@ -1251,13 +1253,13 @@ begin
   if not exists (select 1 from pg_constraint where conname = 'bots_ai_model_ck') then
     alter table public.bots
       add constraint bots_ai_model_ck
-      check (ai_model in ('5-nano', '5-mini', '5', '4o-mini', '4o'));
+      check (ai_model in ('5-nano', '5-mini', '5'));
   end if;
 
   if not exists (select 1 from pg_constraint where conname = 'bots_ai_fallback_model_ck') then
     alter table public.bots
       add constraint bots_ai_fallback_model_ck
-      check (ai_fallback_model is null or ai_fallback_model in ('5-nano', '5-mini', '5', '4o-mini', '4o'));
+      check (ai_fallback_model is null or ai_fallback_model in ('5-nano', '5-mini', '5'));
   end if;
 
   if not exists (select 1 from pg_constraint where conname = 'bots_ai_max_output_tokens_ck') then

@@ -14,7 +14,7 @@ import { type ConversationTurn } from "@/lib/llm/responses"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 
-const ALLOWED_MODELS = new Set(["5-nano", "5-mini", "5", "4o-mini", "4o"])
+const ALLOWED_MODELS = new Set(["5-nano", "5-mini", "5"])
 
 type ChatRequest = {
   botPublicId?: string
