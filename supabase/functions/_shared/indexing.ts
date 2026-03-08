@@ -3,6 +3,18 @@
 import { createClient } from "npm:@supabase/supabase-js@2"
 import crypto from "node:crypto"
 
+// ── Model Name Normalization ──────────────────────────────────────────────────
+
+const MODEL_NAME_MAP: Record<string, string> = {
+  "5-nano": "gpt-4.1-nano",
+  "5-mini": "gpt-4.1-mini",
+  "5":      "gpt-4.1",
+}
+
+export function toApiModelName(shortName: string): string {
+  return MODEL_NAME_MAP[shortName] ?? shortName
+}
+
 // ── Config ───────────────────────────────────────────────────────────────────
 
 export const MAX_CRAWL_PAGES_PER_JOB = 50

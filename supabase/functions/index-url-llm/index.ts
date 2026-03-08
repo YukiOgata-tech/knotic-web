@@ -15,13 +15,14 @@ import {
   fetchPage,
   openAiFetch,
   runIndexingPipeline,
+  toApiModelName,
   uploadArtifact,
   upsertSourcePage,
 } from "../_shared/indexing.ts"
 
 // ── LLM Config ────────────────────────────────────────────────────────────────
 
-const LLM_STRUCTURE_MODEL = "5-mini"
+const LLM_STRUCTURE_MODEL = toApiModelName("5-mini")
 // 5-mini supports 128k+ token context (~500k chars). 100k chars keeps costs
 // predictable while covering virtually all real-world pages.
 const LLM_INPUT_CHAR_LIMIT = 100_000

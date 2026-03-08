@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin"
+import { toApiModelName } from "@/lib/llm/responses"
 
 export const ALLOWED_FILE_EXTENSIONS = new Set([
   "pdf", "doc", "docx", "pptx", "tex",
@@ -407,14 +408,17 @@ export async function answerWithOpenAiFileSearch(params: {
     }
   }
 
+  const apiModel = toApiModelName(params.model)
+  const apiFallbackModel = params.fallbackModel ? toApiModelName(params.fallbackModel) : undefined
+
   try {
-    const primary = await tryCall(params.model)
+    const primary = await tryCall(apiModel)
     return { model: params.model, ...primary }
   } catch (error) {
-    if (!params.fallbackModel || params.fallbackModel === params.model) {
+    if (!apiFallbackModel || apiFallbackModel === apiModel) {
       throw error
     }
-    const fallback = await tryCall(params.fallbackModel)
-    return { model: params.fallbackModel, ...fallback }
+    const fallback = await tryCall(apiFallbackModel)
+    return { model: params.fallbackModel!, ...fallback }
   }
 }

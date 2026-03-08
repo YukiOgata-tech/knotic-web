@@ -32,6 +32,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { createClient } from "@/lib/supabase/client"
 import { getSupabasePublicEnv } from "@/lib/env"
 import { cn } from "@/lib/utils"
 
@@ -300,14 +301,16 @@ export function HostedConfigEditor({
       const { jobId } = (await initRes.json()) as { jobId: string }
 
       // Step 2: Stream SSE from Supabase Edge Function (no Vercel timeout constraint)
-      // verify_jwt=false: jobId (UUID) acts as auth — only created by authenticated editors
       const { supabaseUrl, supabaseAnonKey } = getSupabasePublicEnv()
+      const { data: { session } } = await createClient().auth.getSession()
+      const jwt = session?.access_token ?? supabaseAnonKey
       const edgeFn = indexMode === "llm" ? "index-url-llm" : "index-url"
       const fnResponse = await fetch(`${supabaseUrl}/functions/v1/${edgeFn}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "apikey": supabaseAnonKey,
+          "Authorization": `Bearer ${jwt}`,
         },
         body: JSON.stringify({ jobId }),
       })
@@ -450,12 +453,15 @@ export function HostedConfigEditor({
       const { jobId } = (await initRes.json()) as { jobId: string }
 
       const { supabaseUrl, supabaseAnonKey } = getSupabasePublicEnv()
+      const { data: { session } } = await createClient().auth.getSession()
+      const jwt = session?.access_token ?? supabaseAnonKey
       const edgeFn = mode === "llm" ? "index-url-llm" : "index-url"
       const fnResponse = await fetch(`${supabaseUrl}/functions/v1/${edgeFn}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "apikey": supabaseAnonKey,
+          "Authorization": `Bearer ${jwt}`,
         },
         body: JSON.stringify({ jobId }),
       })
