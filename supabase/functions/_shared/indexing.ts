@@ -213,6 +213,43 @@ async function fetchRobotsTxt(origin: string) {
   }
 }
 
+function extractSitemapUrlsFromRobots(robotsText: string): string[] {
+  const urls: string[] = []
+  for (const line of robotsText.split(/\r?\n/)) {
+    const trimmed = line.trim()
+    const lower = trimmed.toLowerCase()
+    if (lower.startsWith("sitemap:")) {
+      const url = trimmed.slice("sitemap:".length).trim()
+      if (url) urls.push(url)
+    }
+  }
+  return urls
+}
+
+// Attempt to discover a sitemap for the given seed URL.
+// Order: robots.txt Sitemap: directive → /sitemap.xml → /sitemap_index.xml → null
+async function discoverSitemapUrl(seedUrl: string): Promise<string | null> {
+  const origin = new URL(seedUrl).origin
+
+  const robotsText = await fetchRobotsTxt(origin)
+  if (robotsText) {
+    const fromRobots = extractSitemapUrlsFromRobots(robotsText)
+    if (fromRobots.length > 0) return fromRobots[0]
+  }
+
+  for (const candidate of [`${origin}/sitemap.xml`, `${origin}/sitemap_index.xml`]) {
+    try {
+      const res = await fetchWithRetry(candidate, {
+        method: "HEAD",
+        headers: { "User-Agent": USER_AGENT },
+      })
+      if (res.ok) return candidate
+    } catch { /* not found */ }
+  }
+
+  return null
+}
+
 async function assertCrawlAllowed(targetUrl: string) {
   const parsed = new URL(targetUrl)
   const robotsText = await fetchRobotsTxt(parsed.origin)
@@ -542,9 +579,14 @@ export async function runIndexingPipeline(params: {
   try {
     let pageUrls: string[]
 
-    if (maybeSitemap(sourceAny.url)) {
+    const isSitemapUrl = maybeSitemap(sourceAny.url)
+    const sitemapUrl = isSitemapUrl
+      ? sourceAny.url
+      : await discoverSitemapUrl(sourceAny.url)
+
+    if (sitemapUrl) {
       send({ type: "fetching_sitemap" })
-      const sitemapRes = await fetchWithRetry(sourceAny.url, {
+      const sitemapRes = await fetchWithRetry(sitemapUrl, {
         headers: { "User-Agent": USER_AGENT, Accept: "application/xml,text/xml,*/*;q=0.8" },
       })
       const discovered = filterUrlsByHost(
