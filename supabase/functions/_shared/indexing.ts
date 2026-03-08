@@ -580,9 +580,14 @@ export async function runIndexingPipeline(params: {
     let pageUrls: string[]
 
     const isSitemapUrl = maybeSitemap(sourceAny.url)
+    const isRootUrl = (() => {
+      try { const p = new URL(sourceAny.url).pathname; return p === "/" || p === "" } catch { return false }
+    })()
     const sitemapUrl = isSitemapUrl
       ? sourceAny.url
-      : await discoverSitemapUrl(sourceAny.url)
+      : isRootUrl
+        ? await discoverSitemapUrl(sourceAny.url)
+        : null
 
     if (sitemapUrl) {
       send({ type: "fetching_sitemap" })
