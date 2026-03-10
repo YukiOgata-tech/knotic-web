@@ -1,6 +1,8 @@
 "use client"
 
 import * as React from "react"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -37,6 +39,7 @@ type Props = {
   showCitations: boolean
   showRetentionNotice: boolean
   retentionHours: number
+  faqQuestions?: string[]
   historyTurnLimit?: number
   headerBgColor?: string
   headerTextColor?: string
@@ -49,7 +52,6 @@ type Props = {
 }
 
 const STORAGE_KEY_PREFIX = "knotic_hosted_chat_v1_"
-const URL_PATTERN = /(https?:\/\/[^\s]+)/g
 
 function uid() {
   return `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
@@ -59,25 +61,76 @@ function firstAssistantMessage(text: string): Message {
   return { id: uid(), role: "assistant", content: text }
 }
 
-function renderTextWithLinks(text: string) {
-  const parts = text.split(URL_PATTERN)
-  return parts.map((part, index) => {
-    if (!part) return null
-    if (/^https?:\/\//.test(part)) {
-      return (
-        <a
-          key={`link_${index}`}
-          href={part}
-          target="_blank"
-          rel="noreferrer"
-          className="underline decoration-cyan-500 underline-offset-2 hover:text-cyan-600 dark:hover:text-cyan-300"
-        >
-          {part}
-        </a>
-      )
-    }
-    return <React.Fragment key={`txt_${index}`}>{part}</React.Fragment>
-  })
+function TypingDots() {
+  return (
+    <div className="flex items-center gap-1.5 py-0.5">
+      <style>{`@keyframes kn-dot{0%,80%,100%{transform:translateY(0);opacity:.35}40%{transform:translateY(-5px);opacity:1}}`}</style>
+      {[0, 160, 320].map((d) => (
+        <span
+          key={d}
+          className="block size-2.5 rounded-full bg-slate-400 dark:bg-slate-500"
+          style={{ animation: "kn-dot 1.2s ease-in-out infinite", animationDelay: `${d}ms` }}
+        />
+      ))}
+    </div>
+  )
+}
+
+function MarkdownMessage({ content }: { content: string }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        h1: ({ children }) => <h1 className="mb-1 text-base font-bold">{children}</h1>,
+        h2: ({ children }) => <h2 className="mb-1 text-sm font-bold">{children}</h2>,
+        h3: ({ children }) => <h3 className="mb-1 text-sm font-semibold">{children}</h3>,
+        p: ({ children }) => <p className="mb-1.5 last:mb-0 leading-relaxed">{children}</p>,
+        ul: ({ children }) => <ul className="mb-1.5 ml-4 list-disc space-y-0.5">{children}</ul>,
+        ol: ({ children }) => <ol className="mb-1.5 ml-4 list-decimal space-y-0.5">{children}</ol>,
+        li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+        strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+        em: ({ children }) => <em className="italic">{children}</em>,
+        a: ({ href, children }) => (
+          <a
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            className="underline decoration-cyan-500 underline-offset-2 hover:text-cyan-600 dark:hover:text-cyan-300"
+          >
+            {children}
+          </a>
+        ),
+        code: ({ children, className }) => {
+          const isBlock = className?.includes("language-")
+          return isBlock ? (
+            <code className="block rounded bg-black/10 px-3 py-2 font-mono text-xs dark:bg-white/10">{children}</code>
+          ) : (
+            <code className="rounded bg-black/10 px-1 py-0.5 font-mono text-xs dark:bg-white/10">{children}</code>
+          )
+        },
+        pre: ({ children }) => (
+          <pre className="mb-1.5 overflow-x-auto rounded-md bg-black/10 p-3 dark:bg-white/10">{children}</pre>
+        ),
+        blockquote: ({ children }) => (
+          <blockquote className="mb-1.5 border-l-2 border-cyan-500 pl-3 text-muted-foreground">{children}</blockquote>
+        ),
+        table: ({ children }) => (
+          <div className="mb-1.5 overflow-x-auto">
+            <table className="min-w-full border-collapse text-xs">{children}</table>
+          </div>
+        ),
+        th: ({ children }) => (
+          <th className="border border-black/20 bg-black/5 px-2 py-1 text-left font-semibold dark:border-white/15 dark:bg-white/5">{children}</th>
+        ),
+        td: ({ children }) => (
+          <td className="border border-black/20 px-2 py-1 dark:border-white/15">{children}</td>
+        ),
+        hr: () => <hr className="my-2 border-black/20 dark:border-white/15" />,
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  )
 }
 
 export function HostedChatClient({
@@ -90,6 +143,7 @@ export function HostedChatClient({
   showCitations,
   showRetentionNotice,
   retentionHours,
+  faqQuestions = [],
   historyTurnLimit = 10,
   headerBgColor = "#0f172a",
   headerTextColor = "#f8fafc",
@@ -107,6 +161,9 @@ export function HostedChatClient({
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const bottomRef = React.useRef<HTMLDivElement | null>(null)
+  const shouldAnimateNextRef = React.useRef(false)
+  const [animatingMsgId, setAnimatingMsgId] = React.useState<string | null>(null)
+  const [typedChars, setTypedChars] = React.useState(0)
   const storageKey = React.useMemo(() => `${STORAGE_KEY_PREFIX}${botPublicId}`, [botPublicId])
   const retentionMs = retentionHours * 60 * 60 * 1000
   const [rooms, setRooms] = React.useState<Array<{ id: string; title: string; updated_at: string }>>([])
@@ -116,6 +173,31 @@ export function HostedChatClient({
   React.useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
   }, [messages, loading])
+
+  // 新しいアシスタントメッセージのタイプライターアニメーション開始
+  React.useEffect(() => {
+    if (!shouldAnimateNextRef.current) return
+    const lastMsg = messages[messages.length - 1]
+    if (!lastMsg || lastMsg.role !== "assistant") return
+    shouldAnimateNextRef.current = false
+    setAnimatingMsgId(lastMsg.id)
+    setTypedChars(0)
+  }, [messages])
+
+  // タイプライター進行
+  React.useEffect(() => {
+    if (!animatingMsgId) return
+    const msg = messages.find((m) => m.id === animatingMsgId)
+    if (!msg || msg.role !== "assistant") return
+    if (typedChars >= msg.content.length) {
+      setAnimatingMsgId(null)
+      return
+    }
+    const timer = setTimeout(() => {
+      setTypedChars((prev) => Math.min(prev + 4, msg.content.length))
+    }, 12)
+    return () => clearTimeout(timer)
+  }, [animatingMsgId, typedChars, messages])
 
   const localPersistenceDisabled = disablePersistence || authenticatedMode
 
@@ -245,22 +327,26 @@ export function HostedChatClient({
     setError(null)
   }
 
-  async function sendMessage() {
-    const trimmed = input.trim()
+  async function sendMessage(overrideText?: string) {
+    const trimmed = (overrideText ?? input).trim()
     if (!trimmed || loading) return
 
     const userMsg: Message = { id: uid(), role: "user", content: trimmed }
     const nextMessages = [...messages, userMsg]
     setMessages(nextMessages)
-    setInput("")
+    if (!overrideText) setInput("")
     setError(null)
     setLoading(true)
 
     try {
-      const conversation = nextMessages
+      // messages[0]は常にUIのウェルカムメッセージ（AIが生成したものではない）。
+      // これを会話履歴に含めると system→assistant→user という順でOpenAIに渡り
+      // 空レスポンスや不正な応答の原因になるため slice(1) でスキップする。
+      const conversation = messages
+        .slice(1)
         .filter((m) => m.role === "assistant" || m.role === "user")
         .slice(-historyTurnLimit)
-        .map((m) => ({ role: m.role, content: m.content }))
+        .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }))
 
       const endpoint = authenticatedMode ? "/api/hosted/chat" : "/api/v1/chat"
       const payload = authenticatedMode
@@ -272,16 +358,24 @@ export function HostedChatClient({
         body: JSON.stringify(payload),
       })
 
-      const data = (await res.json()) as {
-        answer?: string
-        citations?: Citation[]
-        error?: string
+      const rawText = await res.text().catch(() => "")
+      let data: { answer?: string; citations?: Citation[]; error?: string } = {}
+      try {
+        data = JSON.parse(rawText) as typeof data
+      } catch {
+        console.error("[chat] response is not JSON. status:", res.status, "body:", rawText.slice(0, 300))
       }
 
-      if (!res.ok || !data.answer) {
-        throw new Error(data.error ?? "チャット応答に失敗しました。")
+      if (!res.ok) {
+        console.error("[chat] API error", res.status, data)
+        throw new Error(data.error ?? `APIエラー (${res.status})`)
+      }
+      if (!data.answer) {
+        console.error("[chat] empty answer from API", data)
+        throw new Error("AIからの応答が空でした。しばらく待ってから再試行してください。")
       }
 
+      shouldAnimateNextRef.current = true
       setMessages((prev) => [
         ...prev,
         {
@@ -321,16 +415,26 @@ export function HostedChatClient({
 
   return (
     <div className={embedded ? "flex h-full w-full flex-col gap-3" : "mx-auto flex w-full max-w-4xl flex-col gap-4"}>
-      <Card className="border-black/20 p-4 dark:border-white/10" style={{ backgroundColor: headerBgColor, color: headerTextColor }}>
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h1 className="text-lg font-semibold sm:text-xl">{displayName}</h1>
-            <p className="text-xs opacity-80">{purposeLabel}</p>
+      <Card className="border-black/20 p-3 dark:border-white/10 sm:p-4" style={{ backgroundColor: headerBgColor, color: headerTextColor }}>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-base font-semibold sm:text-xl">{displayName}</h1>
+            <p className="truncate text-xs opacity-80">{purposeLabel}</p>
           </div>
-          <Badge variant="outline" className="border-current/30 text-current">
+          <Badge variant="outline" className="shrink-0 border-current/30 text-current text-[10px] sm:text-xs">
             Hosted Chat
           </Badge>
         </div>
+        {(showRetentionNotice || disclaimerText) ? (
+          <div className="mt-2 flex flex-col gap-0.5 border-t border-current/15 pt-2 sm:flex-row sm:flex-wrap sm:gap-x-4">
+            {showRetentionNotice ? (
+              <p className="text-[11px] opacity-60">履歴はブラウザ上で{retentionHours}時間保持されます。</p>
+            ) : null}
+            {disclaimerText ? (
+              <p className="text-[11px] opacity-60">{disclaimerText}</p>
+            ) : null}
+          </div>
+        ) : null}
       </Card>
 
       {authenticatedMode ? (
@@ -361,102 +465,129 @@ export function HostedChatClient({
         </Card>
       ) : null}
 
-      <Card className={embedded ? "flex h-[calc(100%-4.5rem)] min-h-[500px] flex-col border-black/20 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80 sm:p-4" : "flex min-h-[62vh] flex-col border-black/20 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80 sm:p-4"}>
+      <Card className={embedded ? "flex h-[calc(100%-4.5rem)] min-h-[500px] flex-col border-black/20 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80 sm:p-4" : "flex min-h-[55vh] flex-col border-black/20 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80 sm:min-h-[62vh] sm:p-4"}>
         <div className="flex-1 space-y-3 overflow-y-auto pr-1">
-          {messages.map((message) => (
-            <div
-              key={message.id}
-              className={message.role === "user" ? "flex justify-end" : "flex justify-start"}
-            >
+          {messages.map((message) => {
+            const isAnimating = message.role === "assistant" && message.id === animatingMsgId
+            const displayContent = isAnimating
+              ? message.content.slice(0, typedChars)
+              : message.content
+            const animationDone = !isAnimating || typedChars >= message.content.length
+
+            return (
               <div
-                className={
-                  message.role === "user"
-                    ? "max-w-[85%] rounded-2xl bg-slate-900 px-4 py-2 text-sm text-white dark:bg-slate-100 dark:text-slate-900"
-                    : "max-w-[85%] rounded-2xl border border-black/20 bg-slate-50 px-4 py-2 text-sm dark:border-white/10 dark:bg-slate-800"
-                }
+                key={message.id}
+                className={message.role === "user" ? "flex justify-end" : "flex justify-start"}
               >
-                <p className="whitespace-pre-wrap break-words">{renderTextWithLinks(message.content)}</p>
+                <div
+                  className={
+                    message.role === "user"
+                      ? "max-w-[85%] rounded-2xl bg-slate-900 px-4 py-2.5 text-sm text-white dark:bg-slate-100 dark:text-slate-900"
+                      : "max-w-[85%] rounded-2xl border border-black/20 bg-slate-50 px-4 py-2.5 text-sm dark:border-white/10 dark:bg-slate-800"
+                  }
+                >
+                  {message.role === "assistant" ? (
+                    <div className="relative">
+                      <MarkdownMessage content={displayContent} />
+                      {isAnimating && !animationDone && (
+                        <span className="ml-0.5 inline-block h-[1em] w-0.5 animate-pulse bg-current align-text-bottom opacity-70" />
+                      )}
+                    </div>
+                  ) : (
+                    <p className="whitespace-pre-wrap break-words leading-relaxed">{message.content}</p>
+                  )}
 
-                {showCitations && message.role === "assistant" && message.citations && message.citations.length > 0 ? (
-                  <details className="mt-2 rounded-md border border-black/20 bg-white/60 p-2 text-xs dark:border-white/10 dark:bg-slate-900/60">
-                    <summary className="cursor-pointer text-muted-foreground">根拠を表示</summary>
-                    <div className="mt-2 space-y-2">
+                  {showCitations && message.role === "assistant" && animationDone && message.citations && message.citations.length > 0 ? (
+                    <div className="mt-3 space-y-1.5 border-t border-black/15 pt-2.5 dark:border-white/10">
+                      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">参照元</p>
                       {message.citations.map((c) => (
-                        <div key={`${message.id}_${c.rank}`} className="rounded border border-black/20 p-2 dark:border-white/10">
-                          <div className="mb-1 flex flex-wrap items-center gap-2">
-                            <Badge variant="outline">[{c.rank}]</Badge>
-                            <Badge variant={c.sourceType === "url" ? "secondary" : "outline"}>
-                              {c.sourceType === "url" ? "Web" : c.sourceType === "pdf" ? "PDF" : "ファイル"}
-                            </Badge>
-                            <p className="font-medium">{c.title ?? "source"}</p>
+                        <div key={`${message.id}_${c.rank}`} className="flex min-w-0 items-start gap-2 rounded-lg border border-black/15 bg-white/70 px-2.5 py-2 dark:border-white/10 dark:bg-slate-900/60">
+                          <Badge variant="outline" className="mt-0.5 shrink-0 text-[10px]">{c.rank}</Badge>
+                          <div className="min-w-0 flex-1 overflow-hidden">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <Badge variant={c.sourceType === "url" ? "secondary" : "outline"} className="text-[10px]">
+                                {c.sourceType === "url" ? "Web" : c.sourceType === "pdf" ? "PDF" : "File"}
+                              </Badge>
+                              <span className="truncate text-xs font-medium">{c.title ?? "source"}</span>
+                            </div>
+                            {c.url ? (
+                              <a
+                                href={c.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="mt-1 inline-flex max-w-full items-center gap-1 truncate text-[11px] text-cyan-600 underline underline-offset-2 hover:text-cyan-500 dark:text-cyan-400"
+                              >
+                                {c.linkLabel} →
+                              </a>
+                            ) : null}
                           </div>
-
-                          {c.url ? (
-                            <a
-                              href={c.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex rounded-full bg-cyan-600 px-3 py-1 font-medium text-white hover:bg-cyan-500"
-                            >
-                              {c.linkLabel}
-                            </a>
-                          ) : null}
-
-                          <p className="mt-1 text-muted-foreground">{c.excerpt}</p>
                         </div>
                       ))}
                     </div>
-                  </details>
-                ) : null}
+                  ) : null}
+                </div>
               </div>
+            )
+          })}
+
+          {faqQuestions.length > 0 && messages.length === 1 && !loading ? (
+            <div className="flex flex-wrap gap-1.5 pt-1 sm:gap-2">
+              {faqQuestions.filter(Boolean).slice(0, 5).map((q, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => void sendMessage(q)}
+                  className="max-w-full rounded-full border border-black/20 bg-white px-3 py-1.5 text-left text-xs text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/15 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                >
+                  {q}
+                </button>
+              ))}
             </div>
-          ))}
+          ) : null}
 
           {loading ? (
             <div className="flex justify-start">
-              <div className="rounded-2xl border border-black/20 bg-slate-50 px-4 py-2 text-sm text-muted-foreground dark:border-white/10 dark:bg-slate-800">
-                生成中...
+              <div className="rounded-2xl border border-black/20 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-slate-800">
+                <TypingDots />
               </div>
             </div>
           ) : null}
           <div ref={bottomRef} />
         </div>
 
-        <div className="mt-4 space-y-2 rounded-lg border border-black/20 p-2 dark:border-white/10" style={{ backgroundColor: footerBgColor, color: footerTextColor }}>
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
-          <div className="flex items-center gap-2">
-            <Input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault()
-                  void sendMessage()
-                }
-              }}
-              placeholder={placeholderText}
-              disabled={loading}
-              className="h-11"
-            />
-            <Button onClick={() => void sendMessage()} disabled={loading || input.trim().length === 0 || (authenticatedMode && !currentRoomId)} className="h-11 rounded-full px-5">
-              送信
-            </Button>
-          </div>
-
+        <div className="mt-4">
+          {error ? <p className="mb-2 text-sm text-destructive">{error}</p> : null}
           {showRetentionNotice ? (
-            <div className="flex items-center justify-between gap-2 text-[11px] text-amber-700 dark:text-amber-300">
-              <p>このチャット履歴はブラウザ上で{retentionHours}時間保持され、自動的に削除されます。</p>
+            <div className="mb-1.5 flex justify-end">
               <button
                 type="button"
                 onClick={clearHistory}
-                className="rounded-full border border-amber-400/60 px-2 py-0.5 text-[11px] hover:bg-amber-100/60 dark:border-amber-400/40 dark:hover:bg-amber-900/30"
+                className="rounded-full border border-black/20 px-3 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-black/5 dark:border-white/15 dark:hover:bg-white/5"
               >
                 履歴を消去
               </button>
             </div>
           ) : null}
-
-          <p className="text-xs opacity-80">{disclaimerText}</p>
+          <div className="rounded-lg border border-black/20 p-2 dark:border-white/10" style={{ backgroundColor: footerBgColor, color: footerTextColor }}>
+            <div className="flex items-center gap-2">
+              <Input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault()
+                    void sendMessage()
+                  }
+                }}
+                placeholder={placeholderText}
+                disabled={loading}
+                className="h-11 min-w-0 flex-1"
+              />
+              <Button onClick={() => void sendMessage()} disabled={loading || input.trim().length === 0 || (authenticatedMode && !currentRoomId)} className="h-11 shrink-0 rounded-full px-4 sm:px-5">
+                送信
+              </Button>
+            </div>
+          </div>
         </div>
       </Card>
     </div>

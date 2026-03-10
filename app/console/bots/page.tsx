@@ -143,7 +143,57 @@ export default async function ConsoleBotsPage({ searchParams }: PageProps) {
             </p>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* モバイル: カードリスト */}
+          <div className="grid gap-2 sm:hidden">
+            {data.bots.map((bot) => {
+              const token = data.tokenByBotId.get(bot.id)
+              return (
+                <div key={bot.id} className="rounded-lg border border-black/20 p-3 dark:border-white/10">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <Link
+                        href={botSettingsPath(bot.name, bot.public_id)}
+                        className="font-medium text-cyan-700 hover:underline dark:text-cyan-300"
+                      >
+                        {bot.name}
+                      </Link>
+                      <p className="truncate text-[11px] text-muted-foreground">{bot.public_id}</p>
+                    </div>
+                    <Link
+                      href={botSettingsPath(bot.name, bot.public_id)}
+                      className="inline-flex shrink-0 items-center gap-1 rounded-md border px-2.5 py-1 text-xs hover:bg-slate-50 dark:hover:bg-slate-800"
+                    >
+                      設定
+                      <ArrowRight className="size-3" />
+                    </Link>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <Badge variant={Boolean(bot.is_public) ? "secondary" : "outline"}>
+                      {bot.is_public ? "有効" : "無効"}
+                    </Badge>
+                    <Badge variant={token ? "secondary" : "outline"} className="text-[10px]">
+                      {token ? "Widget発行済" : "Widget未発行"}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {bot.status === "active" ? "稼働中" : bot.status === "archived" ? "アーカイブ" : bot.status}
+                    </span>
+                  </div>
+                  {data.currentPlan?.has_hosted_page ? (
+                    <Link
+                      href={`/chat-by-knotic/${bot.public_id}`}
+                      className="mt-1.5 flex items-center gap-1 truncate text-[11px] text-cyan-700 hover:underline dark:text-cyan-300"
+                    >
+                      <ExternalLink className="size-3 shrink-0" />
+                      /chat-by-knotic/{bot.public_id}
+                    </Link>
+                  ) : null}
+                </div>
+              )
+            })}
+          </div>
+
+          {/* デスクトップ: テーブル */}
+          <div className="hidden overflow-x-auto sm:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -158,14 +208,14 @@ export default async function ConsoleBotsPage({ searchParams }: PageProps) {
                 const token = data.tokenByBotId.get(bot.id)
                 return (
                   <TableRow key={bot.id}>
-                    <TableCell>
+                    <TableCell className="max-w-[160px]">
                       <Link
                         href={botSettingsPath(bot.name, bot.public_id)}
                         className="font-medium text-cyan-700 hover:underline dark:text-cyan-300"
                       >
                         {bot.name}
                       </Link>
-                      <p className="text-xs text-muted-foreground">{bot.public_id}</p>
+                      <p className="truncate text-xs text-muted-foreground">{bot.public_id}</p>
                     </TableCell>
                     <TableCell className="space-y-1">
                       <p>{bot.status === "active" ? "稼働中" : bot.status === "archived" ? "アーカイブ" : bot.status}</p>
@@ -178,14 +228,14 @@ export default async function ConsoleBotsPage({ searchParams }: PageProps) {
                         </Badge>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="max-w-[200px]">
                       {data.currentPlan?.has_hosted_page ? (
                         <Link
                           href={`/chat-by-knotic/${bot.public_id}`}
-                          className="inline-flex items-center gap-1 text-cyan-700 hover:underline dark:text-cyan-300"
+                          className="inline-flex items-center gap-1 truncate text-sm text-cyan-700 hover:underline dark:text-cyan-300"
                         >
                           /chat-by-knotic/{bot.public_id}
-                          <ExternalLink className="size-3" />
+                          <ExternalLink className="size-3 shrink-0" />
                         </Link>
                       ) : (
                         <span className="text-xs text-muted-foreground">プラン対象外</span>

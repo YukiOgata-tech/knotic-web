@@ -5,7 +5,10 @@ export const ALLOWED_FILE_EXTENSIONS = new Set([
   "pdf", "doc", "docx", "pptx", "tex",
   "txt", "md", "html", "css", "json",
   "c", "cpp", "cs", "go", "java", "js", "ts", "py", "rb", "rs", "sh", "php",
+  "csv", "xlsx", "xls",
 ])
+
+export const SPREADSHEET_EXTENSIONS = new Set(["csv", "xlsx", "xls"])
 
 const MIME_BY_EXT: Record<string, string> = {
   pdf: "application/pdf",
@@ -320,6 +323,26 @@ export async function syncBinaryFileToOpenAiFileSearch(params: {
   return { vectorStoreId, fileId }
 }
 
+function extractTextFromOutput(output: unknown): string {
+  if (!Array.isArray(output)) return ""
+  const parts: string[] = []
+  for (const item of output) {
+    if (!item || typeof item !== "object") continue
+    const obj = item as Record<string, unknown>
+    if (obj.type !== "message") continue
+    const content = obj.content
+    if (!Array.isArray(content)) continue
+    for (const block of content) {
+      if (!block || typeof block !== "object") continue
+      const b = block as Record<string, unknown>
+      if (b.type === "output_text" && typeof b.text === "string") {
+        parts.push(b.text)
+      }
+    }
+  }
+  return parts.join("\n").trim()
+}
+
 function collectFileCitationIds(value: unknown, out: string[]) {
   if (!value || typeof value !== "object") return
   if (Array.isArray(value)) {
@@ -352,20 +375,17 @@ export async function answerWithOpenAiFileSearch(params: {
   vectorStoreId: string
   model: string
   fallbackModel?: string | null
-  systemPrompt: string
+  instructions: string
   message: string
   conversation?: Array<{ role: "user" | "assistant"; content: string }>
   maxOutputTokens?: number
 }) {
   const tryCall = async (model: string): Promise<FileSearchAnswer> => {
+    // instructions は input[] の外で渡す（ユーザー入力と明確に分離）
     const input = [
-      {
-        role: "system",
-        content: [{ type: "input_text", text: params.systemPrompt }],
-      },
       ...(params.conversation ?? []).map((turn) => ({
         role: turn.role,
-        content: [{ type: "input_text", text: turn.content.slice(0, 4000) }],
+        content: [{ type: turn.role === "assistant" ? "output_text" : "input_text", text: turn.content.slice(0, 4000) }],
       })),
       {
         role: "user",
@@ -378,6 +398,7 @@ export async function answerWithOpenAiFileSearch(params: {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model,
+        instructions: params.instructions,
         input,
         tools: [
           {
@@ -401,8 +422,15 @@ export async function answerWithOpenAiFileSearch(params: {
     collectFileCitationIds(body.output, citationFileIdsRaw)
     const citationFileIds = [...new Set(citationFileIdsRaw)]
 
+    // output_text がトップレベルにない場合は output[] から手動で抽出する
+    const rawText = body.output_text?.trim() || extractTextFromOutput(body.output)
+
+    // OpenAI が自動挿入する引用マーカー【N:title】を除去する
+    // 引用情報は citations 配列として別途返すためテキスト中には不要
+    const text = rawText.replace(/【\d+:[^】]*】/g, "").replace(/  +/g, " ").trim()
+
     return {
-      text: String(body.output_text ?? "").trim(),
+      text,
       usage: body.usage ?? {},
       citationFileIds,
     }

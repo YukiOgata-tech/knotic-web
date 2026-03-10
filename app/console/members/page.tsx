@@ -68,7 +68,20 @@ export default async function ConsoleMembersPage({ searchParams }: PageProps) {
           <CardTitle>所属メンバー</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
+          {/* モバイル: カードリスト */}
+          <div className="grid gap-2 sm:hidden">
+            {data.members.map((member) => (
+              <div key={member.user_id} className="rounded-lg border border-black/20 p-3 dark:border-white/10">
+                <p className="truncate text-sm font-medium">{data.emailByUserId.get(member.user_id) ?? member.user_id}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {member.role === "editor" ? "Editor" : "Reader"} ・ {member.is_active ? "有効" : "無効"} ・ {fmtDate(member.created_at)}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* デスクトップ: テーブル */}
+          <div className="hidden overflow-x-auto sm:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -81,7 +94,7 @@ export default async function ConsoleMembersPage({ searchParams }: PageProps) {
             <TableBody>
               {data.members.map((member) => (
                 <TableRow key={member.user_id}>
-                  <TableCell>{data.emailByUserId.get(member.user_id) ?? member.user_id}</TableCell>
+                  <TableCell className="max-w-[220px] truncate">{data.emailByUserId.get(member.user_id) ?? member.user_id}</TableCell>
                   <TableCell>{member.role}</TableCell>
                   <TableCell>{member.is_active ? "有効" : "無効"}</TableCell>
                   <TableCell>{fmtDate(member.created_at)}</TableCell>

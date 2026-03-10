@@ -10,6 +10,8 @@ import {
   ExternalLink,
   FileText,
   Loader2,
+  Save,
+  X,
   MonitorSmartphone,
   Palette,
   Settings2,
@@ -21,6 +23,16 @@ import {
 import { getSourcePagesAction, getSourceTextAction, type SourcePage } from "@/app/console/actions"
 import { HostedChatClient } from "@/app/chat-by-knotic/[public_id]/hosted-chat-client"
 import { PublicToggle } from "@/app/console/bots/public-toggle"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -47,6 +59,7 @@ type BotHostedConfig = {
   welcome_message: string | null
   placeholder_text: string | null
   disclaimer_text: string | null
+  faq_questions: string[] | null
   show_citations: boolean | null
   history_turn_limit: number | null
   require_auth_for_hosted: boolean | null
@@ -207,6 +220,33 @@ export function HostedConfigEditor({
   const [welcomeMessage, setWelcomeMessage] = React.useState(bot.welcome_message ?? "こんにちは。ご質問を入力してください。")
   const [placeholderText, setPlaceholderText] = React.useState(bot.placeholder_text ?? "質問を入力")
   const [disclaimerText, setDisclaimerText] = React.useState(bot.disclaimer_text ?? "回答は参考情報です。重要事項は担当者へ確認してください。")
+  // 表示用: 入力済み + 末尾に空欄1つ（5件満杯のときは空欄なし）
+  const initFaq = (bot.faq_questions ?? []).filter(Boolean)
+  const [faqQuestions, setFaqQuestions] = React.useState<string[]>(
+    initFaq.length >= 5 ? initFaq.slice(0, 5) : [...initFaq, ""]
+  )
+
+  const handleFaqChange = (i: number, value: string) => {
+    const next = [...faqQuestions]
+    next[i] = value
+    // 最後の欄に入力されたら次の空欄を追加（最大5件）
+    if (i === next.length - 1 && value.trim() !== "" && next.length < 5) {
+      next.push("")
+    }
+    setFaqQuestions(next)
+  }
+
+  const removeFaq = (i: number) => {
+    const next = faqQuestions.filter((_, idx) => idx !== i)
+    // 常に末尾に空欄が1つあるようにする
+    if (next.length === 0 || next[next.length - 1].trim() !== "") {
+      if (next.length < 5) next.push("")
+    }
+    setFaqQuestions(next)
+  }
+
+  // form送信用: 5スロット分の値（空文字で埋める）
+  const faqSlots = [...faqQuestions.filter(Boolean), ...Array(5).fill("")].slice(0, 5)
   const [showCitations, setShowCitations] = React.useState(Boolean(bot.show_citations ?? true))
   const [requireAuth, setRequireAuth] = React.useState(Boolean(bot.require_auth_for_hosted ?? false))
   const [headerBgColor, setHeaderBgColor] = React.useState(bot.ui_header_bg_color ?? DEFAULT_HEADER_BG)
@@ -241,6 +281,37 @@ export function HostedConfigEditor({
   const [urlIndexing, setUrlIndexing] = React.useState<UrlIndexingState>(IDLE_STATE)
   const urlInputRef = React.useRef<HTMLInputElement>(null)
   const router = useRouter()
+  const [isSaving, startSaveTransition] = React.useTransition()
+  const [previewKey, setPreviewKey] = React.useState(0)
+  const [isDirty, setIsDirty] = React.useState(false)
+  const [leaveTarget, setLeaveTarget] = React.useState<string | null>(null)
+
+  // ブラウザの閉じる・リロード・外部遷移を警告
+  React.useEffect(() => {
+    if (!isDirty || isSaving) return
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ""
+    }
+    window.addEventListener("beforeunload", handler)
+    return () => window.removeEventListener("beforeunload", handler)
+  }, [isDirty, isSaving])
+
+  // Next.js内部リンク（<Link>含む）をキャプチャフェーズで横取りし確認モーダルを表示
+  React.useEffect(() => {
+    if (!isDirty || isSaving) return
+    const handler = (e: MouseEvent) => {
+      const anchor = (e.target as HTMLElement).closest("a[href]") as HTMLAnchorElement | null
+      if (!anchor) return
+      const href = anchor.getAttribute("href") ?? ""
+      if (!href.startsWith("/") && !href.startsWith(window.location.origin)) return
+      e.preventDefault()
+      e.stopPropagation()
+      setLeaveTarget(href)
+    }
+    document.addEventListener("click", handler, true)
+    return () => document.removeEventListener("click", handler, true)
+  }, [isDirty, isSaving])
 
   type ReindexState = { sourceId: string | null; phase: "idle" | "running" | "done" | "error"; error: string | null; warnings: string[] }
   const [reindexState, setReindexState] = React.useState<ReindexState>({ sourceId: null, phase: "idle", error: null, warnings: [] })
@@ -527,37 +598,75 @@ export function HostedConfigEditor({
     : Math.min(8, maxHistoryTurnLimit)
 
   return (
-    <div className="grid gap-4">
-      <div className="rounded-xl border border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
+    <>
+    <AlertDialog open={leaveTarget !== null}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>変更が保存されていません</AlertDialogTitle>
+          <AlertDialogDescription>
+            保存されていない編集内容があります。このページを離れると変更は失われます。
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => setLeaveTarget(null)}>
+            このページに残る
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => { if (leaveTarget) window.location.href = leaveTarget }}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            変更を破棄して移動
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+    <div className="grid min-w-0 gap-4">
+      <div className="min-w-0 overflow-hidden rounded-xl border border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
 
         {/* 上段: ナビゲーション + アクション */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/10 px-4 py-2.5 dark:border-white/8">
+        <div className="flex items-center justify-between gap-2 border-b border-black/10 px-3 py-2.5 dark:border-white/8 sm:px-4">
           <Link
             href={backHref}
-            className="inline-flex items-center gap-0.5 text-xs text-muted-foreground transition-colors hover:text-slate-700 dark:hover:text-slate-200"
+            className="inline-flex shrink-0 items-center gap-0.5 text-xs text-muted-foreground transition-colors hover:text-slate-700 dark:hover:text-slate-200"
           >
             <ChevronLeft className="size-3.5" />
-            Bot一覧
+            <span className="hidden sm:inline">Bot一覧</span>
           </Link>
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+            {isDirty && !isSaving && (
+              <span className="hidden animate-in fade-in text-[11px] text-amber-600 dark:text-amber-400 sm:inline">
+                未保存の変更があります
+              </span>
+            )}
             {hasHostedPage ? (
               <Link
                 href={`/chat-by-knotic/${bot.public_id}`}
                 target="_blank"
-                className="inline-flex items-center gap-1.5 rounded-full border border-black/20 px-3 py-1.5 text-xs transition-colors hover:bg-slate-50 dark:border-white/15 dark:hover:bg-slate-800"
+                className="inline-flex shrink-0 items-center gap-1 rounded-full border border-black/20 px-2.5 py-1.5 text-xs transition-colors hover:bg-slate-50 dark:border-white/15 dark:hover:bg-slate-800"
               >
-                公開画面を確認
                 <ExternalLink className="size-3" />
+                <span className="hidden sm:inline">公開画面を確認</span>
               </Link>
             ) : null}
-            <Button type="submit" form={`save_bot_${bot.id}`} size="sm" className="rounded-full" disabled={!isEditor}>
-              設定を保存
+            <Button
+              type="submit"
+              form={`save_bot_${bot.id}`}
+              size="sm"
+              className={`shrink-0 rounded-full transition-all ${isDirty && !isSaving ? "ring-2 ring-amber-400/60" : ""}`}
+              disabled={!isEditor || isSaving}
+            >
+              {isSaving ? (
+                <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /><span className="hidden sm:inline">保存中…</span><span className="sm:hidden">保存中</span></>
+              ) : (
+                <><Save className="mr-1.5 h-3.5 w-3.5" /><span className="hidden sm:inline">設定を保存</span><span className="sm:hidden">保存</span></>
+              )}
             </Button>
           </div>
         </div>
 
         {/* 中段: Bot名 + ステータス情報 */}
-        <div className="px-4 py-4">
+        <div className="px-3 py-3 sm:px-4 sm:py-4">
           <div className="flex items-center gap-2.5">
             <span
               className={cn(
@@ -581,7 +690,7 @@ export function HostedConfigEditor({
 
         {/* 下段: タブ */}
         <div className="overflow-x-auto border-t border-black/10 px-3 pb-3 pt-2 dark:border-white/8">
-          <div className="inline-flex min-w-full gap-0.5 rounded-xl bg-slate-100 p-1 dark:bg-slate-800/80">
+          <div className="flex min-w-max gap-0.5 rounded-xl bg-slate-100 p-1 sm:min-w-full dark:bg-slate-800/80">
             {TAB_ITEMS.map((item) => {
               const Icon = item.icon
               const active = activeTab === item.id
@@ -591,7 +700,7 @@ export function HostedConfigEditor({
                   type="button"
                   onClick={() => setActiveTab(item.id)}
                   className={cn(
-                    "inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-xs font-medium transition-all",
+                    "inline-flex flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-xs font-medium transition-all sm:flex-1",
                     active
                       ? "bg-white text-slate-900 shadow-sm dark:bg-slate-950 dark:text-slate-100"
                       : "text-slate-500 hover:bg-white/60 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-700/60 dark:hover:text-slate-200"
@@ -607,7 +716,12 @@ export function HostedConfigEditor({
 
       </div>
 
-      <form id={`save_bot_${bot.id}`} action={saveAction} className="grid gap-4 rounded-xl border border-black/20 bg-white/90 p-4 dark:border-white/10 dark:bg-slate-900/80">
+      <form
+        id={`save_bot_${bot.id}`}
+        action={(fd) => startSaveTransition(() => saveAction(fd))}
+        onChange={() => setIsDirty(true)}
+        className="grid min-w-0 gap-4 rounded-xl border border-black/20 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80 sm:p-4"
+      >
         <input type="hidden" name="redirect_to" value={redirectTo} />
         <input type="hidden" name="bot_id" value={bot.id} />
 
@@ -697,6 +811,60 @@ export function HostedConfigEditor({
                 onChange={(e) => setWelcomeMessage(e.target.value)}
                 disabled={!isEditor}
               />
+            </div>
+            <div className="grid gap-1.5">
+              <div className="flex items-center justify-between">
+                <Label>ワンタッチ質問</Label>
+                <span className="text-[11px] text-muted-foreground">{faqQuestions.filter(Boolean).length} / 5</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground">初期画面に表示されるクイック質問ボタン。クリックするとそのままAIに送信されます。</p>
+
+              {/* hidden inputs for form submission (5 slots) */}
+              {faqSlots.map((v, i) => (
+                <input key={i} type="hidden" name={`faq_question_${i}`} value={v} />
+              ))}
+
+              <div className="grid gap-2">
+                {faqQuestions.map((q, i) => {
+                  const isOnlyEmpty = faqQuestions.length === 1 && q === ""
+                  const isLast = i === faqQuestions.length - 1
+                  return (
+                    <div
+                      key={i}
+                      className="flex items-center gap-1.5 animate-in fade-in slide-in-from-top-2 duration-200"
+                    >
+                      <div className="relative flex-1">
+                        <Input
+                          value={q}
+                          onChange={(e) => handleFaqChange(i, e.target.value)}
+                          placeholder={isLast ? "質問を入力…" : `質問 ${i + 1}`}
+                          disabled={!isEditor}
+                          maxLength={80}
+                          className={q.length > 0 ? "pr-12 text-sm" : "text-sm"}
+                        />
+                        {q.length > 0 && (
+                          <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/50">
+                            {q.length}/80
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeFaq(i)}
+                        disabled={!isEditor || isOnlyEmpty}
+                        className="shrink-0 rounded-md p-1.5 text-muted-foreground transition-all hover:bg-slate-100 hover:text-slate-700 disabled:pointer-events-none disabled:opacity-20 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                        aria-label="削除"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    </div>
+                  )
+                })}
+
+                {faqQuestions.filter(Boolean).length >= 5 && (
+                  <p className="text-[11px] text-muted-foreground">最大5件に達しました。</p>
+                )}
+              </div>
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor={`placeholder_text_${bot.id}`}>入力プレースホルダ</Label>
@@ -957,27 +1125,42 @@ export function HostedConfigEditor({
         </Panel>
 
         <Panel active={activeTab === "preview"}>
-          <div className="grid gap-1">
-            <p className="text-sm font-semibold">プレビュー</p>
-            <p className="text-xs text-muted-foreground">保存前の設定状態でテストチャット表示を確認できます。</p>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="grid gap-0.5">
+              <p className="text-sm font-semibold">プレビュー</p>
+              <p className="text-xs text-muted-foreground">実際のAIに接続されたテストチャットです。保存前の表示設定が反映されます。</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                try { window.localStorage.removeItem(`knotic_hosted_chat_v1_${bot.public_id}`) } catch { /* ignore */ }
+                setPreviewKey((k) => k + 1)
+              }}
+              className="shrink-0 rounded-md border border-black/15 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-slate-50 hover:text-slate-700 dark:border-white/10 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            >
+              会話をリセット
+            </button>
           </div>
-          <HostedChatClient
-            botPublicId={bot.public_id}
-            displayName={displayName || bot.name}
-            purposeLabel={PURPOSE_LABEL[chatPurpose] ?? "カスタム"}
-            welcomeMessage={welcomeMessage || "こんにちは。ご質問を入力してください。"}
-            placeholderText={placeholderText || "質問を入力"}
-            disclaimerText={disclaimerText || "回答は参考情報です。重要事項は担当者へ確認してください。"}
-            showCitations={showCitations}
-            showRetentionNotice={!effectiveRequireAuth}
-            retentionHours={24}
-            historyTurnLimit={historyLimit}
-            headerBgColor={headerBgColor}
-            headerTextColor={headerTextColor}
-            footerBgColor={footerBgColor}
-            footerTextColor={footerTextColor}
-            disablePersistence
-          />
+          <div className="-mx-4 sm:mx-0">
+            <HostedChatClient
+              key={previewKey}
+              botPublicId={bot.public_id}
+              displayName={displayName || bot.name}
+              purposeLabel={PURPOSE_LABEL[chatPurpose] ?? "カスタム"}
+              welcomeMessage={welcomeMessage || "こんにちは。ご質問を入力してください。"}
+              faqQuestions={faqQuestions.filter((q) => q.trim() !== "")}
+              placeholderText={placeholderText || "質問を入力"}
+              disclaimerText={disclaimerText || "回答は参考情報です。重要事項は担当者へ確認してください。"}
+              showCitations={showCitations}
+              showRetentionNotice={!effectiveRequireAuth}
+              retentionHours={24}
+              historyTurnLimit={historyLimit}
+              headerBgColor={headerBgColor}
+              headerTextColor={headerTextColor}
+              footerBgColor={footerBgColor}
+              footerTextColor={footerTextColor}
+            />
+          </div>
         </Panel>
 
         <div className="border-t border-black/20 pt-3 text-xs text-muted-foreground dark:border-white/10">
@@ -985,7 +1168,7 @@ export function HostedConfigEditor({
         </div>
       </form>
 
-      <section className={cn("grid gap-3 rounded-xl border border-black/20 bg-white/90 p-4 dark:border-white/10 dark:bg-slate-900/80", activeTab !== "basic" && "hidden")}>
+      <section className={cn("grid min-w-0 gap-3 rounded-xl border border-black/20 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80 sm:p-4", activeTab !== "basic" && "hidden")}>
         <div className="grid gap-1">
           <p className="text-sm font-semibold">Bot状態管理</p>
           <p className="text-xs text-muted-foreground">
@@ -1003,7 +1186,7 @@ export function HostedConfigEditor({
         </div>
       </section>
 
-      <section className={cn("grid gap-3 rounded-xl border border-black/20 bg-white/90 p-4 dark:border-white/10 dark:bg-slate-900/80", activeTab !== "widget" && "hidden")}>
+      <section className={cn("grid min-w-0 gap-3 rounded-xl border border-black/20 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80 sm:p-4", activeTab !== "widget" && "hidden")}>
         <div className="grid gap-1">
           <p className="text-sm font-semibold">Widgetトークン管理</p>
           <p className="text-xs text-muted-foreground">トークン再発行と許可オリジン設定を行います。</p>
@@ -1057,7 +1240,7 @@ export function HostedConfigEditor({
         </div>
       </section>
 
-      <section className={cn("grid gap-4 rounded-xl border border-black/20 bg-white/90 p-4 dark:border-white/10 dark:bg-slate-900/80", activeTab !== "ai" && "hidden")}>
+      <section className={cn("grid min-w-0 gap-4 rounded-xl border border-black/20 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80 sm:p-4", activeTab !== "ai" && "hidden")}>
         <div className="grid gap-1">
           <p className="text-sm font-semibold">情報ソース管理</p>
           <p className="text-xs text-muted-foreground">
@@ -1244,7 +1427,7 @@ export function HostedConfigEditor({
                   id={`file_source_${bot.id}`}
                   name="file"
                   type="file"
-                  accept=".pdf,.doc,.docx,.pptx,.tex,.txt,.md,.html,.css,.json,.c,.cpp,.cs,.go,.java,.js,.ts,.py,.rb,.rs,.sh,.php"
+                  accept=".pdf,.doc,.docx,.pptx,.tex,.txt,.md,.html,.css,.json,.c,.cpp,.cs,.go,.java,.js,.ts,.py,.rb,.rs,.sh,.php,.csv,.xlsx,.xls"
                   required
                   disabled={!isEditor || addFileLoading}
                   className="flex-1"
@@ -1254,7 +1437,7 @@ export function HostedConfigEditor({
                 </Button>
               </div>
               <p className="text-[11px] text-muted-foreground">
-                PDF・Word・PowerPoint・テキスト・コードなど対応。1ファイル最大20MB。
+                PDF・Word・PowerPoint・CSV・Excel・テキストなど対応。1ファイル最大20MB。
               </p>
             </form>
           )}
@@ -1273,8 +1456,9 @@ export function HostedConfigEditor({
             botSources.map((source) => (
               <div
                 key={source.id}
-                className="flex items-start justify-between gap-3 rounded-lg border border-black/20 p-3 dark:border-white/10"
+                className="grid gap-2 rounded-lg border border-black/20 p-3 dark:border-white/10 sm:flex sm:items-start sm:justify-between sm:gap-3"
               >
+                {/* 左: ソース情報 */}
                 <div className="min-w-0 grid gap-1">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
@@ -1304,54 +1488,60 @@ export function HostedConfigEditor({
                     <p className="text-[11px] text-rose-600 dark:text-rose-400">エラー: {source.file_search_error}</p>
                   ) : null}
                 </div>
-                <div className="shrink-0 grid gap-1 text-right">
+
+                {/* 右: アクション */}
+                <div className="shrink-0 grid gap-1">
                   {deletingId === source.id ? (
                     <div className="flex items-center gap-1.5 text-rose-600 dark:text-rose-400">
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       <span className="text-[11px]">削除中...</span>
                     </div>
                   ) : confirmDeleteId === source.id ? (
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
                       <span className="text-[11px] text-slate-500 dark:text-slate-400">削除しますか？</span>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => { setConfirmDeleteId(null); void handleDeleteConfirm(source.id) }}
-                      >
-                        削除する
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setConfirmDeleteId(null)}
-                      >
-                        キャンセル
-                      </Button>
-                    </div>
-                  ) : confirmReindexId === source.id ? (
-                    <div className="grid gap-1.5 text-right">
-                      <div className="flex items-center gap-1.5 justify-end">
-                        <span className="text-[11px] text-slate-500 dark:text-slate-400">再実行しますか？</span>
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => { setConfirmDeleteId(null); void handleDeleteConfirm(source.id) }}
+                        >
+                          削除する
+                        </Button>
                         <Button
                           type="button"
                           size="sm"
                           variant="outline"
-                          onClick={() => { setConfirmReindexId(null); void handleReindex(source.id, indexMode) }}
-                        >
-                          実行
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setConfirmReindexId(null)}
+                          onClick={() => setConfirmDeleteId(null)}
                         >
                           キャンセル
                         </Button>
                       </div>
-                      <div className="inline-flex items-center gap-1 justify-end">
+                    </div>
+                  ) : confirmReindexId === source.id ? (
+                    <div className="grid gap-1.5">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400">再実行しますか？</span>
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => { setConfirmReindexId(null); void handleReindex(source.id, indexMode) }}
+                          >
+                            実行
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setConfirmReindexId(null)}
+                          >
+                            キャンセル
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
                         <span className="text-[10px] text-muted-foreground">方式:</span>
                         <div className="inline-flex rounded bg-slate-100 p-0.5 dark:bg-slate-800">
                           <button
@@ -1396,11 +1586,6 @@ export function HostedConfigEditor({
                         ) : reindexState.sourceId === source.id && reindexState.phase === "done" ? (
                           <><Check className="mr-1 h-3 w-3" />完了</>
                         ) : "再インデックス"}
-                      {reindexState.sourceId === source.id && reindexState.warnings.length > 0 && (
-                        <p className="text-[10px] text-amber-600 dark:text-amber-400 text-right">
-                          ⚠ {reindexState.warnings.length}件の警告
-                        </p>
-                      )}
                       </Button>
                       <Button
                         type="button"
@@ -1427,6 +1612,11 @@ export function HostedConfigEditor({
                   )}
                   {reindexState.sourceId === source.id && reindexState.phase === "error" && (
                     <p className="text-[10px] text-rose-600 dark:text-rose-400">{reindexState.error}</p>
+                  )}
+                  {reindexState.sourceId === source.id && reindexState.warnings.length > 0 && (
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                      ⚠ {reindexState.warnings.length}件の警告
+                    </p>
                   )}
                 </div>
               </div>
@@ -1587,5 +1777,6 @@ export function HostedConfigEditor({
         </DialogContent>
       </Dialog>
     </div>
+    </>
   )
 }

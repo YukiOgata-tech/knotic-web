@@ -175,7 +175,7 @@ export async function POST(request: NextRequest) {
       vectorStoreId,
       model: defaultModel,
       fallbackModel,
-      systemPrompt: [
+      instructions: [
         "あなたは企業向けサポートAIです。",
         "検索結果が不足する場合は不足を明示してください。",
         "回答は簡潔に要点をまとめ、根拠を示してください。",
