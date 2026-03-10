@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils"
 type ContainerSize = "default" | "wide" | "narrow" | "full"
 
 const sizeClassMap: Record<ContainerSize, string> = {
-  default: "max-w-[1320px]",
+  default: "max-w-[90%]",
   wide: "max-w-[1520px]",
   narrow: "max-w-5xl",
   full: "max-w-none",

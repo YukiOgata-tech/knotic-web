@@ -14,7 +14,8 @@ import { createClient } from "@/lib/supabase/server"
 import { writeAuditLog } from "@/app/console/_lib/audit"
 import { requireConsoleContext } from "@/app/console/_lib/data"
 import { getAppUrl } from "@/lib/env"
-import { ALLOWED_FILE_EXTENSIONS, cleanupSourceFromOpenAiFileSearch, syncBinaryFileToOpenAiFileSearch } from "@/lib/filesearch/openai"
+import { ALLOWED_FILE_EXTENSIONS, SPREADSHEET_EXTENSIONS, cleanupSourceFromOpenAiFileSearch, syncBinaryFileToOpenAiFileSearch, syncSourceTextToOpenAiFileSearch } from "@/lib/filesearch/openai"
+import { spreadsheetToMarkdown } from "@/lib/indexing/spreadsheet"
 
 const ALLOWED_MODELS = [
   "5-nano",
@@ -286,13 +287,25 @@ export async function addFileSourceAction(formData: FormData) {
       .maybeSingle()
 
     if (bot?.public_id) {
-      await syncBinaryFileToOpenAiFileSearch({
-        botId,
-        botPublicId: String(bot.public_id),
-        sourceId: insertedSource.id,
-        filename: fileName,
-        buffer: bytes,
-      })
+      if (SPREADSHEET_EXTENSIONS.has(ext)) {
+        const markdown = spreadsheetToMarkdown(bytes, fileName)
+        await syncSourceTextToOpenAiFileSearch({
+          botId,
+          botPublicId: String(bot.public_id),
+          sourceId: insertedSource.id,
+          sourceType: "file",
+          sourceLabel: fileName,
+          text: markdown,
+        })
+      } else {
+        await syncBinaryFileToOpenAiFileSearch({
+          botId,
+          botPublicId: String(bot.public_id),
+          sourceId: insertedSource.id,
+          filename: fileName,
+          buffer: bytes,
+        })
+      }
       await admin
         .from("sources")
         .update({ status: "ready" })
@@ -745,6 +758,9 @@ export async function updateHostedConfigAction(formData: FormData) {
     const widgetLauncherLabel = String(formData.get("widget_launcher_label") ?? "").trim()
     const widgetPolicyText = String(formData.get("widget_policy_text") ?? "").trim()
     const widgetRedirectNewTab = String(formData.get("widget_redirect_new_tab") ?? "") === "on"
+    const faqQuestions = [0, 1, 2, 3, 4]
+      .map((i) => String(formData.get(`faq_question_${i}`) ?? "").trim())
+      .filter(Boolean)
     const aiModel = normalizeModel(String(formData.get("ai_model") ?? "5-mini"), "5-mini")
     const aiFallbackRaw = String(formData.get("ai_fallback_model") ?? "").trim()
     const aiFallbackModel = aiFallbackRaw === "" ? null : normalizeModel(aiFallbackRaw, "5-mini")
@@ -824,6 +840,7 @@ export async function updateHostedConfigAction(formData: FormData) {
           widgetPolicyText ||
           "このチャット履歴はブラウザ上で24時間保持され、自動的に削除されます。",
         widget_redirect_new_tab: widgetRedirectNewTab,
+        faq_questions: faqQuestions,
         ai_model: aiModel,
         ai_fallback_model: aiFallbackModel,
         ai_max_output_tokens: aiMaxOutputTokens,

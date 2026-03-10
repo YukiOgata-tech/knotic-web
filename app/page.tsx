@@ -124,14 +124,14 @@ export default function Home() {
         />
       </section>
 
-      <Container className="relative z-10 flex flex-col gap-8 py-6 sm:gap-14 sm:py-10">
+      <Container className="relative z-10 flex flex-col gap-8 py-6 sm:gap-14 sm:py-10 w-full">
         {/* Stats bar */}
-        <section className="grid grid-cols-3 divide-x divide-black/10 rounded-2xl border border-black/10 bg-white/80 py-3 shadow-sm dark:divide-white/10 dark:border-white/10 dark:bg-slate-900/70 sm:py-4">
+        <section className="grid grid-cols-3 divide-x divide-black/10 rounded-2xl border border-black/40 bg-white/80 py-3 shadow-sm dark:divide-white/10 dark:border-white/50 dark:bg-slate-900/70 sm:py-4">
           {stats.map((stat) => (
             <div key={stat.label} className="flex flex-col items-center gap-0.5 px-2 text-center">
               <span className="text-base font-bold sm:text-2xl">{stat.value}</span>
-              <span className="text-[10px] text-zinc-500 dark:text-zinc-400 sm:text-sm">{stat.label}</span>
-              <span className="hidden text-xs text-zinc-400 dark:text-zinc-500 sm:block">{stat.sub}</span>
+              <span className="text-[10px] text-zinc-900 dark:text-zinc-100 sm:text-sm font-semibold">{stat.label}</span>
+              <span className="hidden text-xs text-zinc-800 dark:text-zinc-200 sm:block font-semibold">{stat.sub}</span>
             </div>
           ))}
         </section>
@@ -139,14 +139,14 @@ export default function Home() {
         {/* Problem */}
         <section className="space-y-3 sm:space-y-5">
           <div className="space-y-1 sm:space-y-2">
-            <h2 className="text-xl font-semibold tracking-tight sm:text-3xl">こんな課題ありませんか？</h2>
-            <p className="hidden text-zinc-600 dark:text-zinc-300 sm:block">多くのチームが同じ問題を抱えています。knoticはそれを解消します。</p>
+            <h2 className="text-xl font-semibold tracking-tight sm:text-3xl">こんな"課題"ありませんか？</h2>
+            <p className="hidden text-zinc-800 dark:text-zinc-200 sm:block">多くのチームが同じ問題を抱えています。knoticでその問題を解決しましょう。</p>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3">
             {problems.map((problem) => (
               <div
                 key={problem}
-                className="flex items-start gap-2 rounded-xl border border-black/10 bg-white/70 px-3 py-2 dark:border-white/10 dark:bg-slate-900/60 sm:px-4 sm:py-3"
+                className="flex items-start gap-2 rounded-xl border border-black/40 bg-white/70 px-3 py-2 dark:border-white/50 dark:bg-slate-900/60 sm:px-4 sm:py-3"
               >
                 <XCircle className="mt-0.5 size-3.5 shrink-0 text-rose-500 sm:size-4" />
                 <span className="text-xs text-zinc-700 dark:text-zinc-200 sm:text-sm">{problem}</span>
@@ -166,9 +166,9 @@ export default function Home() {
             {steps.map((step) => (
               <div
                 key={step.number}
-                className="flex items-start gap-3 rounded-xl border border-black/10 bg-white/80 px-4 py-3 dark:border-white/10 dark:bg-slate-900/70 sm:flex-col sm:rounded-2xl sm:p-6"
+                className="flex items-start gap-3 rounded-xl border border-black/40 bg-gray-200/50 px-4 py-3 dark:border-white/10 dark:bg-gray-800/70 sm:flex-col sm:rounded-2xl sm:p-6"
               >
-                <span className="shrink-0 text-xl font-bold text-cyan-600/40 dark:text-cyan-400/30 sm:text-4xl">{step.number}</span>
+                <span className="shrink-0 text-xl font-bold text-cyan-600/90 dark:text-cyan-400 sm:text-4xl hover:underline">{step.number}</span>
                 <div>
                   <h3 className="text-sm font-semibold sm:mt-2 sm:text-lg">{step.title}</h3>
                   <p className="mt-0.5 text-xs text-zinc-600 dark:text-zinc-300 sm:mt-1 sm:text-sm">{step.description}</p>
@@ -192,13 +192,13 @@ export default function Home() {
             {useCases.map((uc) => (
               <div
                 key={uc.title}
-                className="flex items-start gap-3 rounded-xl border border-black/10 bg-white/80 px-4 py-3 dark:border-white/10 dark:bg-slate-900/70 sm:flex-col sm:rounded-2xl sm:p-6"
+                className="rounded-xl border-y border-black/40 bg-slate-100/80 px-4 py-3 dark:border-white/40 dark:bg-slate-900/70 sm:rounded-2xl sm:p-6 shadow-2xl"
               >
-                <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-cyan-600 dark:text-cyan-400 sm:size-5" />
-                <div>
-                  <h3 className="text-sm font-semibold sm:mt-3 sm:text-base">{uc.title}</h3>
-                  <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400 sm:mt-1 sm:text-sm">{uc.description}</p>
+                <div className="flex items-center gap-2.5">
+                  <CheckCircle2 className="size-4 shrink-0 text-cyan-600 dark:text-cyan-400 sm:size-6" />
+                  <h3 className="text-sm font-semibold sm:text-lg">{uc.title}</h3>
                 </div>
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 sm:mt-2 sm:text-sm">{uc.description}</p>
               </div>
             ))}
           </div>
@@ -211,11 +211,11 @@ export default function Home() {
             <p className="hidden text-zinc-600 dark:text-zinc-300 sm:block">小さく始められる価格帯から、運用規模に合わせて段階的に拡張できます。</p>
           </div>
           {/* モバイル: 横スクロール / lg+: 3列グリッド */}
-          <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0 sm:pb-0 lg:grid lg:grid-cols-3 lg:overflow-visible">
+          <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0 sm:pb-0 lg:grid lg:grid-cols-3 lg:overflow-visible ">
             {plans.map((plan) => (
               <Card
                 key={plan.name}
-                className="w-[65vw] shrink-0 snap-start border-black/40 bg-white/90 transition-transform duration-200 hover:-translate-y-1 dark:border-white/10 dark:bg-slate-900/75 sm:w-[60vw] lg:w-auto"
+                className="w-[65vw] shrink-0 snap-start border-black/40 bg-white/90 transition-transform duration-200 hover:-translate-y-1 dark:border-white/10 dark:bg-slate-900/75 sm:w-[60vw] lg:w-auto hover:shadow-2xl"
               >
                 <CardHeader className="pb-1 sm:pb-6">
                   <CardDescription className="text-gray-700 dark:text-white">{plan.note}</CardDescription>

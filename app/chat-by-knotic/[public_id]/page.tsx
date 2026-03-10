@@ -35,7 +35,7 @@ export default async function HostedBotPage({ params, searchParams }: PageProps)
   const { data: bot } = await admin
     .from("bots")
     .select(
-      "id, tenant_id, name, public_id, status, is_public, chat_purpose, access_mode, display_name, welcome_message, placeholder_text, disclaimer_text, show_citations, history_turn_limit, require_auth_for_hosted, force_stopped, force_stop_reason, ui_header_bg_color, ui_header_text_color, ui_footer_bg_color, ui_footer_text_color"
+      "id, tenant_id, name, public_id, status, is_public, chat_purpose, access_mode, display_name, welcome_message, placeholder_text, disclaimer_text, show_citations, history_turn_limit, require_auth_for_hosted, force_stopped, force_stop_reason, ui_header_bg_color, ui_header_text_color, ui_footer_bg_color, ui_footer_text_color, faq_questions"
     )
     .eq("public_id", public_id)
     .maybeSingle()
@@ -178,6 +178,7 @@ export default async function HostedBotPage({ params, searchParams }: PageProps)
         headerTextColor={bot.ui_header_text_color ?? "#f8fafc"}
         footerBgColor={bot.ui_footer_bg_color ?? "#f8fafc"}
         footerTextColor={bot.ui_footer_text_color ?? "#0f172a"}
+        faqQuestions={(bot.faq_questions as string[] | null) ?? []}
         widgetToken={widgetToken}
         embedded={embedded}
         authenticatedMode={requiresInternal}

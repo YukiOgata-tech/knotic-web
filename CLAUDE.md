@@ -23,6 +23,8 @@ npm run lint         # ESLint（Next.js + TypeScript 設定）
 
 自動テストスイートは未実装。API変更の確認は実際の入力でエンドポイントを手動検証すること。自動チェックは lint のみ。
 
+**git 操作ルール**: commit・push はユーザーから明示的に依頼されたときのみ実行すること。`git status` / `git diff` / `git log` などの確認系コマンドは自由に使ってよい。
+
 ## アーキテクチャ
 
 ### ルーティング & ミドルウェア（`proxy.ts` + `lib/supabase/middleware.ts`）

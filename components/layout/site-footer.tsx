@@ -16,7 +16,7 @@ function SiteFooter() {
       <Container className="relative z-10 grid max-w-none gap-8 px-4 sm:px-8 md:grid-cols-[1.2fr_1fr_1fr] xl:px-12">
         <div className="space-y-3">
           <Link href="/" className="inline-flex items-center">
-            <span className="relative block aspect-220/56 h-8 w-auto max-w-[52vw] sm:h-10">
+            <span className="relative block aspect-220/56 h-8 w-auto max-w-[52vw] sm:h-14">
               <Image
                 src="/images/knotic-title.png"
                 alt="knotic"
@@ -31,8 +31,8 @@ function SiteFooter() {
               />
             </span>
           </Link>
-          <p className="max-w-md text-sm leading-7 text-muted-foreground">
-            URLやPDFを投入するだけで、専用AIチャットボットを構築・公開できるサービスです。
+          <p className="max-w-md text-sm leading-7 text-slate-900 dark:text-slate-50 font-semibold">
+            URLやドキュメントファイルを投入するだけで、専用のAIチャットボットを構築･公開できるサービスです。
           </p>
         </div>
 

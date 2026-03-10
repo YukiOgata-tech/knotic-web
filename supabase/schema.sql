@@ -1246,7 +1246,8 @@ create index if not exists idx_bots_force_stopped on public.bots(force_stopped);
 alter table public.bots
   add column if not exists ai_model text not null default '5-mini',
   add column if not exists ai_fallback_model text,
-  add column if not exists ai_max_output_tokens integer not null default 1200;
+  add column if not exists ai_max_output_tokens integer not null default 1200,
+  add column if not exists faq_questions text[] not null default '{}';
 
 do $$
 begin

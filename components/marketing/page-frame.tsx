@@ -44,28 +44,31 @@ function PageFrame({
 
 function CTASection() {
   return (
-    <section className="rounded-3xl bg-zinc-900 px-6 py-4 sm:py-9 text-white dark:bg-cyan-950/40 dark:ring-1 dark:ring-cyan-400/30 sm:px-8">
-      <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-        実際にAIボットを公開してみよう!
-      </h2>
-      <p className="hidden sm:block mt-1 sm:mt-3 max-w-2xl text-zinc-300">
-        URL/PDFの投入から公開までを短いサイクルで検証し、必要な機能を段階的に広げる進め方を推奨します。
-      </p>
-      <div className="mt-6 flex gap-3 flex-row">
-        <AuthAwareCtaButton
-          guestHref="/signup"
-          guestLabel="無料で試す"
-          authHref="/console"
-          authLabel="管理画面へ"
-          className="rounded-full bg-cyan-500 text-white hover:bg-cyan-600"
-        />
-        <Button
-          asChild
-          variant="outline"
-          className="rounded-full border-white/35 bg-transparent text-white hover:bg-white/15 hover:text-white"
-        >
-          <Link href="/contact">お問い合わせ</Link>
-        </Button>
+    <section className="relative isolate overflow-hidden rounded-3xl bg-zinc-900 bg-[url('/images/cta-bg-w.jpg')] bg-cover bg-center px-6 py-4 text-white sm:px-8 sm:py-9 dark:bg-[url('/images/cta-bg-d.png')] dark:ring-1 dark:ring-cyan-400/30">
+      <div className="pointer-events-none absolute inset-0 bg-slate-600/45 dark:bg-gray-600/45" />
+      <div className="relative z-10 ">
+        <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl dark:text-black">
+          実際にAIボットを公開してみよう!
+        </h2>
+        <p className="mt-1 hidden max-w-2xl text-zinc-300 sm:mt-3 sm:block dark:text-black">
+          URL/PDFの投入から公開までを短いサイクルで検証し、必要な機能を段階的に広げる進め方を推奨します。
+        </p>
+        <div className="mt-6 flex flex-row gap-3">
+          <AuthAwareCtaButton
+            guestHref="/signup"
+            guestLabel="無料で試す"
+            authHref="/console"
+            authLabel="管理画面へ"
+            className="rounded-full bg-cyan-500 text-white hover:bg-cyan-600"
+          />
+          <Button
+            asChild
+            variant="outline"
+            className="rounded-full border-white/35 bg-transparent text-white hover:bg-white/15 hover:text-white dark:border-black/40 dark:text-black"
+          >
+            <Link href="/contact">お問い合わせ</Link>
+          </Button>
+        </div>
       </div>
     </section>
   )
