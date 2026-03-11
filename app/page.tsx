@@ -63,12 +63,12 @@ export default function Home() {
     "@type": "WebSite",
     name: "knotic",
     url: getAppUrl(),
-    description: "URLとPDFでAIチャットボットを作成・公開できるSaaSサービス",
+    description: "URLとファイルでAIチャットボットを作成・公開できるSaaSサービス",
     inLanguage: "ja",
   }
 
   return (
-    <div className="font-jp relative overflow-x-clip bg-[linear-gradient(180deg,#fff9ee_0%,#ffffff_32%,#f7fbff_100%)] text-zinc-900 dark:bg-[linear-gradient(180deg,#0f172a_0%,#0b1220_45%,#0a0f1a_100%)] dark:text-zinc-100">
+    <div className=" font-jp relative overflow-x-clip bg-[linear-gradient(180deg,#fff9ee_0%,#ffffff_32%,#f7fbff_100%)] text-zinc-900 dark:bg-[linear-gradient(180deg,#0f172a_0%,#0b1220_45%,#0a0f1a_100%)] dark:text-zinc-100">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -84,13 +84,13 @@ export default function Home() {
             <h1 className="text-2xl font-bold leading-tight tracking-tight sm:text-5xl lg:text-6xl">
               問い合わせ対応・マニュアル案内を
               <br className="hidden sm:block" />
-              <span className="text-cyan-700 dark:text-cyan-300">URLとPDFで自動化</span>
+              <span className="text-cyan-700 dark:text-cyan-300">AIチャットで自動化</span>
             </h1>
             <p className="mx-auto max-w-2xl text-sm leading-5 text-zinc-600 dark:text-zinc-300 sm:mx-0 sm:text-lg sm:leading-6">
-              URLやPDFを登録するだけで、Web埋め込みや共有URLで公開できるAIボット作成サービスです。
+              URLやファイルを登録するだけで、Web埋め込みや共有URLで公開できるAIボット作成サービスです。
               <span className="hidden sm:inline">まずは低コストで導入し、運用しながら応答品質を育てていけます。</span>
             </p>
-            <div className="flex flex-col items-center gap-2 sm:flex-row sm:items-start sm:gap-3">
+            <div className="flex items-center gap-2 flex-row sm:items-start sm:gap-3 mx-auto">
               <AuthAwareCtaButton
                 guestHref="/signup"
                 guestLabel="無料で試す"
@@ -110,7 +110,7 @@ export default function Home() {
           width={900}
           height={1200}
           sizes="100vw"
-          className="mx-auto mt-3 block h-auto w-full md:hidden"
+          className="mx-auto mt-3 block h-auto w-full md:hidden rounded-sm"
           priority
         />
         <Image
@@ -124,7 +124,7 @@ export default function Home() {
         />
       </section>
 
-      <Container className="relative z-10 flex flex-col gap-8 py-6 sm:gap-14 sm:py-10 w-full">
+      <Container size="full" className="relative z-10 flex flex-col gap-8 py-6 sm:gap-14 sm:py-10 sm:w-[90%]">
         {/* Stats bar */}
         <section className="grid grid-cols-3 divide-x divide-black/10 rounded-2xl border border-black/40 bg-white/80 py-3 shadow-sm dark:divide-white/10 dark:border-white/50 dark:bg-slate-900/70 sm:py-4">
           {stats.map((stat) => (
@@ -137,7 +137,7 @@ export default function Home() {
         </section>
 
         {/* Problem */}
-        <section className="space-y-3 sm:space-y-5">
+        <section className="-mx-4 space-y-3 border-y border-black/40 bg-white/80 px-4 py-4 dark:border-white/10 dark:bg-slate-900/70 sm:mx-0 sm:space-y-5 sm:rounded-3xl sm:border sm:p-8">
           <div className="space-y-1 sm:space-y-2">
             <h2 className="text-xl font-semibold tracking-tight sm:text-3xl">こんな"課題"ありませんか？</h2>
             <p className="hidden text-zinc-800 dark:text-zinc-200 sm:block">多くのチームが同じ問題を抱えています。knoticでその問題を解決しましょう。</p>
@@ -158,7 +158,7 @@ export default function Home() {
         {/* How it works */}
         <section className="space-y-3 sm:space-y-5">
           <div className="space-y-1 sm:space-y-2">
-            <h2 className="text-xl font-semibold tracking-tight sm:text-3xl">3ステップで公開</h2>
+            <h2 className="text-xl font-semibold tracking-tight sm:text-3xl">3ステップで公開!</h2>
             <p className="hidden text-zinc-600 dark:text-zinc-300 sm:block">エンジニア不要。最短数分でAIボットを本番公開できます。</p>
           </div>
           {/* モバイル: 横並びコンパクトロー / sm+: 3列カード */}
@@ -215,7 +215,7 @@ export default function Home() {
             {plans.map((plan) => (
               <Card
                 key={plan.name}
-                className="w-[65vw] shrink-0 snap-start border-black/40 bg-white/90 transition-transform duration-200 hover:-translate-y-1 dark:border-white/10 dark:bg-slate-900/75 sm:w-[60vw] lg:w-auto hover:shadow-2xl"
+                className="w-[60vw] shrink-0 snap-start border-black/40 bg-white/90 transition-transform duration-200 hover:-translate-y-1 dark:border-white/10 dark:bg-slate-900/75 sm:w-[60vw] lg:w-auto hover:shadow-2xl"
               >
                 <CardHeader className="pb-1 sm:pb-6">
                   <CardDescription className="text-gray-700 dark:text-white">{plan.note}</CardDescription>

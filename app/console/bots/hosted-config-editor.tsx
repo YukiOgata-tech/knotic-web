@@ -73,6 +73,8 @@ type BotHostedConfig = {
   widget_launcher_label: string | null
   widget_policy_text: string | null
   widget_redirect_new_tab: boolean | null
+  bot_logo_url: string | null
+  launcher_show_label: boolean | null
   ai_model: string | null
   ai_fallback_model: string | null
   ai_max_output_tokens: number | null
@@ -260,7 +262,12 @@ export function HostedConfigEditor({
   const [widgetLauncherLabel, setWidgetLauncherLabel] = React.useState(bot.widget_launcher_label ?? "チャット")
   const [widgetPolicyText, setWidgetPolicyText] = React.useState(bot.widget_policy_text ?? DEFAULT_WIDGET_POLICY)
   const [widgetRedirectNewTab, setWidgetRedirectNewTab] = React.useState(Boolean(bot.widget_redirect_new_tab ?? false))
-  const [allowedOrigins, setAllowedOrigins] = React.useState((widgetTokenRow?.allowed_origins ?? []).join(", "))
+  const [logoUrl, setLogoUrl] = React.useState<string | null>(bot.bot_logo_url ?? null)
+  const [launcherShowLabel, setLauncherShowLabel] = React.useState(bot.launcher_show_label !== false)
+  const [logoUploading, setLogoUploading] = React.useState(false)
+  const [logoError, setLogoError] = React.useState<string | null>(null)
+  const allowedOrigins_ = (widgetTokenRow?.allowed_origins ?? []).join(", ")
+  const [allowedOrigins, setAllowedOrigins] = React.useState(allowedOrigins_)
   const [showRotateConfirm, setShowRotateConfirm] = React.useState(false)
   const rotateFormRef = React.useRef<HTMLFormElement>(null)
   const [aiModel, setAiModel] = React.useState(bot.ai_model ?? "5-mini")
@@ -339,6 +346,28 @@ export function HostedConfigEditor({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reindexState.phase])
+
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ""
+    if (!file) return
+    setLogoUploading(true)
+    setLogoError(null)
+    try {
+      const fd = new FormData()
+      fd.set("bot_id", bot.id)
+      fd.set("logo", file)
+      const res = await fetch("/api/console/bot-logo", { method: "POST", body: fd })
+      const data = (await res.json()) as { publicUrl?: string; error?: string }
+      if (!res.ok || !data.publicUrl) throw new Error(data.error ?? "アップロードに失敗しました")
+      setLogoUrl(data.publicUrl)
+      setIsDirty(true)
+    } catch (err) {
+      setLogoError(err instanceof Error ? err.message : "アップロードに失敗しました")
+    } finally {
+      setLogoUploading(false)
+    }
+  }
 
   async function handleUrlSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -724,6 +753,8 @@ export function HostedConfigEditor({
       >
         <input type="hidden" name="redirect_to" value={redirectTo} />
         <input type="hidden" name="bot_id" value={bot.id} />
+        <input type="hidden" name="bot_logo_url" value={logoUrl ?? ""} />
+        <input type="hidden" name="launcher_show_label" value={String(launcherShowLabel)} />
 
         <Panel active={activeTab === "basic"}>
           <div className="grid gap-1">
@@ -983,8 +1014,49 @@ export function HostedConfigEditor({
         <Panel active={activeTab === "theme"}>
           <div className="grid gap-1">
             <p className="text-sm font-semibold">テーマ設定</p>
-            <p className="text-xs text-muted-foreground">ヘッダー/フッター配色を調整します。</p>
+            <p className="text-xs text-muted-foreground">ロゴ画像とヘッダー/フッター配色を調整します。</p>
           </div>
+
+          {/* ロゴアップロード */}
+          <div className="grid gap-2 rounded-lg border border-black/15 p-3 dark:border-white/10">
+            <Label>ロゴ画像</Label>
+            <div className="flex flex-wrap items-center gap-3">
+              <img
+                src={logoUrl ?? "/images/knotic-square-logo.png"}
+                alt="ロゴプレビュー"
+                className="size-14 rounded-lg border border-black/15 object-contain dark:border-white/10"
+              />
+              <div className="grid gap-1.5">
+                <div className="flex flex-wrap gap-2">
+                  <label className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-black/20 px-3 py-1.5 text-xs transition-colors hover:bg-slate-50 dark:border-white/15 dark:hover:bg-slate-800 ${!isEditor || logoUploading ? "pointer-events-none opacity-50" : ""}`}>
+                    {logoUploading ? <Loader2 className="size-3 animate-spin" /> : null}
+                    {logoUploading ? "アップロード中..." : "画像を選択"}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml"
+                      className="hidden"
+                      disabled={!isEditor || logoUploading}
+                      onChange={handleLogoUpload}
+                    />
+                  </label>
+                  {logoUrl ? (
+                    <button
+                      type="button"
+                      disabled={!isEditor}
+                      onClick={() => { setLogoUrl(null); setIsDirty(true) }}
+                      className="inline-flex items-center gap-1 rounded-full border border-black/20 px-3 py-1.5 text-xs text-destructive transition-colors hover:bg-red-50 dark:border-white/15 dark:hover:bg-red-950/30"
+                    >
+                      <X className="size-3" />
+                      削除
+                    </button>
+                  ) : null}
+                </div>
+                {logoError ? <p className="text-[11px] text-destructive">{logoError}</p> : null}
+                <p className="text-[11px] text-muted-foreground">PNG・JPG・WebP・SVG、最大2MB。未設定時はデフォルトロゴを使用します。</p>
+              </div>
+            </div>
+          </div>
+
           <div className="grid gap-3 md:grid-cols-2">
             <div className="grid gap-1.5">
               <Label>ヘッダー背景色</Label>
@@ -1100,6 +1172,20 @@ export function HostedConfigEditor({
               />
             </div>
             <div className="grid gap-1.5 md:col-span-2">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={launcherShowLabel}
+                  onChange={(e) => setLauncherShowLabel(e.target.checked)}
+                  disabled={!isEditor}
+                />
+                ラベルテキストをボタンに表示する
+              </label>
+              <p className="text-[11px] text-muted-foreground">
+                オフにするとロゴ画像のみのアイコンボタンになります。ロゴ未設定時はデフォルトロゴが表示されます。
+              </p>
+            </div>
+            <div className="grid gap-1.5 md:col-span-2">
               <Label htmlFor={`widget_policy_text_${bot.id}`}>ポリシー表示文</Label>
               <Textarea
                 id={`widget_policy_text_${bot.id}`}
@@ -1159,6 +1245,7 @@ export function HostedConfigEditor({
               headerTextColor={headerTextColor}
               footerBgColor={footerBgColor}
               footerTextColor={footerTextColor}
+              logoUrl={logoUrl}
             />
           </div>
         </Panel>

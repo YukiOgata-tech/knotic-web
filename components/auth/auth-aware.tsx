@@ -12,8 +12,23 @@ function useAuthState() {
 
   React.useEffect(() => {
     const supabase = createClient()
+    let mounted = true
 
-    supabase.auth.getUser().then((result: { data: { user: unknown | null } }) => {
+    void supabase.auth
+      .getSession()
+      .then((result: { data: { session: { user?: unknown } | null } }) => {
+        if (!mounted) return
+        setIsLoggedIn(Boolean(result.data.session?.user))
+        setReady(true)
+      })
+      .catch(() => {
+        if (!mounted) return
+        setIsLoggedIn(false)
+        setReady(true)
+      })
+
+    void supabase.auth.getUser().then((result: { data: { user: unknown | null } }) => {
+      if (!mounted) return
       setIsLoggedIn(Boolean(result.data.user))
       setReady(true)
     })
@@ -22,12 +37,14 @@ function useAuthState() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(
       (_event: string, session: { user?: unknown } | null) => {
-      setIsLoggedIn(Boolean(session?.user))
-      setReady(true)
+        if (!mounted) return
+        setIsLoggedIn(Boolean(session?.user))
+        setReady(true)
       }
     )
 
     return () => {
+      mounted = false
       subscription.unsubscribe()
     }
   }, [])
@@ -69,9 +86,27 @@ function AuthAwareCtaButton({
 function HeaderAuthActions({ mobile = false }: { mobile?: boolean }) {
   const { isLoggedIn, ready } = useAuthState()
 
-  if (ready && isLoggedIn) {
+  if (!ready) {
+    if (mobile) {
+      return (
+        <div aria-hidden="true" className="grid gap-3">
+          <div className="h-10 rounded-full bg-black/10 animate-pulse dark:bg-white/10" />
+          <div className="h-10 rounded-full bg-black/10 animate-pulse dark:bg-white/10" />
+        </div>
+      )
+    }
+
     return (
-        <Button asChild className={mobile ? "rounded-full" : "rounded-full"}>
+      <div aria-hidden="true" className="flex items-center gap-2">
+        <div className="hidden h-9 w-20 rounded-full bg-black/10 animate-pulse sm:block dark:bg-white/10" />
+        <div className="h-9 w-28 rounded-full bg-black/10 animate-pulse dark:bg-white/10" />
+      </div>
+    )
+  }
+
+  if (isLoggedIn) {
+    return (
+      <Button asChild className="rounded-full">
         <Link href="/console">管理画面へ</Link>
       </Button>
     )

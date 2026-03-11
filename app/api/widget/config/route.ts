@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
   const { data: bot } = await admin
     .from("bots")
     .select(
-      "id, tenant_id, public_id, status, is_public, access_mode, require_auth_for_hosted, force_stopped, force_stop_reason, widget_enabled, widget_mode, widget_position, widget_launcher_label, widget_policy_text, widget_redirect_new_tab"
+      "id, tenant_id, public_id, status, is_public, access_mode, require_auth_for_hosted, force_stopped, force_stop_reason, widget_enabled, widget_mode, widget_position, widget_launcher_label, widget_policy_text, widget_redirect_new_tab, bot_logo_url, launcher_show_label"
     )
     .eq("public_id", botPublicId)
     .maybeSingle()
@@ -104,6 +104,8 @@ export async function GET(request: NextRequest) {
       mode: bot.widget_mode ?? "overlay",
       position: bot.widget_position ?? "right-bottom",
       launcherLabel: bot.widget_launcher_label ?? "チャット",
+      launcherShowLabel: bot.launcher_show_label !== false,
+      logoUrl: (bot.bot_logo_url as string | null) ?? null,
       policyText:
         bot.widget_policy_text ??
         "このチャット履歴はブラウザ上で24時間保持され、自動的に削除されます。",

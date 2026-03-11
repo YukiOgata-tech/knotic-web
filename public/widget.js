@@ -24,15 +24,21 @@
     .knotic-widget-launcher {
       position: fixed;
       z-index: 2147483000;
+      display: flex;
+      align-items: center;
+      gap: 8px;
       border: none;
       border-radius: 999px;
       background: #0f172a;
       color: #fff;
       font-size: 14px;
       font-weight: 600;
-      padding: 12px 16px;
+      padding: 10px 16px;
       box-shadow: 0 12px 30px rgba(2, 6, 23, 0.35);
       cursor: pointer;
+    }
+    .knotic-widget-launcher.knotic-icon-only {
+      padding: 10px;
     }
     .knotic-widget-launcher.knotic-right-bottom { right: 20px; bottom: 20px; }
     .knotic-widget-launcher.knotic-right-top { right: 20px; top: 20px; }
@@ -123,8 +129,21 @@
 
       const launcher = document.createElement("button");
       launcher.type = "button";
-      launcher.className = `knotic-widget-launcher knotic-${position}`;
-      launcher.textContent = config.launcherLabel || "チャット";
+      const showLabel = config.launcherShowLabel !== false;
+      launcher.className = `knotic-widget-launcher knotic-${position}${showLabel ? "" : " knotic-icon-only"}`;
+
+      const effectiveLogoUrl = config.logoUrl || `${baseOrigin}/images/knotic-square-logo.png`;
+      const logoImg = document.createElement("img");
+      logoImg.src = effectiveLogoUrl;
+      logoImg.alt = "";
+      logoImg.style.cssText = "width:24px;height:24px;object-fit:contain;border-radius:3px;flex-shrink:0;";
+      launcher.appendChild(logoImg);
+
+      if (showLabel) {
+        const labelSpan = document.createElement("span");
+        labelSpan.textContent = config.launcherLabel || "チャット";
+        launcher.appendChild(labelSpan);
+      }
       document.body.appendChild(launcher);
 
       const overlay = document.createElement("div");

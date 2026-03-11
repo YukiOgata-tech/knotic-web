@@ -6,7 +6,7 @@ import { Container } from "@/components/layout/container"
 
 function SiteFooter() {
   return (
-    <footer className="relative mt-0 overflow-hidden border-t border-black/20 bg-white/70 py-10 dark:border-white/10 dark:bg-slate-950/40">
+    <footer className="relative mt-0 overflow-hidden border-t border-black/20 bg-white/70 py-4 sm:py-10 dark:border-white/10 dark:bg-slate-950/40">
       <div className="pointer-events-none absolute inset-0 opacity-60 dark:hidden">
         <Image src="/images/bg-001-l.png" alt="" fill className="object-cover" />
       </div>
@@ -16,7 +16,7 @@ function SiteFooter() {
       <Container className="relative z-10 grid max-w-none gap-8 px-4 sm:px-8 md:grid-cols-[1.2fr_1fr_1fr] xl:px-12">
         <div className="space-y-3">
           <Link href="/" className="inline-flex items-center">
-            <span className="relative block aspect-220/56 h-8 w-auto max-w-[52vw] sm:h-14">
+            <span className="relative block aspect-220/56 h-10 w-auto max-w-[52vw] sm:h-14">
               <Image
                 src="/images/knotic-title.png"
                 alt="knotic"

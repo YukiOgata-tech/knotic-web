@@ -52,17 +52,20 @@ function ChannelPill({ label, enabled }: { label: string; enabled: boolean }) {
 
 function PricingShowcase() {
   return (
-    <div className="grid gap-6 sm:gap-8">
-      <section id="plans" className="rounded-3xl border border-black/20 bg-white/90 p-4 sm:p-6 dark:border-white/10 dark:bg-slate-900/70">
+    <div className="grid gap-5 sm:gap-8">
+      <section
+        id="plans"
+        className="-mx-4 border-y border-black/20 bg-white/90 px-4 py-5 sm:mx-0 sm:rounded-3xl sm:border sm:p-6 dark:border-white/10 dark:bg-slate-900/70"
+      >
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-700 dark:text-cyan-300">
           Plans
         </p>
-        <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">3プランの料金と対応範囲</h2>
-        <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300 sm:text-base sm:leading-8">
+        <h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-3xl">3プランの料金と対応範囲</h2>
+        <p className="mt-2 text-[13px] leading-6 text-zinc-600 dark:text-zinc-300 sm:mt-3 sm:text-base sm:leading-8">
           小さく始めて、公開規模と運用負荷に合わせて段階的に拡張できます。
         </p>
 
-        <div className="mt-5 grid gap-3 sm:gap-4 lg:grid-cols-3">
+        <div className="mt-4 grid gap-3 sm:mt-5 sm:gap-4 lg:grid-cols-3">
           {pricingPlans.map((plan, index) => {
             const recommended = plan.code === "standard"
             return (
@@ -124,21 +127,21 @@ function PricingShowcase() {
         </p>
 
         <div className="mt-4 max-w-full overflow-x-auto overscroll-x-contain rounded-xl border border-black/20 [-webkit-overflow-scrolling:touch] dark:border-white/10">
-          <table className="w-[700px] text-xs sm:w-full sm:min-w-[760px] sm:text-sm">
+          <table className="w-150 text-xs sm:w-full sm:min-w-190 sm:text-sm">
             <colgroup>
-              <col className="w-[28%] sm:w-[24%]" />
-              <col className="w-[24%] sm:w-[25.3%]" />
-              <col className="w-[24%] sm:w-[25.3%]" />
-              <col className="w-[24%] sm:w-[25.4%]" />
+              <col className="w-[22%] sm:w-[24%]" />
+              <col className="w-[26%] sm:w-[25.3%]" />
+              <col className="w-[26%] sm:w-[25.3%]" />
+              <col className="w-[26%] sm:w-[25.4%]" />
             </colgroup>
             <thead className="bg-zinc-100/90 dark:bg-slate-800/80">
               <tr>
-                <th className="bg-zinc-100/95 px-3 py-3 text-left font-semibold whitespace-nowrap sm:px-5 dark:bg-slate-800/95">
+                <th className="bg-zinc-100/95 px-3 py-3 font-semibold whitespace-nowrap sm:px-5 dark:bg-slate-800/95 text-center">
                   項目
                 </th>
-                <th className="px-3 py-3 text-left font-semibold whitespace-nowrap sm:px-4">Lite</th>
-                <th className="px-3 py-3 text-left font-semibold whitespace-nowrap sm:px-4">Standard</th>
-                <th className="px-3 py-3 text-left font-semibold whitespace-nowrap sm:px-4">Pro</th>
+                <th className="px-3 py-3 text-center font-semibold whitespace-nowrap sm:px-4">Lite</th>
+                <th className="px-3 py-3 text-center font-semibold whitespace-nowrap sm:px-4">Standard</th>
+                <th className="px-3 py-3 text-center font-semibold whitespace-nowrap sm:px-4">Pro</th>
               </tr>
             </thead>
             <tbody>
@@ -163,30 +166,30 @@ function PricingShowcase() {
         </div>
       </section>
 
-      <section className="grid gap-3 sm:gap-4 lg:grid-cols-2">
-        <article className="rounded-2xl border border-black/20 bg-white/85 p-4 sm:p-6 dark:border-white/10 dark:bg-slate-900/70">
-          <h3 className="text-xl font-semibold tracking-tight sm:text-2xl">導入の進め方</h3>
-          <ol className="mt-3 grid gap-2.5 text-sm leading-7 text-zinc-600 dark:text-zinc-300 sm:text-base sm:leading-8">
+      <section className="-mx-4 grid gap-3 border-y border-black/20 bg-white/85 px-4 py-5 sm:mx-0 sm:gap-4 sm:rounded-2xl sm:border sm:p-6 dark:border-white/10 dark:bg-slate-900/70 lg:grid-cols-2">
+        <article className="border-b border-black/15 pb-4 last:border-b-0 lg:border-b-0 lg:pb-0 sm:rounded-2xl sm:border sm:border-black/20 sm:bg-white/85 sm:p-6 dark:border-white/10 sm:dark:bg-slate-950/35">
+          <h3 className="text-lg font-semibold tracking-tight sm:text-2xl">導入の進め方</h3>
+          <ol className="mt-2 grid gap-2 text-[13px] leading-6 text-zinc-800 dark:text-zinc-100 sm:mt-3 sm:gap-2.5 sm:text-base sm:leading-8">
             <li>1. Liteで問い合わせ対応またはマニュアル案内の1用途を公開</li>
             <li>2. 運用が安定したらStandardで公開チャネルと上限を拡張</li>
             <li>3. 複数部門展開やAPI連携が必要ならProへ移行</li>
           </ol>
-          <div className="mt-4 grid gap-3 sm:flex sm:flex-wrap">
-            <Button asChild variant="outline" className="rounded-full">
+          <div className="mt-4 gap-3 flex sm:flex-wrap">
+            <Button asChild variant="outline" className="rounded-full border-black/40 dark:border-white/40 hover:shadow-xl">
               <Link href="/use-cases">活用例を見る</Link>
             </Button>
-            <Button asChild variant="outline" className="rounded-full">
+            <Button asChild variant="outline" className="rounded-full border-black/40 dark:border-white/40 hover:shadow-xl">
               <Link href="/contact">見積もり相談</Link>
             </Button>
           </div>
         </article>
 
-        <article className="rounded-2xl border border-black/20 bg-white/85 p-4 sm:p-6 dark:border-white/10 dark:bg-slate-900/70">
-          <h3 className="text-xl font-semibold tracking-tight sm:text-2xl">ご利用ポリシー</h3>
-          <div className="mt-3 grid gap-2.5 text-sm leading-7 text-zinc-600 dark:text-zinc-300 sm:text-base sm:leading-8">
-            <p>お支払いに問題が発生した場合でも、管理画面から設定確認・見直しは継続して行えます。</p>
-            <p>登録済みデータは保持されるため、再開時は既存構成を活かしてスムーズに運用を戻せます。</p>
-            <p>公開設定（埋め込み許可ドメイン、API利用範囲など）は、運用状況に合わせて調整できます。</p>
+        <article className="sm:rounded-2xl sm:border sm:border-black/20 sm:bg-white/85 sm:p-6 sm:dark:border-white/10 sm:dark:bg-slate-950/35">
+          <h3 className="text-lg font-semibold tracking-tight sm:text-2xl">ご利用ポリシー</h3>
+          <div className="mt-2 grid gap-1 text-[13px] leading-6 text-zinc-600 dark:text-zinc-300 sm:mt-3 sm:gap-2.5 sm:text-base sm:leading-8">
+            <p>- お支払いに問題が発生した場合でも、管理画面から設定確認・見直しは継続して行えます。</p>
+            <p>- 登録済みデータは保持されるため、再開時は既存構成を活かしてスムーズに運用を戻せます。</p>
+            <p>- 公開設定(埋め込み許可ドメイン、API利用範囲など)は、運用状況に合わせて調整できます。</p>
           </div>
         </article>
       </section>

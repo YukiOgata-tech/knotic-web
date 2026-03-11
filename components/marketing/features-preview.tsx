@@ -26,7 +26,7 @@ const previewItems = [
 
 function FeaturesPreview() {
   return (
-    <section className="relative overflow-hidden rounded-3xl border border-black/20 bg-white/85 p-6 dark:border-white/10 dark:bg-slate-900/75 sm:p-8">
+    <section className="-mx-4 relative overflow-hidden border-y border-black/20 bg-white/85 px-4 py-5 dark:border-white/10 dark:bg-slate-900/75 sm:mx-0 sm:rounded-3xl sm:border sm:p-8">
       <div className="pointer-events-none absolute -right-14 -top-16 h-44 w-44 rounded-full bg-cyan-300/20 blur-3xl dark:bg-cyan-400/20" />
       <div className="space-y-3">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-700 dark:text-cyan-300">
@@ -41,7 +41,7 @@ function FeaturesPreview() {
         </p>
       </div>
 
-      <div className="mt-6 grid gap-3 md:grid-cols-3">
+      <div className="mt-5 grid gap-3 md:grid-cols-3 sm:mt-6">
         {previewItems.map((item, index) => (
           <motion.article
             key={item.title}

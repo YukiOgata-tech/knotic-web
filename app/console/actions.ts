@@ -758,6 +758,8 @@ export async function updateHostedConfigAction(formData: FormData) {
     const widgetLauncherLabel = String(formData.get("widget_launcher_label") ?? "").trim()
     const widgetPolicyText = String(formData.get("widget_policy_text") ?? "").trim()
     const widgetRedirectNewTab = String(formData.get("widget_redirect_new_tab") ?? "") === "on"
+    const botLogoUrl = String(formData.get("bot_logo_url") ?? "").trim() || null
+    const launcherShowLabel = String(formData.get("launcher_show_label") ?? "") !== "false"
     const faqQuestions = [0, 1, 2, 3, 4]
       .map((i) => String(formData.get(`faq_question_${i}`) ?? "").trim())
       .filter(Boolean)
@@ -840,6 +842,8 @@ export async function updateHostedConfigAction(formData: FormData) {
           widgetPolicyText ||
           "このチャット履歴はブラウザ上で24時間保持され、自動的に削除されます。",
         widget_redirect_new_tab: widgetRedirectNewTab,
+        bot_logo_url: botLogoUrl,
+        launcher_show_label: launcherShowLabel,
         faq_questions: faqQuestions,
         ai_model: aiModel,
         ai_fallback_model: aiFallbackModel,

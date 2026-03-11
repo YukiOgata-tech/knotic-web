@@ -49,6 +49,7 @@ type Props = {
   widgetToken?: string
   embedded?: boolean
   authenticatedMode?: boolean
+  logoUrl?: string | null
 }
 
 const STORAGE_KEY_PREFIX = "knotic_hosted_chat_v1_"
@@ -153,6 +154,7 @@ export function HostedChatClient({
   widgetToken,
   embedded = false,
   authenticatedMode = false,
+  logoUrl,
 }: Props) {
   const [messages, setMessages] = React.useState<Message[]>([
     firstAssistantMessage(welcomeMessage),
@@ -417,9 +419,16 @@ export function HostedChatClient({
     <div className={embedded ? "flex h-full w-full flex-col gap-3" : "mx-auto flex w-full max-w-4xl flex-col gap-4"}>
       <Card className="border-black/20 p-3 dark:border-white/10 sm:p-4" style={{ backgroundColor: headerBgColor, color: headerTextColor }}>
         <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <h1 className="truncate text-base font-semibold sm:text-xl">{displayName}</h1>
-            <p className="truncate text-xs opacity-80">{purposeLabel}</p>
+          <div className="flex min-w-0 flex-1 items-center gap-2.5">
+            <img
+              src={logoUrl ?? "/images/knotic-square-logo.png"}
+              alt=""
+              className="size-8 shrink-0 rounded object-contain sm:size-9"
+            />
+            <div className="min-w-0">
+              <h1 className="truncate text-base font-semibold sm:text-xl">{displayName}</h1>
+              <p className="truncate text-xs opacity-80">{purposeLabel}</p>
+            </div>
           </div>
           <Badge variant="outline" className="shrink-0 border-current/30 text-current text-[10px] sm:text-xs">
             Hosted Chat

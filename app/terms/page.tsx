@@ -30,10 +30,10 @@ export default function TermsPage() {
             <article key={section.id} className="grid gap-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
               <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">{section.title}</h2>
               {section.paragraphs.map((paragraph) => (
-                <p key={paragraph} className="text-lg">{paragraph}</p>
+                <p key={paragraph} className="text-sm sm:text-lg">{paragraph}</p>
               ))}
               {section.items ? (
-                <ul className="grid gap-1 text-lg">
+                <ul className="grid gap-1 text-sm sm:text-lg">
                   {section.items.map((item) => (
                     <li key={item}>・{item}</li>
                   ))}
@@ -47,7 +47,7 @@ export default function TermsPage() {
       <section className="mt-4 -mx-4 rounded-none border-y border-black/20 bg-white/80 px-4 py-4 text-xs text-zinc-600 dark:border-white/10 dark:bg-slate-900/65 dark:text-zinc-300 sm:mx-0 sm:rounded-xl sm:border sm:p-5">
         <p className="font-medium text-zinc-800 dark:text-zinc-100">関連ページ</p>
         <p className="mt-1">情報の取扱い方針はプライバシーポリシーをご確認ください。</p>
-        <Button asChild variant="outline" size="sm" className="mt-3 rounded-full">
+        <Button asChild variant="outline" size="sm" className="mt-3 rounded-full hover:shadow-xl">
           <Link href="/privacy">プライバシーポリシーを見る</Link>
         </Button>
       </section>

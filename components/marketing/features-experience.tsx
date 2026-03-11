@@ -23,13 +23,14 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Underdog } from "next/font/google"
 
 const steps = [
   {
     num: "01",
     title: "情報を登録する",
     description:
-      "WebサイトのURLを貼るだけで最大50ページを自動収集。PDFは1ファイル最大20MBまでアップロード可能。複数ソースをまとめて登録できます。",
+      "WebサイトのURLを貼るだけで一度に最大50ページを自動収集。ファイルは1あたり最大20MBまでアップロード可能。複数ソースをまとめて登録できます。",
     icon: FileText,
     numColor: "text-cyan-600/70 dark:text-cyan-400/60",
     iconBg: "bg-cyan-50 dark:bg-cyan-900/40",
@@ -39,7 +40,7 @@ const steps = [
     num: "02",
     title: "AIが自動で準備する",
     description:
-      "テキストを抽出・整理し、質問に素早く答えられる形式に自動変換。AIモデルの専門知識や複雑な設定は一切不要です。",
+      "情報やテキストを抽出･整理し、質問に素早く答えられるように自動変換！AIモデルの専門知識や複雑な設定は一切不要です。",
     icon: Layers,
     numColor: "text-violet-600/70 dark:text-violet-400/60",
     iconBg: "bg-violet-50 dark:bg-violet-900/40",
@@ -49,7 +50,7 @@ const steps = [
     num: "03",
     title: "根拠付きで回答する",
     description:
-      "ユーザーの質問に対してナレッジから関連情報を検索し回答。回答の元となったページやファイルを出典として提示できます。",
+      "ユーザーの質問に対してナレッジから関連情報を検索し回答。回答の元となったページやファイルを出典として提示もできます。",
     icon: MessageSquare,
     numColor: "text-emerald-600/70 dark:text-emerald-400/60",
     iconBg: "bg-emerald-50 dark:bg-emerald-900/40",
@@ -59,7 +60,7 @@ const steps = [
     num: "04",
     title: "公開して改善する",
     description:
-      "Widget・専用URL・APIで公開後も、ソースを更新すればBotの内容に即反映。公開設定や権限はいつでも変更できます。",
+      "Widget･専用URL･APIで公開後も、ソースを更新すればBotの内容に即反映。公開設定や権限はいつでも変更できます。",
     icon: Zap,
     numColor: "text-amber-600/70 dark:text-amber-400/60",
     iconBg: "bg-amber-50 dark:bg-amber-900/40",
@@ -180,9 +181,9 @@ const securityItems = [
 
 function FeaturesExperience() {
   return (
-    <div className="grid gap-6 sm:gap-8">
+    <div className="grid gap-5 sm:gap-8">
       {/* ① ビジョンと主要スペック */}
-      <section className="relative overflow-hidden rounded-3xl border border-black/20 bg-white/90 p-6 sm:p-8 dark:border-white/10 dark:bg-slate-900/75">
+      <section className="-mx-4 relative overflow-hidden rounded-none border-y border-black/40 bg-white/90 px-4 py-5 sm:mx-0 sm:rounded-3xl sm:border sm:p-8 dark:border-white/10 dark:bg-slate-900/75">
         <div className="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full bg-cyan-300/20 blur-3xl dark:bg-cyan-400/15" />
         <div className="pointer-events-none absolute -bottom-12 -left-12 h-40 w-40 rounded-full bg-violet-300/20 blur-3xl dark:bg-violet-400/10" />
 
@@ -194,16 +195,16 @@ function FeaturesExperience() {
           className="relative"
         >
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-700 dark:text-cyan-300">
-            What is knotic
+            What is Knotic
           </p>
-          <h2 className="mt-3 text-2xl font-semibold leading-snug tracking-tight sm:text-3xl">
-            URLを貼るか、PDFをアップロードするだけ。
+          <h2 className="mt-2 text-xl font-semibold leading-snug tracking-tight sm:mt-3 sm:text-3xl">
+            URLを貼るか、ファイルをアップロードするだけ。
             <br />
             <span className="bg-linear-to-r from-cyan-700 to-emerald-600 bg-clip-text text-transparent dark:from-cyan-300 dark:to-emerald-300">
               AIチャットボットが自動で完成します。
             </span>
           </h2>
-          <p className="mt-3 max-w-2xl text-sm leading-7 text-zinc-600 sm:text-base sm:leading-8 dark:text-zinc-300">
+          <p className="mt-2 max-w-2xl text-[13px] leading-6 text-zinc-700 sm:mt-3 sm:text-base sm:leading-8 dark:text-zinc-300">
             専門的な知識や複雑な設定は不要です。登録した情報をAIが自動的にインデックス化し、自社サイトへの埋め込みや専用URLでの公開をすぐに始められます。
           </p>
         </motion.div>
@@ -211,7 +212,7 @@ function FeaturesExperience() {
         <div className="relative mt-5 grid grid-cols-3 gap-2 sm:gap-4">
           {[
             { num: "50", unit: "ページ", label: "URL登録時の自動収集上限" },
-            { num: "20", unit: "MB", label: "PDFファイル1つあたりの上限" },
+            { num: "20", unit: "MB", label: "ファイル1つあたりの上限" },
             { num: "24", unit: "時間", label: "Hosted Pageの会話履歴保持" },
           ].map((stat, i) => (
             <motion.div
@@ -220,25 +221,25 @@ function FeaturesExperience() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.5 }}
               transition={{ duration: 0.3, delay: 0.06 * i }}
-              className="rounded-2xl border border-black/20 bg-white/80 p-3 text-center sm:p-4 dark:border-white/10 dark:bg-slate-950/40"
+              className="rounded-lg border border-black/30 bg-white/80 p-2.5 text-center sm:rounded-2xl sm:p-4 dark:border-white/10 dark:bg-slate-950/40"
             >
               <p className="text-2xl font-semibold tracking-tight text-zinc-900 sm:text-3xl dark:text-zinc-50">
                 {stat.num}
                 <span className="ml-0.5 text-base font-medium text-zinc-500 dark:text-zinc-400">{stat.unit}</span>
               </p>
-              <p className="mt-1 text-[11px] leading-5 text-zinc-500 sm:text-xs dark:text-zinc-400">{stat.label}</p>
+              <p className="mt-1 text-xs leading-5 text-zinc-500 sm:text-xs dark:text-zinc-400">{stat.label}</p>
             </motion.div>
           ))}
         </div>
       </section>
 
       {/* ② 4ステップフロー */}
-      <section className="rounded-3xl border border-black/20 bg-white/85 p-6 sm:p-8 dark:border-white/10 dark:bg-slate-900/70">
+      <section className="-mx-4 rounded-none border-y border-black/40 bg-white/85 px-4 py-5 sm:mx-0 sm:rounded-3xl sm:border sm:p-8 dark:border-white/10 dark:bg-slate-900/70">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-300">
           Workflow
         </p>
-        <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">導入から公開までの4ステップ</h2>
-        <p className="mt-2 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+        <h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-3xl">導入から公開までの4ステップ</h2>
+        <p className="mt-2 text-[13px] leading-6 text-zinc-600 sm:text-sm sm:leading-7 dark:text-zinc-300">
           すべての操作が管理コンソールから完結します。エンジニアなしでも運用できます。
         </p>
 
@@ -250,28 +251,29 @@ function FeaturesExperience() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.35 }}
               transition={{ duration: 0.32, delay: 0.07 * i }}
-              className="relative rounded-2xl border border-black/20 bg-white/85 p-4 sm:p-5 dark:border-white/10 dark:bg-slate-950/45"
+              className="relative border-b border-black/35 bg-transparent py-3 last:border-b-0 sm:rounded-2xl sm:border sm:bg-white/85 sm:p-5 dark:border-white/10 dark:bg-slate-950/45"
             >
               <div className="flex items-start justify-between gap-2">
-                <span className={`font-mono text-2xl font-bold leading-none ${step.numColor}`}>{step.num}</span>
+                <span className={`font-mono text-2xl font-bold leading-none ${step.numColor} hover:underline`}>{step.num}</span>
+                <p className="sm:hidden font-semibold text-zinc-900 dark:text-zinc-50">{step.title}</p>
                 <div className={`inline-flex size-9 shrink-0 items-center justify-center rounded-xl ${step.iconBg}`}>
                   <step.icon className={`size-4 ${step.iconColor}`} />
                 </div>
               </div>
-              <p className="mt-3 font-semibold text-zinc-900 dark:text-zinc-50">{step.title}</p>
-              <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-300">{step.description}</p>
+              <p className="hidden sm:block mt-3 font-semibold text-zinc-900 dark:text-zinc-50">{step.title}</p>
+              <p className="mt-1.5 text-[13px] leading-6 text-zinc-600 sm:mt-2 sm:text-sm dark:text-zinc-300">{step.description}</p>
             </motion.div>
           ))}
         </div>
       </section>
 
       {/* ③ 3つの公開方法 */}
-      <section className="rounded-3xl border border-black/20 bg-white/85 p-6 sm:p-8 dark:border-white/10 dark:bg-slate-900/70">
+      <section className="-mx-4 rounded-none border-y border-black/40 bg-white/85 px-4 py-5 sm:mx-0 sm:rounded-3xl sm:border sm:p-8 dark:border-white/10 dark:bg-slate-900/70">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-700 dark:text-violet-300">
           Publishing
         </p>
-        <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">3通りの公開・連携方法</h2>
-        <p className="mt-2 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+        <h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-3xl">3通りの公開・連携方法</h2>
+        <p className="mt-2 text-[13px] leading-6 text-zinc-600 sm:text-sm sm:leading-7 dark:text-zinc-300">
           用途やシステム環境に合わせて公開方法を選べます。同一Botで複数の公開方法を組み合わせることも可能です。
         </p>
 
@@ -283,7 +285,7 @@ function FeaturesExperience() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.3 }}
               transition={{ duration: 0.32, delay: 0.07 * i }}
-              className="flex flex-col rounded-2xl border border-black/20 bg-white/85 p-4 sm:p-5 dark:border-white/10 dark:bg-slate-950/45"
+              className="flex flex-col border-b border-black/20 px-1 py-3 last:border-b-0 rounded-2xl sm:border sm:border-black/40 bg-blue-300/25 sm:p-5  dark:border-white/40 sm:dark:bg-blue-900/45"
             >
               <div className="flex items-center gap-3">
                 <div
@@ -298,11 +300,11 @@ function FeaturesExperience() {
                   </span>
                 </div>
               </div>
-              <p className="mt-3 text-sm leading-6 text-zinc-600 dark:text-zinc-300">{method.description}</p>
+              <p className="mt-2 text-[13px] leading-6 text-zinc-800 sm:mt-3 sm:text-sm dark:text-zinc-100">{method.description}</p>
               <ul className="mt-3 grid gap-1.5">
                 {method.details.map((d) => (
-                  <li key={d} className="flex items-start gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-                    <ArrowRight className="mt-0.5 size-3 shrink-0 text-zinc-400 dark:text-zinc-500" />
+                  <li key={d} className="flex items-start gap-2 text-[11px] text-zinc-800 sm:text-xs dark:text-zinc-100">
+                    <ArrowRight className="mt-0.5 size-3 shrink-0 text-zinc-700 dark:text-zinc-300" />
                     {d}
                   </li>
                 ))}
@@ -313,12 +315,12 @@ function FeaturesExperience() {
       </section>
 
       {/* ④ Botカスタマイズ */}
-      <section className="rounded-3xl border border-black/20 bg-white/85 p-6 sm:p-8 dark:border-white/10 dark:bg-slate-900/70">
+      <section className="-mx-4 rounded-none border-y border-black/40 bg-white/85 px-4 py-5 sm:mx-0 sm:rounded-3xl sm:border sm:p-8 dark:border-white/10 dark:bg-slate-900/70">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">
           Customization
         </p>
-        <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Botの設定と調整</h2>
-        <p className="mt-2 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+        <h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-3xl">Botの設定と調整</h2>
+        <p className="mt-2 text-[13px] leading-6 text-zinc-600 sm:text-sm sm:leading-7 dark:text-zinc-300">
           目的・トーン・ビジュアルをコンソールから設定。公開後もいつでも変更できます。
         </p>
 
@@ -330,14 +332,14 @@ function FeaturesExperience() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.35 }}
               transition={{ duration: 0.3, delay: 0.05 * i }}
-              className="flex gap-3 rounded-2xl border border-black/20 bg-white/80 p-4 dark:border-white/10 dark:bg-slate-950/45"
+              className="flex gap-3 border-b border-black/15 py-3 last:border-b-0 sm:rounded-2xl sm:border sm:border-black/20 sm:bg-white/80 sm:p-4 dark:border-white/10 sm:dark:bg-slate-950/45"
             >
               <div className="inline-flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
                 <item.icon className="size-4" />
               </div>
               <div>
                 <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">{item.title}</p>
-                <p className="mt-1 text-xs leading-5 text-zinc-500 dark:text-zinc-400">{item.description}</p>
+                <p className="mt-1 text-[11px] leading-5 text-zinc-500 sm:text-xs dark:text-zinc-400">{item.description}</p>
               </div>
             </motion.div>
           ))}
@@ -345,12 +347,12 @@ function FeaturesExperience() {
       </section>
 
       {/* ⑤ セキュリティと管理 */}
-      <section className="-mx-4 border-y border-black/20 bg-white/85 px-4 py-6 sm:mx-0 sm:rounded-3xl sm:border sm:p-8 dark:border-white/10 dark:bg-slate-900/70">
+      <section className="-mx-4 border-y border-black/40 bg-white/85 px-4 py-6 sm:mx-0 sm:rounded-3xl sm:border sm:p-8 dark:border-white/10 dark:bg-slate-900/70">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
           Security & Management
         </p>
-        <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">セキュリティとチーム管理</h2>
-        <p className="mt-2 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+        <h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-3xl">セキュリティとチーム管理</h2>
+        <p className="mt-2 text-[13px] leading-6 text-zinc-600 sm:text-sm sm:leading-7 dark:text-zinc-300">
           アクセス制御・操作ログ・メンバー権限を標準装備。安心して組織で運用できます。
         </p>
 
@@ -362,35 +364,35 @@ function FeaturesExperience() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.35 }}
               transition={{ duration: 0.3, delay: 0.06 * i }}
-              className="flex gap-3 rounded-2xl border border-black/20 bg-white/80 p-4 sm:p-5 dark:border-white/10 dark:bg-slate-950/45"
+              className="flex gap-3 border-b border-black/15 py-3 last:border-b-0 sm:rounded-2xl sm:border sm:border-black/20 sm:bg-gray-300/50 sm:p-5 dark:border-white/40 sm:dark:bg-slate-950/45"
             >
               <div className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                 <item.icon className="size-5" />
               </div>
               <div>
                 <p className="font-semibold text-zinc-900 dark:text-zinc-50">{item.title}</p>
-                <p className="mt-1.5 text-sm leading-6 text-zinc-600 dark:text-zinc-300">{item.description}</p>
+                <p className="mt-1 text-[13px] leading-6 text-zinc-600 sm:mt-1.5 sm:text-sm dark:text-zinc-300">{item.description}</p>
               </div>
             </motion.div>
           ))}
         </div>
       </section>
 
-      {/* ⑥ 次のページへの導線 */}
-      <section className="rounded-2xl border border-black/20 bg-white/80 p-6 sm:p-8 dark:border-white/10 dark:bg-slate-900/70">
-        <h3 className="text-xl font-semibold tracking-tight sm:text-2xl">次に確認するページ</h3>
-        <p className="mt-2 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+      {/* 次のページへの導線 */}
+      <section className="-mx-4 rounded-none border-y border-black/40 bg-white/80 px-4 py-5 sm:mx-0 sm:p-8 dark:border-white/40 dark:bg-slate-900/70">
+        <h3 className="text-lg font-semibold tracking-tight sm:text-2xl">- 次に確認するページ -</h3>
+        <p className="mt-2 text-[13px] leading-6 text-zinc-600 sm:text-sm sm:leading-7 dark:text-zinc-300">
           料金・活用例・セキュリティの詳細も合わせてご確認ください。
         </p>
-        <div className="mt-4 flex flex-wrap gap-3">
-          <Button asChild variant="outline" className="rounded-full">
-            <Link href="/pricing">料金を見る</Link>
+        <div className="mt-2 sm:mt-4 flex flex-wrap gap-3">
+          <Button asChild variant="outline" className="rounded-full border border-black/40 dark:border-white/40 bg-amber-200/30 hover:shadow-xl">
+            <Link href="/pricing">料金</Link>
           </Button>
-          <Button asChild variant="outline" className="rounded-full">
-            <Link href="/use-cases">活用例を見る</Link>
+          <Button asChild variant="outline" className="rounded-full border-black/40 dark:border-white/40 bg-amber-200/30 hover:shadow-xl">
+            <Link href="/use-cases">活用例</Link>
           </Button>
-          <Button asChild variant="outline" className="rounded-full">
-            <Link href="/security">セキュリティを見る</Link>
+          <Button asChild variant="outline" className="rounded-full border-black/40 dark:border-white/40 bg-amber-200/30 hover:shadow-xl">
+            <Link href="/security">セキュリティ</Link>
           </Button>
         </div>
       </section>

@@ -60,10 +60,10 @@ export default function SpecifiedCommercialTransactionsPage() {
             <article key={section.id} className="grid gap-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
               <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">{section.title}</h2>
               {section.paragraphs?.map((paragraph) => (
-                <p key={paragraph} className="text-lg">{paragraph}</p>
+                <p key={paragraph} className="text-sm sm:text-lg">{paragraph}</p>
               ))}
               {section.items ? (
-                <ul className="grid gap-1 text-lg">
+                <ul className="grid gap-1 text-sm sm:text-lg">
                   {section.items.map((item) => (
                     <li key={item}>・{item}</li>
                   ))}
@@ -79,13 +79,13 @@ export default function SpecifiedCommercialTransactionsPage() {
         <p className="font-medium text-zinc-800 dark:text-zinc-100">関連ページ</p>
         <p className="mt-1">サービス利用条件とデータ取扱い方針は以下をご確認ください。</p>
         <div className="mt-3 flex flex-wrap gap-2">
-          <Button asChild variant="outline" size="sm" className="rounded-full">
+          <Button asChild variant="outline" size="sm" className="rounded-full hover:shadow-xl">
             <Link href="/terms">利用規約を見る</Link>
           </Button>
-          <Button asChild variant="outline" size="sm" className="rounded-full">
+          <Button asChild variant="outline" size="sm" className="rounded-full hover:shadow-xl">
             <Link href="/privacy">プライバシーポリシーを見る</Link>
           </Button>
-          <Button asChild variant="outline" size="sm" className="rounded-full">
+          <Button asChild variant="outline" size="sm" className="rounded-full hover:shadow-xl">
             <Link href="/pricing">料金プランを見る</Link>
           </Button>
         </div>

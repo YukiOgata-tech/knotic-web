@@ -2,23 +2,56 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { Menu } from "lucide-react"
-import { useEffect, useState } from "react"
+import { Menu, X } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
 import { usePathname } from "next/navigation"
+import { AnimatePresence, motion } from "framer-motion"
 
 import { HeaderAuthActions } from "@/components/auth/auth-aware"
 import { headerLinks } from "@/lib/marketing-content"
 import { Button } from "@/components/ui/button"
 import { Container } from "@/components/layout/container"
-import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 
 function SiteHeader() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const mobileMenuPanelRef = useRef<HTMLElement | null>(null)
+  const mobileMenuTriggerRef = useRef<HTMLButtonElement | null>(null)
   const pathname = usePathname()
 
   useEffect(() => {
     setMobileMenuOpen(false)
   }, [pathname])
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return
+
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null
+      if (!target) return
+
+      if (mobileMenuPanelRef.current?.contains(target)) return
+      if (mobileMenuTriggerRef.current?.contains(target)) return
+
+      setMobileMenuOpen(false)
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMobileMenuOpen(false)
+      }
+    }
+
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    document.addEventListener("pointerdown", onPointerDown, true)
+    window.addEventListener("keydown", onKeyDown)
+
+    return () => {
+      document.body.style.overflow = prevOverflow
+      document.removeEventListener("pointerdown", onPointerDown, true)
+      window.removeEventListener("keydown", onKeyDown)
+    }
+  }, [mobileMenuOpen])
 
   return (
     <header className="sticky top-0 z-40 border-b border-black/50 bg-white/80 backdrop-blur-md dark:border-white/50 dark:bg-slate-950/75">
@@ -55,48 +88,108 @@ function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-            <SheetTrigger asChild>
-              <Button
-                variant="outline"
-                size="icon-sm"
-                className="rounded-full md:hidden"
-                aria-label="メニューを開く"
-              >
-                <Menu className="size-4" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="right" className="overflow-hidden p-0">
-              <SheetTitle className="sr-only">モバイルメニュー</SheetTitle>
-              <div className="pointer-events-none absolute inset-0">
-                <div className="absolute inset-0 bg-white/88 dark:bg-slate-950/86" />
-                <Image
-                  src="/images/knotic-square-logo.png"
-                  alt=""
-                  fill
-                  className="object-contain p-8 opacity-[0.13] dark:opacity-[0.16]"
-                />
-              </div>
-              <div className="relative z-10 flex h-full flex-col px-6 py-8">
-                <div className="space-y-1">
-                  {headerLinks.map((item) => (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => setMobileMenuOpen(false)}
-                      className="block rounded-lg px-3 py-3 text-base font-medium text-zinc-700 transition-colors hover:bg-muted hover:text-zinc-950 dark:text-zinc-200 dark:hover:text-white"
+          <div className="md:hidden">
+            <Button
+              ref={mobileMenuTriggerRef}
+              variant="outline"
+              size="icon-sm"
+              className="rounded-full"
+              aria-label={mobileMenuOpen ? "メニューを閉じる" : "メニューを開く"}
+              aria-expanded={mobileMenuOpen}
+              aria-controls="mobile-panel-menu"
+              onClick={() => setMobileMenuOpen((prev) => !prev)}
+            >
+              {mobileMenuOpen ? <X className="size-4" /> : <Menu className="size-4" />}
+            </Button>
+
+            <AnimatePresence>
+              {mobileMenuOpen ? (
+                <>
+                  <motion.button
+                    type="button"
+                    aria-label="メニューを閉じる"
+                    onPointerDown={() => setMobileMenuOpen(false)}
+                    className="fixed inset-0 z-50 bg-slate-900/25 backdrop-blur-[2px] dark:bg-black/45"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.22, ease: "easeOut" }}
+                  />
+
+                  <motion.aside
+                    ref={mobileMenuPanelRef}
+                    id="mobile-panel-menu"
+                    role="dialog"
+                    aria-modal="true"
+                    className="fixed top-0 right-0 z-60 h-[min(66vh,500px)] w-[min(80vw,420px)] overflow-hidden rounded-bl-3xl bg-white dark:bg-slate-950"
+                    initial={{
+                      opacity: 0,
+                      x: 28,
+                    }}
+                    animate={{
+                      opacity: 1,
+                      x: 0,
+                    }}
+                    exit={{
+                      opacity: 0,
+                      x: 20,
+                    }}
+                    transition={{
+                      duration: 0.28,
+                      ease: [0.22, 1, 0.36, 1],
+                    }}
+                  >
+                    <div
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center"
                     >
-                      {item.label}
-                    </Link>
-                  ))}
-                </div>
-                <div className="mt-auto grid gap-3">
-                  <HeaderAuthActions mobile />
-                </div>
-              </div>
-            </SheetContent>
-          </Sheet>
-          <HeaderAuthActions />
+                      <Image
+                        src="/images/knotic-square-logo.png"
+                        alt=""
+                        width={220}
+                        height={220}
+                        className="h-auto w-[44vw] max-w-[220px] opacity-[0.18] dark:opacity-[0.24]"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="absolute top-4 right-4 z-20 inline-flex size-9 items-center justify-center rounded-full bg-white/90 text-zinc-700 transition-colors hover:bg-zinc-100 dark:bg-slate-950/90 dark:text-zinc-200 dark:hover:bg-slate-900"
+                      aria-label="メニューを閉じる"
+                    >
+                      <X className="size-4" />
+                    </button>
+
+                    <div className="relative z-10 flex h-full w-full flex-col overflow-y-auto bg-transparent pb-3 pl-6 pr-5 pt-14 sm:pr-6">
+                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-800 dark:text-cyan-200">
+                        Navigation
+                      </p>
+                      <nav className="space-y-1">
+                        {headerLinks.map((item) => (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            onClick={() => setMobileMenuOpen(false)}
+                            className="block rounded-xl px-3 py-2.5 text-[15px] font-medium text-zinc-700 transition-colors hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-200 dark:hover:bg-slate-900 dark:hover:text-white"
+                          >
+                            {item.label}
+                          </Link>
+                        ))}
+                      </nav>
+                      <div className="mt-auto pt-4 grid gap-3">
+                        <HeaderAuthActions mobile />
+                      </div>
+                    </div>
+                  </motion.aside>
+                </>
+              ) : null}
+            </AnimatePresence>
+          </div>
+
+          <div className="hidden md:block">
+            <HeaderAuthActions />
+          </div>
         </div>
       </Container>
     </header>
