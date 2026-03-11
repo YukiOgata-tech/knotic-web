@@ -94,6 +94,45 @@
       background: #fff;
     }
 
+    .knotic-widget-body {
+      position: relative;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .knotic-widget-loading {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #fff;
+      gap: 12px;
+      z-index: 2;
+      transition: opacity 0.35s ease;
+      pointer-events: none;
+    }
+    .knotic-widget-loading.knotic-loaded {
+      opacity: 0;
+    }
+    @keyframes knotic-spin { to { transform: rotate(360deg); } }
+    .knotic-widget-spinner {
+      width: 30px;
+      height: 30px;
+      border: 3px solid #e2e8f0;
+      border-top-color: #0f172a;
+      border-radius: 50%;
+      animation: knotic-spin 0.75s linear infinite;
+    }
+    .knotic-widget-loading-text {
+      font-size: 12px;
+      color: #94a3b8;
+      letter-spacing: 0.02em;
+    }
+
     .knotic-widget-policy {
       border-top: 1px solid #e2e8f0;
       padding: 8px 12px;
@@ -178,11 +217,31 @@
       close.textContent = "閉じる";
       actions.appendChild(close);
 
+      const body = document.createElement("div");
+      body.className = "knotic-widget-body";
+
+      const loading = document.createElement("div");
+      loading.className = "knotic-widget-loading";
+
+      const spinner = document.createElement("div");
+      spinner.className = "knotic-widget-spinner";
+
+      const loadingText = document.createElement("div");
+      loadingText.className = "knotic-widget-loading-text";
+      loadingText.textContent = "読み込み中...";
+
+      loading.appendChild(spinner);
+      loading.appendChild(loadingText);
+
       const iframe = document.createElement("iframe");
       iframe.className = "knotic-widget-iframe";
       iframe.src = config.embedUrl;
-      iframe.loading = "lazy";
       iframe.title = "Knotic Widget Chat";
+
+      iframe.addEventListener("load", () => {
+        loading.classList.add("knotic-loaded");
+        setTimeout(() => { if (loading.parentNode) loading.parentNode.removeChild(loading); }, 400);
+      });
 
       const policy = document.createElement("div");
       policy.className = "knotic-widget-policy";
@@ -190,8 +249,10 @@
 
       header.appendChild(title);
       header.appendChild(actions);
+      body.appendChild(loading);
+      body.appendChild(iframe);
       panel.appendChild(header);
-      panel.appendChild(iframe);
+      panel.appendChild(body);
       panel.appendChild(policy);
       overlay.appendChild(panel);
       document.body.appendChild(overlay);

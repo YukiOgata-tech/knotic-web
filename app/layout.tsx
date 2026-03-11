@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google"
 import { SiteFooter } from "@/components/layout/site-footer"
 import { SiteHeader } from "@/components/layout/site-header"
 import { SiteBreadcrumbs } from "@/components/layout/site-breadcrumbs"
+import { RouteTransitionLoader } from "@/components/layout/route-transition-loader"
 import { ThemeProvider } from "@/components/theme-provider"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { getAppUrl } from "@/lib/env"
@@ -58,6 +59,7 @@ export default function RootLayout({
             type="application/ld+json"
             dangerouslySetInnerHTML={{ __html: JSON.stringify(rootJsonLd) }}
           />
+          <RouteTransitionLoader />
           <div className="min-h-screen bg-background text-foreground">
             <SiteHeader />
             <SiteBreadcrumbs />

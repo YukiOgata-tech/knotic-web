@@ -43,16 +43,13 @@ function SiteFooter() {
               <Link
                 key={item.href}
                 href={item.href}
-                className="transition-colors hover:text-zinc-950 dark:hover:text-white"
+                className="transition-colors hover:text-zinc-950 dark:hover:text-white hover:underline"
               >
                 {item.label}
               </Link>
             ))}
-            <Link href="/integrations" className="transition-colors hover:text-zinc-950 dark:hover:text-white">
+            <Link href="/integrations" className="transition-colors hover:text-zinc-950 dark:hover:text-white hover:underline">
               連携
-            </Link>
-            <Link href="/security" className="transition-colors hover:text-zinc-950 dark:hover:text-white">
-              セキュリティ
             </Link>
           </div>
         </div>
@@ -60,20 +57,20 @@ function SiteFooter() {
         <div className="space-y-3">
           <p className="text-sm font-semibold">- Company</p>
           <div className="grid gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">
-            <Link href="/contact" className="transition-colors hover:text-zinc-950 dark:hover:text-white">
+            <Link href="/contact" className="transition-colors hover:text-zinc-950 dark:hover:text-white hover:underline">
               お問い合わせ
             </Link>
-            <Link href="/privacy" className="transition-colors hover:text-zinc-950 dark:hover:text-white">
+            <Link href="/privacy" className="transition-colors hover:text-zinc-950 dark:hover:text-white hover:underline">
               プライバシーポリシー
             </Link>
-            <Link href="/terms" className="transition-colors hover:text-zinc-950 dark:hover:text-white">
+            <Link href="/terms" className="transition-colors hover:text-zinc-950 dark:hover:text-white hover:underline">
               利用規約
             </Link>
-            <Link href="/specified-commercial-transactions" className="transition-colors hover:text-zinc-950 dark:hover:text-white">
+            <Link href="/specified-commercial-transactions" className="transition-colors hover:text-zinc-950 dark:hover:text-white hover:underline">
               特定商取引法に基づく表記
             </Link>
-            <Link href="/demo" className="transition-colors hover:text-zinc-950 dark:hover:text-white">
-              デモ
+            <Link href="/security" className="transition-colors hover:text-zinc-950 dark:hover:text-white hover:underline">
+              セキュリティ
             </Link>
           </div>
         </div>

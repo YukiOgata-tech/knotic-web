@@ -29,6 +29,7 @@ export default async function HostedBotPage({ params, searchParams }: PageProps)
   const query = (await searchParams) ?? {}
   const widgetToken = firstParam(query.widgetToken)
   const embedded = ["1", "true", "yes"].includes((firstParam(query.embed) ?? "").toLowerCase())
+  const previewMode = ["1", "true", "yes"].includes((firstParam(query.preview) ?? "").toLowerCase())
 
   const admin = createAdminClient()
 
@@ -76,6 +77,23 @@ export default async function HostedBotPage({ params, searchParams }: PageProps)
     )
   }
 
+  // プレビューモード: テナントメンバーなら is_public・quota チェックをバイパス
+  let isPreviewMember = false
+  if (previewMode) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data: membership } = await admin
+        .from("tenant_memberships")
+        .select("tenant_id")
+        .eq("tenant_id", bot.tenant_id)
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .maybeSingle()
+      isPreviewMember = Boolean(membership)
+    }
+  }
+
   const requiresInternal = bot.access_mode === "internal" || Boolean(bot.require_auth_for_hosted)
 
   if (requiresInternal) {
@@ -111,7 +129,7 @@ export default async function HostedBotPage({ params, searchParams }: PageProps)
       )
     }
   } else {
-    if (!bot.is_public) {
+    if (!bot.is_public && !isPreviewMember) {
       return (
         <div className="mx-auto w-full max-w-2xl px-4 py-16">
           <Card>
@@ -142,27 +160,35 @@ export default async function HostedBotPage({ params, searchParams }: PageProps)
     )
   }
 
-  try {
-    await assertTenantCanUseHostedPage(bot.tenant_id, bot.id)
-  } catch (error) {
-    return (
-      <div className="mx-auto w-full max-w-2xl px-4 py-16">
-        <Card>
-          <CardHeader>
-            <CardTitle>Hosted URLは現在利用できません</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            {error instanceof Error
-              ? error.message
-              : "契約プランまたは上限設定によりHosted URLの利用が制限されています。"}
-          </CardContent>
-        </Card>
-      </div>
-    )
+  if (!isPreviewMember) {
+    try {
+      await assertTenantCanUseHostedPage(bot.tenant_id, bot.id)
+    } catch (error) {
+      return (
+        <div className="mx-auto w-full max-w-2xl px-4 py-16">
+          <Card>
+            <CardHeader>
+              <CardTitle>Hosted URLは現在利用できません</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              {error instanceof Error
+                ? error.message
+                : "契約プランまたは上限設定によりHosted URLの利用が制限されています。"}
+            </CardContent>
+          </Card>
+        </div>
+      )
+    }
   }
 
   return (
     <div className={embedded ? "h-screen w-screen bg-transparent p-2" : "min-h-screen bg-[linear-gradient(180deg,#f8fbff_0%,#ffffff_35%,#fffaf3_100%)] px-3 py-4 dark:bg-[linear-gradient(180deg,#0f172a_0%,#0b1220_45%,#0a0f1a_100%)] sm:px-6 sm:py-8"}>
+      {isPreviewMember && (
+        <div className="mx-auto mb-3 flex max-w-4xl items-center gap-2 rounded-lg border border-amber-300/70 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-300">
+          <span className="font-semibold">プレビュー表示中</span>
+          <span className="opacity-70">— 非公開状態のページをコンソールから確認しています。一般ユーザーにはこのページは表示されません。</span>
+        </div>
+      )}
       <HostedChatClient
         botPublicId={bot.public_id}
         displayName={bot.display_name ?? bot.name}

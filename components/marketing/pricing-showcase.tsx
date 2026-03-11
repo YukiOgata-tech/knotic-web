@@ -75,19 +75,23 @@ function PricingShowcase() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, amount: 0.3 }}
                 transition={{ duration: 0.28, delay: 0.05 * index }}
-                className={`rounded-2xl border p-4 sm:p-5 ${
+                className={`relative rounded-2xl border p-4 sm:p-5 ${
                   recommended
                     ? "border-cyan-300/70 bg-[linear-gradient(165deg,#f5feff_0%,#ffffff_55%,#f6fffb_100%)] shadow-[0_16px_34px_-30px_rgba(8,145,178,.55)] dark:border-cyan-500/40 dark:bg-[linear-gradient(165deg,#072126_0%,#0b1d2a_55%,#0c251f_100%)]"
                     : "border-black/20 bg-white dark:border-white/10 dark:bg-slate-950/45"
                 }`}
               >
                 {recommended ? (
-                  <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-cyan-600/90 px-3 py-1 text-xs font-semibold text-white">
+                  <div className="absolute right-4 top-4 z-10 inline-flex items-center gap-1.5 rounded-full bg-cyan-600/90 px-3 py-1 text-xs font-semibold text-white sm:right-5 sm:top-5">
                     <Sparkles className="size-3.5" />
                     推奨プラン
                   </div>
                 ) : null}
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-300">
+                <p
+                  className={`text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-300 ${
+                    recommended ? "pr-24 sm:pr-28" : ""
+                  }`}
+                >
                   {plan.name}
                 </p>
                 <p className="mt-2 text-3xl font-semibold tracking-tight">{plan.priceLabel}</p>

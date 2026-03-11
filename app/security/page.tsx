@@ -80,8 +80,8 @@ export default function SecurityPage() {
               <ul className="mt-2 grid gap-1.5 text-[13px] leading-6 text-zinc-700 dark:text-zinc-200 sm:text-sm sm:leading-7">
                   {section.bullets.map((item) => (
                     <li key={item} className="flex items-start gap-2">
-                      <span className="mt-[9px] size-1.5 shrink-0 rounded-full bg-cyan-600 dark:bg-cyan-300" />
-                      <span className="break-words">{item}</span>
+                      <span className="mt-2.25 size-1.5 shrink-0 rounded-full bg-cyan-600 dark:bg-cyan-300" />
+                      <span className="wrap-break-word">{item}</span>
                     </li>
                   ))}
               </ul>
@@ -96,8 +96,8 @@ export default function SecurityPage() {
         <ul className="mt-3 grid gap-2 text-[13px] leading-6 text-zinc-700 dark:text-zinc-200 sm:text-sm sm:leading-7">
           {securityChecklist.map((item) => (
             <li key={item.title} className="flex items-start gap-2 border-b border-black/10 pb-2 last:border-b-0 last:pb-0 dark:border-white/10">
-              <span className="mt-[9px] size-1.5 shrink-0 rounded-full bg-cyan-600 dark:bg-cyan-300" />
-              <span className="break-words">
+              <span className="mt-2.25 size-1.5 shrink-0 rounded-full bg-cyan-600 dark:bg-cyan-300" />
+              <span className="wrap-break-word">
                 <span className="font-medium text-zinc-900 dark:text-zinc-100">{item.title}</span>
                 <span className="text-zinc-600 dark:text-zinc-300">: {item.detail}</span>
               </span>
@@ -111,8 +111,8 @@ export default function SecurityPage() {
         <ul className="mt-3 grid gap-2 text-[13px] leading-6 text-zinc-600 dark:text-zinc-300 sm:text-sm sm:leading-7">
           {securityNotes.map((note) => (
             <li key={note} className="flex items-start gap-2">
-              <span className="mt-[9px] size-1.5 shrink-0 rounded-full bg-zinc-500 dark:bg-zinc-300" />
-              <span className="break-words">{note}</span>
+              <span className="mt-2.25 size-1.5 shrink-0 rounded-full bg-zinc-500 dark:bg-zinc-300" />
+              <span className="wrap-break-word">{note}</span>
             </li>
           ))}
         </ul>

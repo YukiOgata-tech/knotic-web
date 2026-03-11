@@ -416,25 +416,25 @@ export function HostedChatClient({
   }
 
   return (
-    <div className={embedded ? "flex h-full w-full flex-col gap-3" : "mx-auto flex w-full max-w-4xl flex-col gap-4"}>
-      <Card className="border-black/20 p-3 dark:border-white/10 sm:p-4" style={{ backgroundColor: headerBgColor, color: headerTextColor }}>
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex min-w-0 flex-1 items-center gap-2.5">
+    <div className={embedded ? "flex h-full min-h-0 w-full flex-col gap-3" : "mx-auto flex w-full max-w-4xl flex-col gap-4"}>
+      <Card className={embedded ? "border-black/20 px-3 py-2 dark:border-white/10" : "border-black/20 p-3 dark:border-white/10 sm:p-4"} style={{ backgroundColor: headerBgColor, color: headerTextColor }}>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
             <img
               src={logoUrl ?? "/images/knotic-square-logo.png"}
               alt=""
-              className="size-8 shrink-0 rounded object-contain sm:size-9"
+              className={embedded ? "size-6 shrink-0 rounded object-contain" : "size-8 shrink-0 rounded object-contain sm:size-9"}
             />
             <div className="min-w-0">
-              <h1 className="truncate text-base font-semibold sm:text-xl">{displayName}</h1>
-              <p className="truncate text-xs opacity-80">{purposeLabel}</p>
+              <h1 className={embedded ? "truncate text-sm font-semibold" : "truncate text-base font-semibold sm:text-xl"}>{displayName}</h1>
+              {!embedded && <p className="truncate text-xs opacity-80">{purposeLabel}</p>}
             </div>
           </div>
           <Badge variant="outline" className="shrink-0 border-current/30 text-current text-[10px] sm:text-xs">
             Hosted Chat
           </Badge>
         </div>
-        {(showRetentionNotice || disclaimerText) ? (
+        {!embedded && (showRetentionNotice || disclaimerText) ? (
           <div className="mt-2 flex flex-col gap-0.5 border-t border-current/15 pt-2 sm:flex-row sm:flex-wrap sm:gap-x-4">
             {showRetentionNotice ? (
               <p className="text-[11px] opacity-60">履歴はブラウザ上で{retentionHours}時間保持されます。</p>
@@ -474,8 +474,8 @@ export function HostedChatClient({
         </Card>
       ) : null}
 
-      <Card className={embedded ? "flex h-[calc(100%-4.5rem)] min-h-[500px] flex-col border-black/20 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80 sm:p-4" : "flex min-h-[55vh] flex-col border-black/20 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80 sm:min-h-[62vh] sm:p-4"}>
-        <div className="flex-1 space-y-3 overflow-y-auto pr-1">
+      <Card className={embedded ? "flex min-h-0 flex-1 flex-col border-black/20 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80 sm:p-4" : "flex min-h-[55vh] flex-col border-black/20 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80 sm:min-h-[62vh] sm:p-4"}>
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
           {messages.map((message) => {
             const isAnimating = message.role === "assistant" && message.id === animatingMsgId
             const displayContent = isAnimating

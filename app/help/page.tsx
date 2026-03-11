@@ -116,6 +116,7 @@ export default async function HelpPage({ searchParams }: PageProps) {
             <a
               key={category.id}
               href={`#${category.id}`}
+              data-no-route-loader="true"
               className="rounded-full border border-black/20 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:border-cyan-500/60 hover:text-cyan-800 dark:border-white/15 dark:bg-slate-950 dark:text-zinc-200 dark:hover:border-cyan-300/60 dark:hover:text-cyan-200"
             >
               {category.title}
@@ -134,7 +135,8 @@ export default async function HelpPage({ searchParams }: PageProps) {
               <div key={category.id} className="space-y-1.5">
                 <a
                   href={`#${category.id}`}
-                  className="block break-words text-sm font-semibold text-zinc-900 hover:underline dark:text-zinc-100"
+                  data-no-route-loader="true"
+                  className="block wrap-break-word text-sm font-semibold text-zinc-900 hover:underline dark:text-zinc-100"
                 >
                   {category.title}
                 </a>
@@ -143,7 +145,8 @@ export default async function HelpPage({ searchParams }: PageProps) {
                     <a
                       key={article.id}
                       href={`#${articleAnchor(category.id, article.id)}`}
-                      className="block break-words text-xs text-zinc-600 hover:underline dark:text-zinc-300"
+                      data-no-route-loader="true"
+                      className="block wrap-break-word text-xs text-zinc-600 hover:underline dark:text-zinc-300"
                     >
                       {article.title}
                     </a>
@@ -175,12 +178,12 @@ export default async function HelpPage({ searchParams }: PageProps) {
                 className="min-w-0 overflow-hidden rounded-none border-0 bg-transparent p-0 sm:rounded-3xl sm:border sm:border-black/20 sm:bg-white/90 sm:p-6 dark:sm:border-white/10 dark:sm:bg-slate-900/75"
               >
                 <div className="flex flex-wrap items-center gap-3">
-                  <h2 className="break-words text-xl font-semibold tracking-tight sm:text-2xl">{category.title}</h2>
+                  <h2 className="wrap-break-word text-xl font-semibold tracking-tight sm:text-2xl">{category.title}</h2>
                   <Badge variant="secondary" className="rounded-full px-2.5 py-1 text-[11px]">
                     {category.articles.length} 記事
                   </Badge>
                 </div>
-                <p className="mt-2 break-words text-[13px] text-zinc-600 dark:text-zinc-300 sm:text-sm">
+                <p className="mt-2 wrap-break-word text-[13px] text-zinc-600 dark:text-zinc-300 sm:text-sm">
                   {category.description}
                 </p>
 
@@ -193,10 +196,10 @@ export default async function HelpPage({ searchParams }: PageProps) {
                     >
                       <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div className="min-w-0">
-                          <h3 className="break-words text-base font-semibold tracking-tight sm:text-lg">
+                          <h3 className="wrap-break-word text-base font-semibold tracking-tight sm:text-lg">
                             {article.title}
                           </h3>
-                          <p className="mt-1 break-words text-[13px] text-zinc-600 dark:text-zinc-300 sm:text-sm">
+                          <p className="mt-1 wrap-break-word text-[13px] text-zinc-600 dark:text-zinc-300 sm:text-sm">
                             {article.summary}
                           </p>
                         </div>
@@ -212,17 +215,17 @@ export default async function HelpPage({ searchParams }: PageProps) {
                             key={section.heading}
                             className="min-w-0 overflow-hidden rounded-none border-0 bg-transparent px-0 py-2 dark:bg-transparent sm:rounded-xl sm:border sm:border-black/10 sm:bg-zinc-50 sm:p-3 dark:sm:border-white/10 dark:sm:bg-slate-900/70"
                           >
-                            <h4 className="break-words text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                            <h4 className="wrap-break-word text-sm font-semibold text-zinc-900 dark:text-zinc-100">
                               {section.heading}
                             </h4>
-                            <p className="mt-1 break-words text-[13px] leading-6 text-zinc-600 dark:text-zinc-300 sm:text-sm">
+                            <p className="mt-1 wrap-break-word text-[13px] leading-6 text-zinc-600 dark:text-zinc-300 sm:text-sm">
                               {section.body}
                             </p>
                             {section.bullets?.length ? (
                               <ul className="mt-2 min-w-0 space-y-1.5 text-zinc-700 dark:text-zinc-200">
                                 {section.bullets.map((bullet) => (
                                   <li key={bullet} className="flex min-w-0 items-start gap-2">
-                                    <span className="mt-[8px] size-1.5 shrink-0 rounded-full bg-cyan-600 dark:bg-cyan-300" />
+                                    <span className="mt-2 size-1.5 shrink-0 rounded-full bg-cyan-600 dark:bg-cyan-300" />
                                     <span className="min-w-0 break-words text-[13px] leading-6 [overflow-wrap:anywhere] sm:text-sm">
                                       {bullet}
                                     </span>
@@ -260,6 +263,10 @@ export default async function HelpPage({ searchParams }: PageProps) {
             関連ページ
           </p>
           <div className="mt-3 grid gap-2 text-sm">
+            <Link href="/help/widget" className="inline-flex items-center gap-2 hover:underline">
+              Widget 埋め込みガイド（コード例）
+              <ArrowRight className="size-3.5" />
+            </Link>
             <Link href="/faq" className="inline-flex items-center gap-2 hover:underline">
               FAQを見る
               <ArrowRight className="size-3.5" />

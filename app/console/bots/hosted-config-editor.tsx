@@ -10,7 +10,9 @@ import {
   ExternalLink,
   FileText,
   Loader2,
+  Monitor,
   Save,
+  Smartphone,
   X,
   MonitorSmartphone,
   Palette,
@@ -196,6 +198,301 @@ function Panel({ active, children }: { active: boolean; children: React.ReactNod
   return <section className={cn("grid gap-4", !active && "hidden")}>{children}</section>
 }
 
+type WidgetPreviewProps = {
+  logoUrl: string | null
+  launcherLabel: string
+  launcherShowLabel: boolean
+  widgetPosition: string
+  previewKey: number
+  botPublicId: string
+  displayName: string
+  purposeLabel: string
+  welcomeMessage: string
+  faqQuestions: string[]
+  placeholderText: string
+  disclaimerText: string
+  showCitations: boolean
+  historyTurnLimit: number
+  headerBgColor: string
+  headerTextColor: string
+  footerBgColor: string
+  footerTextColor: string
+}
+
+function WidgetLauncherPreview({
+  logoUrl,
+  launcherLabel,
+  launcherShowLabel,
+  widgetPosition,
+  previewKey,
+  botPublicId,
+  displayName,
+  purposeLabel,
+  welcomeMessage,
+  faqQuestions,
+  placeholderText,
+  disclaimerText,
+  showCitations,
+  historyTurnLimit,
+  headerBgColor,
+  headerTextColor,
+  footerBgColor,
+  footerTextColor,
+}: WidgetPreviewProps) {
+  const [overlayOpen, setOverlayOpen] = React.useState(false)
+  const [viewMode, setViewMode] = React.useState<"desktop" | "mobile">("desktop")
+
+  // モード切替時にオーバーレイをリセット
+  React.useEffect(() => { setOverlayOpen(false) }, [viewMode])
+
+  const isRight = widgetPosition.includes("right")
+  const isBottom = widgetPosition.includes("bottom")
+
+  // チャットパネル（デスクトップ・モバイル共通）
+  const ChatPanel = ({ fullScreen }: { fullScreen: boolean }) => (
+    <div className={cn("flex flex-col bg-white dark:bg-slate-950", fullScreen ? "absolute inset-0 z-20" : "h-full w-[min(65%,360px)]")}>
+      <div className="flex shrink-0 items-center justify-between border-b border-black/10 px-3 py-2 dark:border-white/10">
+        <span className="truncate text-xs font-semibold text-slate-700 dark:text-slate-200">{displayName}</span>
+        <button
+          type="button"
+          onClick={() => setOverlayOpen(false)}
+          className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
+        >
+          <X className="size-3.5" />
+        </button>
+      </div>
+      <div className="relative min-h-0 flex-1">
+        <div className="absolute inset-0">
+          <HostedChatClient
+            key={previewKey}
+            botPublicId={botPublicId}
+            displayName={displayName}
+            purposeLabel={purposeLabel}
+            welcomeMessage={welcomeMessage}
+            faqQuestions={faqQuestions}
+            placeholderText={placeholderText}
+            disclaimerText={disclaimerText}
+            showCitations={showCitations}
+            showRetentionNotice={false}
+            retentionHours={24}
+            historyTurnLimit={historyTurnLimit}
+            headerBgColor={headerBgColor}
+            headerTextColor={headerTextColor}
+            footerBgColor={footerBgColor}
+            footerTextColor={footerTextColor}
+            logoUrl={logoUrl}
+            embedded
+            disablePersistence
+          />
+        </div>
+      </div>
+    </div>
+  )
+
+  // ランチャーボタン（サイズ可変）
+  const LauncherBtn = ({ scale = 1 }: { scale?: number }) => (
+    <button
+      type="button"
+      onClick={() => setOverlayOpen(true)}
+      style={{
+        position: "absolute",
+        [isRight ? "right" : "left"]: 14 * scale,
+        [isBottom ? "bottom" : "top"]: 14 * scale,
+        display: "flex",
+        alignItems: "center",
+        gap: 6 * scale,
+        background: "#0f172a",
+        color: "#fff",
+        border: "none",
+        borderRadius: 999,
+        padding: launcherShowLabel ? `${9 * scale}px ${14 * scale}px` : 9 * scale,
+        fontSize: 13 * scale,
+        fontWeight: 600,
+        boxShadow: "0 6px 20px rgba(2,6,23,0.35)",
+        cursor: "pointer",
+        zIndex: 10,
+      }}
+    >
+      <img
+        src={logoUrl ?? "/images/knotic-square-logo.png"}
+        alt=""
+        style={{ width: 20 * scale, height: 20 * scale, objectFit: "contain", borderRadius: 3, flexShrink: 0 }}
+      />
+      {launcherShowLabel && <span>{launcherLabel || "チャット"}</span>}
+    </button>
+  )
+
+  return (
+    <div className="grid gap-3">
+      {/* ── デスクトップ/モバイル切り替え ── */}
+      <div className="flex justify-center">
+        <div className="flex rounded-lg border border-black/15 p-0.5 text-xs dark:border-white/10">
+          <button
+            type="button"
+            onClick={() => setViewMode("desktop")}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-colors",
+              viewMode === "desktop"
+                ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                : "text-muted-foreground hover:text-slate-700 dark:hover:text-slate-200"
+            )}
+          >
+            <Monitor className="size-3.5" />
+            デスクトップ
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("mobile")}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-colors",
+              viewMode === "mobile"
+                ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                : "text-muted-foreground hover:text-slate-700 dark:hover:text-slate-200"
+            )}
+          >
+            <Smartphone className="size-3.5" />
+            モバイル
+          </button>
+        </div>
+      </div>
+
+      {/* ── デスクトップビュー ── */}
+      {viewMode === "desktop" && (
+        <div className="relative overflow-hidden rounded-xl border border-black/15 dark:border-white/10" style={{ height: 540 }}>
+          {/* 仮ウェブページ */}
+          <div className="absolute inset-0 overflow-y-auto bg-slate-50 dark:bg-slate-950">
+            <div className="flex items-center gap-4 bg-slate-900 px-5 py-3">
+              <div className="flex items-center gap-2">
+                <div className="size-5 rounded bg-cyan-400/70" />
+                <div className="h-2.5 w-16 rounded bg-white/40" />
+              </div>
+              <div className="ml-auto flex gap-5">
+                {["製品", "機能", "料金", "導入事例"].map((t) => (
+                  <div key={t} className="h-2 w-9 rounded bg-white/25" />
+                ))}
+                <div className="h-6 w-16 rounded-full bg-cyan-500/60" />
+              </div>
+            </div>
+            <div className="bg-linear-to-br from-slate-900 via-slate-800 to-slate-900 px-8 py-12 text-center">
+              <div className="mx-auto mb-2 h-3 w-20 rounded bg-cyan-400/50" />
+              <div className="mx-auto mb-3 h-6 w-64 rounded-md bg-white/25" />
+              <div className="mx-auto mb-1.5 h-3 w-72 rounded bg-white/15" />
+              <div className="mx-auto mb-6 h-3 w-56 rounded bg-white/10" />
+              <div className="flex justify-center gap-3">
+                <div className="h-9 w-28 rounded-full bg-cyan-500/70" />
+                <div className="h-9 w-24 rounded-full border border-white/20 bg-white/10" />
+              </div>
+            </div>
+            <div className="px-6 py-6">
+              <div className="mx-auto mb-4 h-3 w-40 rounded bg-slate-300 dark:bg-slate-700" />
+              <div className="grid grid-cols-3 gap-3">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="rounded-lg border border-black/10 bg-white p-3 shadow-sm dark:border-white/8 dark:bg-slate-900">
+                    <div className="mb-2 size-6 rounded bg-cyan-100 dark:bg-cyan-900/40" />
+                    <div className="mb-2 h-2.5 w-16 rounded bg-slate-300 dark:bg-slate-600" />
+                    <div className="space-y-1.5">
+                      <div className="h-2 w-full rounded bg-slate-200 dark:bg-slate-700" />
+                      <div className="h-2 w-5/6 rounded bg-slate-200 dark:bg-slate-700" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <LauncherBtn scale={1} />
+
+          {overlayOpen && (
+            <div
+              className="absolute inset-0 flex justify-end bg-black/45"
+              style={{ zIndex: 20 }}
+              onClick={(e) => { if (e.target === e.currentTarget) setOverlayOpen(false) }}
+            >
+              <ChatPanel fullScreen={false} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── モバイルビュー（スマホフレーム） ── */}
+      {viewMode === "mobile" && (
+        <div className="flex justify-center py-2">
+          {/* スマホ外枠 */}
+          <div className="relative" style={{ width: 300 }}>
+            {/* ノッチ */}
+            <div className="absolute left-1/2 top-3.5 z-10 h-4 w-20 -translate-x-1/2 rounded-full bg-slate-700" />
+            <div className="overflow-hidden rounded-[2.5rem] border-[6px] border-slate-700 bg-slate-700 shadow-2xl">
+              {/* ステータスバー */}
+              <div className="flex items-center justify-between bg-slate-950 px-5 pt-7 pb-1.5">
+                <span className="text-[9px] font-semibold text-white/70">9:41</span>
+                <div className="flex items-center gap-1">
+                  <div className="h-1.5 w-3 rounded-sm bg-white/50" />
+                  <div className="h-1.5 w-3 rounded-sm bg-white/50" />
+                  <div className="h-2 w-4 rounded-sm bg-white/50" />
+                </div>
+              </div>
+
+              {/* スクリーン */}
+              <div className="relative overflow-hidden bg-slate-50 dark:bg-slate-950" style={{ height: 520 }}>
+                {/* 仮モバイルページ */}
+                <div className="absolute inset-0 overflow-y-auto">
+                  {/* モバイルナビ */}
+                  <div className="flex items-center justify-between bg-slate-900 px-4 py-3">
+                    <div className="flex items-center gap-1.5">
+                      <div className="size-4 rounded bg-cyan-400/70" />
+                      <div className="h-2 w-12 rounded bg-white/40" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <div className="h-0.5 w-4 rounded bg-white/60" />
+                      <div className="h-0.5 w-4 rounded bg-white/60" />
+                      <div className="h-0.5 w-4 rounded bg-white/60" />
+                    </div>
+                  </div>
+                  {/* ヒーロー */}
+                  <div className="bg-linear-to-br from-slate-900 via-slate-800 to-slate-900 px-5 py-10 text-center">
+                    <div className="mx-auto mb-2 h-2.5 w-16 rounded bg-cyan-400/50" />
+                    <div className="mx-auto mb-2 h-5 w-40 rounded-md bg-white/25" />
+                    <div className="mx-auto mb-5 h-2 w-44 rounded bg-white/15" />
+                    <div className="flex justify-center gap-2">
+                      <div className="h-8 w-22 rounded-full bg-cyan-500/70" />
+                      <div className="h-8 w-18 rounded-full border border-white/20 bg-white/10" />
+                    </div>
+                  </div>
+                  {/* カード */}
+                  <div className="space-y-2.5 px-4 py-4">
+                    {[...Array(4)].map((_, i) => (
+                      <div key={i} className="rounded-xl border border-black/10 bg-white p-3.5 shadow-sm dark:border-white/8 dark:bg-slate-900">
+                        <div className="mb-2 flex items-center gap-2">
+                          <div className="size-5 rounded bg-cyan-100 dark:bg-cyan-900/40" />
+                          <div className="h-2.5 w-20 rounded bg-slate-300 dark:bg-slate-600" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <div className="h-2 w-full rounded bg-slate-200 dark:bg-slate-700" />
+                          <div className="h-2 w-4/5 rounded bg-slate-200 dark:bg-slate-700" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <LauncherBtn scale={0.85} />
+
+                {/* モバイルオーバーレイ（フルスクリーン） */}
+                {overlayOpen && <ChatPanel fullScreen={true} />}
+              </div>
+
+              {/* ホームインジケーター */}
+              <div className="flex justify-center bg-slate-950 py-2">
+                <div className="h-0.5 w-16 rounded-full bg-white/30" />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function HostedConfigEditor({
   bot,
   botSources,
@@ -269,7 +566,10 @@ export function HostedConfigEditor({
   const allowedOrigins_ = (widgetTokenRow?.allowed_origins ?? []).join(", ")
   const [allowedOrigins, setAllowedOrigins] = React.useState(allowedOrigins_)
   const [showRotateConfirm, setShowRotateConfirm] = React.useState(false)
-  const rotateFormRef = React.useRef<HTMLFormElement>(null)
+  const [rotatingToken, setRotatingToken] = React.useState(false)
+  const [issuedToken, setIssuedToken] = React.useState<string | null>(null)
+  const [tokenCopied, setTokenCopied] = React.useState(false)
+  const [hasToken, setHasToken] = React.useState(Boolean(widgetTokenRow))
   const [aiModel, setAiModel] = React.useState(bot.ai_model ?? "5-mini")
   const [aiFallbackModel, setAiFallbackModel] = React.useState(bot.ai_fallback_model ?? "")
   const [aiMaxOutputTokens, setAiMaxOutputTokens] = React.useState(String(bot.ai_max_output_tokens ?? 1200))
@@ -290,6 +590,7 @@ export function HostedConfigEditor({
   const router = useRouter()
   const [isSaving, startSaveTransition] = React.useTransition()
   const [previewKey, setPreviewKey] = React.useState(0)
+  const [previewMode, setPreviewMode] = React.useState<"chat" | "widget">("chat")
   const [isDirty, setIsDirty] = React.useState(false)
   const [leaveTarget, setLeaveTarget] = React.useState<string | null>(null)
 
@@ -346,6 +647,27 @@ export function HostedConfigEditor({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reindexState.phase])
+
+  async function handleRotateToken() {
+    setRotatingToken(true)
+    setIssuedToken(null)
+    setShowRotateConfirm(false)
+    try {
+      const res = await fetch("/api/console/widget-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_id: bot.id, bot_public_id: bot.public_id }),
+      })
+      const data = (await res.json()) as { token?: string; error?: string }
+      if (!res.ok) throw new Error(data.error ?? "トークン発行に失敗しました。")
+      setIssuedToken(data.token ?? null)
+      setHasToken(true)
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "トークン発行に失敗しました。")
+    } finally {
+      setRotatingToken(false)
+    }
+  }
 
   async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -670,12 +992,12 @@ export function HostedConfigEditor({
             )}
             {hasHostedPage ? (
               <Link
-                href={`/chat-by-knotic/${bot.public_id}`}
+                href={`/chat-by-knotic/${bot.public_id}?preview=1`}
                 target="_blank"
                 className="inline-flex shrink-0 items-center gap-1 rounded-full border border-black/20 px-2.5 py-1.5 text-xs transition-colors hover:bg-slate-50 dark:border-white/15 dark:hover:bg-slate-800"
               >
                 <ExternalLink className="size-3" />
-                <span className="hidden sm:inline">公開画面を確認</span>
+                <span className="hidden sm:inline">{bot.is_public ? "公開画面を確認" : "プレビュー確認"}</span>
               </Link>
             ) : null}
             <Button
@@ -1162,12 +1484,18 @@ export function HostedConfigEditor({
               </select>
             </div>
             <div className="grid gap-1.5 md:col-span-2">
-              <Label htmlFor={`widget_launcher_label_${bot.id}`}>ボタンラベル</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor={`widget_launcher_label_${bot.id}`}>ボタンラベル</Label>
+                <span className={`text-[11px] tabular-nums ${widgetLauncherLabel.length >= 8 ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+                  {widgetLauncherLabel.length}/8
+                </span>
+              </div>
               <Input
                 id={`widget_launcher_label_${bot.id}`}
                 name="widget_launcher_label"
                 value={widgetLauncherLabel}
-                onChange={(e) => setWidgetLauncherLabel(e.target.value)}
+                maxLength={8}
+                onChange={(e) => setWidgetLauncherLabel(e.target.value.slice(0, 8))}
                 disabled={!isEditor}
               />
             </div>
@@ -1211,43 +1539,102 @@ export function HostedConfigEditor({
         </Panel>
 
         <Panel active={activeTab === "preview"}>
-          <div className="flex flex-wrap items-start justify-between gap-2">
+          {/* ヘッダー: タイトル + モード切り替え + リセット */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="grid gap-0.5">
               <p className="text-sm font-semibold">プレビュー</p>
               <p className="text-xs text-muted-foreground">実際のAIに接続されたテストチャットです。保存前の表示設定が反映されます。</p>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                try { window.localStorage.removeItem(`knotic_hosted_chat_v1_${bot.public_id}`) } catch { /* ignore */ }
-                setPreviewKey((k) => k + 1)
-              }}
-              className="shrink-0 rounded-md border border-black/15 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-slate-50 hover:text-slate-700 dark:border-white/10 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-            >
-              会話をリセット
-            </button>
+            <div className="flex shrink-0 items-center gap-2">
+              {/* モード切り替えタブ */}
+              <div className="flex rounded-lg border border-black/15 p-0.5 text-xs dark:border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setPreviewMode("chat")}
+                  className={cn(
+                    "rounded-md px-3 py-1.5 font-medium transition-colors",
+                    previewMode === "chat"
+                      ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                      : "text-muted-foreground hover:text-slate-700 dark:hover:text-slate-200"
+                  )}
+                >
+                  チャットUI
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewMode("widget")}
+                  className={cn(
+                    "rounded-md px-3 py-1.5 font-medium transition-colors",
+                    previewMode === "widget"
+                      ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                      : "text-muted-foreground hover:text-slate-700 dark:hover:text-slate-200"
+                  )}
+                >
+                  Widgetランチャー
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  try { window.localStorage.removeItem(`knotic_hosted_chat_v1_${bot.public_id}`) } catch { /* ignore */ }
+                  setPreviewKey((k) => k + 1)
+                }}
+                className="rounded-md border border-black/15 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-slate-50 hover:text-slate-700 dark:border-white/10 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+              >
+                リセット
+              </button>
+            </div>
           </div>
-          <div className="-mx-4 sm:mx-0">
-            <HostedChatClient
-              key={previewKey}
-              botPublicId={bot.public_id}
-              displayName={displayName || bot.name}
-              purposeLabel={PURPOSE_LABEL[chatPurpose] ?? "カスタム"}
-              welcomeMessage={welcomeMessage || "こんにちは。ご質問を入力してください。"}
-              faqQuestions={faqQuestions.filter((q) => q.trim() !== "")}
-              placeholderText={placeholderText || "質問を入力"}
-              disclaimerText={disclaimerText || "回答は参考情報です。重要事項は担当者へ確認してください。"}
-              showCitations={showCitations}
-              showRetentionNotice={!effectiveRequireAuth}
-              retentionHours={24}
-              historyTurnLimit={historyLimit}
-              headerBgColor={headerBgColor}
-              headerTextColor={headerTextColor}
-              footerBgColor={footerBgColor}
-              footerTextColor={footerTextColor}
-              logoUrl={logoUrl}
-            />
-          </div>
+
+          {/* チャットUIモード */}
+          {previewMode === "chat" ? (
+            <div className="-mx-4 sm:mx-0">
+              <HostedChatClient
+                key={previewKey}
+                botPublicId={bot.public_id}
+                displayName={displayName || bot.name}
+                purposeLabel={PURPOSE_LABEL[chatPurpose] ?? "カスタム"}
+                welcomeMessage={welcomeMessage || "こんにちは。ご質問を入力してください。"}
+                faqQuestions={faqQuestions.filter((q) => q.trim() !== "")}
+                placeholderText={placeholderText || "質問を入力"}
+                disclaimerText={disclaimerText || "回答は参考情報です。重要事項は担当者へ確認してください。"}
+                showCitations={showCitations}
+                showRetentionNotice={!effectiveRequireAuth}
+                retentionHours={24}
+                historyTurnLimit={historyLimit}
+                headerBgColor={headerBgColor}
+                headerTextColor={headerTextColor}
+                footerBgColor={footerBgColor}
+                footerTextColor={footerTextColor}
+                logoUrl={logoUrl}
+              />
+            </div>
+          ) : (
+            /* Widgetランチャーモード */
+            <div className="-mx-4 sm:mx-0">
+              <WidgetLauncherPreview
+                key={previewKey}
+                logoUrl={logoUrl}
+                launcherLabel={widgetLauncherLabel}
+                launcherShowLabel={launcherShowLabel}
+                widgetPosition={widgetPosition}
+                previewKey={previewKey}
+                botPublicId={bot.public_id}
+                displayName={displayName || bot.name}
+                purposeLabel={PURPOSE_LABEL[chatPurpose] ?? "カスタム"}
+                welcomeMessage={welcomeMessage || "こんにちは。ご質問を入力してください。"}
+                faqQuestions={faqQuestions.filter((q) => q.trim() !== "")}
+                placeholderText={placeholderText || "質問を入力"}
+                disclaimerText={disclaimerText || "回答は参考情報です。重要事項は担当者へ確認してください。"}
+                showCitations={showCitations}
+                historyTurnLimit={historyLimit}
+                headerBgColor={headerBgColor}
+                headerTextColor={headerTextColor}
+                footerBgColor={footerBgColor}
+                footerTextColor={footerTextColor}
+              />
+            </div>
+          )}
         </Panel>
 
         <div className="border-t border-black/20 pt-3 text-xs text-muted-foreground dark:border-white/10">
@@ -1274,37 +1661,70 @@ export function HostedConfigEditor({
       </section>
 
       <section className={cn("grid min-w-0 gap-3 rounded-xl border border-black/20 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80 sm:p-4", activeTab !== "widget" && "hidden")}>
-        <div className="grid gap-1">
-          <p className="text-sm font-semibold">Widgetトークン管理</p>
-          <p className="text-xs text-muted-foreground">トークン再発行と許可オリジン設定を行います。</p>
+        <div className="flex items-start justify-between gap-3">
+          <div className="grid gap-1">
+            <p className="text-sm font-semibold">Widgetトークン管理</p>
+            <p className="text-xs text-muted-foreground">トークン再発行と許可オリジン設定を行います。</p>
+          </div>
+          <Link
+            href="/help/widget"
+            target="_blank"
+            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-black/15 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-slate-50 dark:border-white/15 dark:hover:bg-slate-800"
+          >
+            <FileText className="size-3" />
+            実装ガイド
+          </Link>
         </div>
         <div className="grid gap-2 rounded-lg border border-black/20 p-3 dark:border-white/10">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant={widgetTokenRow ? "secondary" : "outline"}>
-              {widgetTokenRow ? "トークン発行済み" : "トークン未発行"}
+            <Badge variant={hasToken ? "secondary" : "outline"}>
+              {hasToken ? "トークン発行済み" : "トークン未発行"}
             </Badge>
             <Badge variant={(widgetTokenRow?.allowed_origins?.length ?? 0) > 0 ? "secondary" : "outline"}>
               許可オリジン {(widgetTokenRow?.allowed_origins?.length ?? 0)} 件
             </Badge>
           </div>
-          <form ref={rotateFormRef} action={rotateWidgetTokenAction}>
-            <input type="hidden" name="redirect_to" value={redirectTo} />
-            <input type="hidden" name="bot_id" value={bot.id} />
-            <input type="hidden" name="bot_public_id" value={bot.public_id} />
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={!isEditor}
-              onClick={() => setShowRotateConfirm(true)}
-            >
-              トークン再発行
-            </Button>
-          </form>
-          {widgetTokenRow ? (
+
+          {issuedToken && (
+            <div className="rounded-md border border-amber-300/70 bg-amber-50 p-3 dark:border-amber-500/40 dark:bg-amber-950/30">
+              <p className="mb-1.5 text-xs font-semibold text-amber-800 dark:text-amber-300">
+                発行済みWidgetトークン（この1回のみ表示）
+              </p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 overflow-x-auto rounded bg-white/70 px-2 py-1 font-mono text-[11px] text-amber-900 dark:bg-slate-900/60 dark:text-amber-200">
+                  {issuedToken}
+                </code>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0 text-xs"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(issuedToken)
+                    setTokenCopied(true)
+                    setTimeout(() => setTokenCopied(false), 2000)
+                  }}
+                >
+                  {tokenCopied ? <Check className="size-3.5" /> : "コピー"}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={!isEditor || rotatingToken}
+            onClick={() => setShowRotateConfirm(true)}
+          >
+            {rotatingToken ? <><Loader2 className="mr-1.5 size-3.5 animate-spin" />発行中…</> : hasToken ? "トークン再発行" : "トークンを発行"}
+          </Button>
+
+          {hasToken ? (
             <form action={updateAllowedOriginsAction} className="grid gap-1">
               <input type="hidden" name="redirect_to" value={redirectTo} />
-              <input type="hidden" name="token_id" value={widgetTokenRow.id} />
+              <input type="hidden" name="token_id" value={widgetTokenRow?.id ?? ""} />
               <Input
                 name="allowed_origins"
                 value={allowedOrigins}
@@ -1477,7 +1897,7 @@ export function HostedConfigEditor({
                         </div>
                       ))}
                       {urlIndexing.pageProgress && (
-                        <div className="pl-[18px] mt-0.5">
+                        <div className="pl-4.5 mt-0.5">
                           <div className="h-1 w-36 rounded-full bg-slate-200 dark:bg-slate-700">
                             <div
                               className="h-full rounded-full bg-cyan-400 transition-all duration-300"
@@ -1487,7 +1907,7 @@ export function HostedConfigEditor({
                         </div>
                       )}
                       {urlIndexing.warnings.length > 0 && (
-                        <div className="mt-1.5 grid gap-0.5 pl-[18px]">
+                        <div className="mt-1.5 grid gap-0.5 pl-4.5">
                           {urlIndexing.warnings.map((w, i) => (
                             <p key={i} className="text-[10px] text-amber-600 dark:text-amber-400">⚠ {w}</p>
                           ))}
@@ -1728,9 +2148,11 @@ export function HostedConfigEditor({
       {showRotateConfirm ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
           <div className="w-full max-w-sm rounded-lg border border-black/20 bg-white p-4 dark:border-white/10 dark:bg-slate-900">
-            <p className="text-sm font-semibold">Widgetトークンを再発行しますか？</p>
+            <p className="text-sm font-semibold">{hasToken ? "Widgetトークンを再発行しますか？" : "Widgetトークンを発行しますか？"}</p>
             <p className="mt-2 text-xs text-muted-foreground">
-              既存トークンは失効します。運用中の埋め込みサイトは、新しいトークンへの差し替えが必要です。
+              {hasToken
+                ? "既存トークンは失効します。運用中の埋め込みサイトは、新しいトークンへの差し替えが必要です。"
+                : "発行後のトークンはこの画面に表示されます。コピーして埋め込みコードに使用してください。"}
             </p>
             <div className="mt-4 flex justify-end gap-2">
               <button
@@ -1743,12 +2165,9 @@ export function HostedConfigEditor({
               <button
                 type="button"
                 className="rounded-md bg-slate-900 px-3 py-1.5 text-xs text-white dark:bg-white dark:text-slate-900"
-                onClick={() => {
-                  rotateFormRef.current?.requestSubmit()
-                  setShowRotateConfirm(false)
-                }}
+                onClick={() => void handleRotateToken()}
               >
-                再発行する
+                {hasToken ? "再発行する" : "発行する"}
               </button>
             </div>
           </div>

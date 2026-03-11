@@ -256,7 +256,7 @@ export function AuditionPresentationClient({ sourceHtml }: { sourceHtml: string 
   }, [prepareRenderedSlides, renderedSlides])
 
   return (
-    <div className="mx-auto grid w-full max-w-[1500px] gap-4 px-4 py-6 sm:px-6">
+    <div className="mx-auto grid w-full max-w-375 gap-4 px-4 py-6 sm:px-6">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-black/20 bg-white/90 p-4 dark:border-white/10 dark:bg-slate-900/80">
         <div>
           <h1 className="text-base font-semibold sm:text-lg">Audition Presentation</h1>
@@ -292,7 +292,7 @@ export function AuditionPresentationClient({ sourceHtml }: { sourceHtml: string 
               key={`${index}-${slide.title}`}
               className="rounded-xl border border-black/20 bg-black p-3 dark:border-white/10"
             >
-              <div className="mx-auto aspect-video w-full max-w-[1200px] overflow-hidden rounded-lg border border-white/10 bg-black">
+              <div className="mx-auto aspect-video w-full max-w-300 overflow-hidden rounded-lg border border-white/10 bg-black">
                 <img src={slide.imageData} alt={slide.title} className="h-full w-full object-contain" />
               </div>
               <div className="mt-2 text-center text-xs text-white/70">
@@ -317,7 +317,7 @@ export function AuditionPresentationClient({ sourceHtml }: { sourceHtml: string 
       <iframe
         ref={printFrameRef}
         title="audition-render-frame"
-        className="pointer-events-none fixed top-0 -left-[99999px] h-[720px] w-[1280px] opacity-0"
+        className="pointer-events-none fixed top-0 -left-[99999px] h-180 w-7xl opacity-0"
       />
 
       {slides.length === 0 ? (

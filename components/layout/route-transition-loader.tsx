@@ -1,0 +1,193 @@
+"use client"
+
+import { useEffect, useMemo, useRef, useState } from "react"
+import type { MutableRefObject } from "react"
+import { usePathname, useSearchParams } from "next/navigation"
+import { DotLottieReact } from "@lottiefiles/dotlottie-react"
+import type { DotLottie } from "@lottiefiles/dotlottie-react"
+
+const ROUTE_LOADER_DOTLOTTIE_ANIMATION_ID = "main"
+
+function isModifiedClick(event: MouseEvent) {
+  return event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
+}
+
+function RouteTransitionLoader() {
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const routeKey = useMemo(() => `${pathname}?${searchParams.toString()}`, [pathname, searchParams])
+
+  const [visible, setVisible] = useState(false)
+  const [progress, setProgress] = useState(0)
+
+  const visibleRef = useRef(false)
+  const activeRef = useRef(false)
+  const showDelayRef = useRef<number | null>(null)
+  const progressIntervalRef = useRef<number | null>(null)
+  const hideTimerRef = useRef<number | null>(null)
+  const failSafeTimerRef = useRef<number | null>(null)
+  const dotLottieRef = useRef<DotLottie | null>(null)
+  const knownPathRef = useRef(
+    typeof window !== "undefined" ? `${window.location.pathname}${window.location.search}` : ""
+  )
+
+  useEffect(() => {
+    visibleRef.current = visible
+  }, [visible])
+
+  const clearTimer = (timerRef: MutableRefObject<number | null>) => {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+  }
+
+  const clearIntervalTimer = (timerRef: MutableRefObject<number | null>) => {
+    if (timerRef.current !== null) {
+      window.clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+  }
+
+  const finishNavigation = () => {
+    if (!activeRef.current) return
+    activeRef.current = false
+
+    clearTimer(showDelayRef)
+    clearIntervalTimer(progressIntervalRef)
+    clearTimer(failSafeTimerRef)
+
+    if (!visibleRef.current) {
+      setProgress(0)
+      return
+    }
+
+    setProgress(100)
+    clearTimer(hideTimerRef)
+    hideTimerRef.current = window.setTimeout(() => {
+      setVisible(false)
+      setProgress(0)
+    }, 220)
+  }
+
+  const startNavigation = () => {
+    if (activeRef.current) return
+    activeRef.current = true
+
+    clearTimer(hideTimerRef)
+    clearTimer(showDelayRef)
+    showDelayRef.current = window.setTimeout(() => {
+      setVisible(true)
+      setProgress(14)
+      clearIntervalTimer(progressIntervalRef)
+      progressIntervalRef.current = window.setInterval(() => {
+        setProgress((prev) => {
+          if (prev >= 88) return prev
+          const step = Math.max(2, Math.round((92 - prev) / 7))
+          return Math.min(88, prev + step)
+        })
+      }, 170)
+    }, 120)
+
+    clearTimer(failSafeTimerRef)
+    failSafeTimerRef.current = window.setTimeout(() => {
+      finishNavigation()
+    }, 12000)
+  }
+
+  useEffect(() => {
+    const onDocumentClick = (event: MouseEvent) => {
+      if (event.defaultPrevented) return
+      if (event.button !== 0) return
+      if (isModifiedClick(event)) return
+
+      const target = event.target as Element | null
+      const anchor = target?.closest("a[href]") as HTMLAnchorElement | null
+      if (!anchor) return
+      if (anchor.hasAttribute("download")) return
+      if (anchor.target && anchor.target !== "_self") return
+      if (anchor.dataset.noRouteLoader === "true") return
+
+      const href = anchor.getAttribute("href")
+      if (!href || href.startsWith("#")) return
+
+      const url = new URL(anchor.href, window.location.href)
+      if (url.origin !== window.location.origin) return
+
+      const currentPath = `${window.location.pathname}${window.location.search}`
+      const nextPath = `${url.pathname}${url.search}`
+      if (currentPath === nextPath) return
+      if (url.pathname.startsWith("/api")) return
+
+      startNavigation()
+    }
+
+    const onPopState = () => {
+      const newPath = `${window.location.pathname}${window.location.search}`
+      if (newPath === knownPathRef.current) return // hash-only change
+      startNavigation()
+    }
+
+    document.addEventListener("click", onDocumentClick, true)
+    window.addEventListener("popstate", onPopState)
+
+    return () => {
+      document.removeEventListener("click", onDocumentClick, true)
+      window.removeEventListener("popstate", onPopState)
+      clearTimer(showDelayRef)
+      clearTimer(hideTimerRef)
+      clearTimer(failSafeTimerRef)
+      clearIntervalTimer(progressIntervalRef)
+      activeRef.current = false
+    }
+  }, [])
+
+  useEffect(() => {
+    knownPathRef.current = `${window.location.pathname}${window.location.search}`
+    finishNavigation()
+    // routeKey changes when navigation is completed.
+  }, [routeKey])
+
+  useEffect(() => {
+    const instance = dotLottieRef.current
+    if (!instance) return
+
+    if (visible) {
+      instance.play()
+      return
+    }
+
+    instance.stop()
+  }, [visible])
+
+  return (
+    <div
+      className={`pointer-events-none fixed inset-0 z-95 transition-opacity duration-150 ${
+        visible ? "opacity-100" : "opacity-0"
+      }`}
+      aria-hidden={!visible}
+    >
+      <div className="absolute inset-0 bg-transparent backdrop-blur-[3.5px]" />
+      <div className="absolute left-0 top-0 h-1 w-full bg-black/10 dark:bg-white/10">
+        <div
+          className="h-full bg-cyan-500 transition-[width] duration-200 ease-out dark:bg-cyan-300"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+      <div className="absolute inset-0 flex items-center justify-center" role="status" aria-live="polite" aria-label="画面を読み込み中">
+        <DotLottieReact
+          src="/lotties/knotic_split_assemble_embedded.lottie"
+          animationId={ROUTE_LOADER_DOTLOTTIE_ANIMATION_ID}
+          loop
+          autoplay={false}
+          dotLottieRefCallback={(instance) => {
+            dotLottieRef.current = instance
+          }}
+          className="h-80 w-80 sm:h-120 sm:w-120"
+        />
+      </div>
+    </div>
+  )
+}
+
+export { RouteTransitionLoader }

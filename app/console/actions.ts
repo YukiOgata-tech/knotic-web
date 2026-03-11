@@ -837,7 +837,7 @@ export async function updateHostedConfigAction(formData: FormData) {
         widget_enabled: widgetEnabled,
         widget_mode: widgetMode,
         widget_position: widgetPosition,
-        widget_launcher_label: widgetLauncherLabel || "チャット",
+        widget_launcher_label: (widgetLauncherLabel || "チャット").slice(0, 8),
         widget_policy_text:
           widgetPolicyText ||
           "このチャット履歴はブラウザ上で24時間保持され、自動的に削除されます。",

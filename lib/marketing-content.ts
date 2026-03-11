@@ -5,6 +5,7 @@ export const headerLinks = [
   { href: "/pricing", label: "料金" },
   { href: "/use-cases", label: "活用例" },
   { href: "/faq", label: "FAQ" },
+  { href: "/help", label: "ヘルプ" },
 ]
 
 export const features = [
