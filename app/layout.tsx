@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
+import { Suspense } from "react"
 
 import { SiteFooter } from "@/components/layout/site-footer"
 import { SiteHeader } from "@/components/layout/site-header"
@@ -59,7 +60,9 @@ export default function RootLayout({
             type="application/ld+json"
             dangerouslySetInnerHTML={{ __html: JSON.stringify(rootJsonLd) }}
           />
-          <RouteTransitionLoader />
+          <Suspense fallback={null}>
+            <RouteTransitionLoader />
+          </Suspense>
           <div className="min-h-screen bg-background text-foreground">
             <SiteHeader />
             <SiteBreadcrumbs />
