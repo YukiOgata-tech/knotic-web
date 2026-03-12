@@ -23,6 +23,13 @@ function fmtDate(value: string | null | undefined) {
   return date.toLocaleString("ja-JP")
 }
 
+function fmtDateShort(value: string | null | undefined) {
+  if (!value) return "-"
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return "-"
+  return `${date.toLocaleDateString("ja-JP")} ${date.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}`
+}
+
 function actionBadgeVariant(action: string): "default" | "destructive" | "secondary" | "outline" {
   if (action.includes("force_stop") || action.includes("delete") || action.includes("revoke")) return "destructive"
   if (action.includes("platform.")) return "default"
@@ -56,24 +63,27 @@ export default async function AuditLogsPage({
     if (tenantId) q.set("tenant_id", tenantId)
     if (actionPrefix) q.set("action", actionPrefix)
     q.set("page", String(page))
-    for (const [k, v] of Object.entries(overrides)) {
-      q.set(k, String(v))
-    }
+    for (const [k, v] of Object.entries(overrides)) q.set(k, String(v))
     return `/sub-domain/audit-logs?${q.toString()}`
   }
 
   return (
     <div className="grid gap-4">
+      {/* フィルタ */}
       <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
-        <CardHeader>
+        <CardHeader className="pb-3">
           <CardTitle>監査ログ</CardTitle>
           <CardDescription>
             全テナント横断の操作ログ。platform.* はプラットフォーム管理操作、console.* はテナント操作を示します。
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <form method="get" action="/sub-domain/audit-logs" className="flex flex-wrap items-end gap-2">
-            <div className="min-w-[220px] flex-1">
+        <CardContent className="grid gap-3">
+          <form
+            method="get"
+            action="/sub-domain/audit-logs"
+            className="grid gap-2 sm:flex sm:flex-wrap sm:items-end"
+          >
+            <div className="flex-1 sm:min-w-[200px]">
               <label className="mb-1 block text-xs text-muted-foreground">tenant_id（任意）</label>
               <Input name="tenant_id" defaultValue={tenantId} placeholder="UUID" />
             </div>
@@ -82,31 +92,81 @@ export default async function AuditLogsPage({
               <select
                 name="action"
                 defaultValue={actionPrefix}
-                className="h-10 rounded-md border border-black/15 bg-white px-3 py-2 text-sm dark:border-white/20 dark:bg-slate-900"
+                className="h-10 w-full rounded-md border border-black/15 bg-white px-3 py-2 text-sm dark:border-white/20 dark:bg-slate-900 sm:w-auto"
               >
                 {ACTION_PREFIXES.map((p) => (
-                  <option key={p.value} value={p.value}>
-                    {p.label}
-                  </option>
+                  <option key={p.value} value={p.value}>{p.label}</option>
                 ))}
               </select>
             </div>
             <input type="hidden" name="page" value="1" />
-            <Button type="submit">フィルタ適用</Button>
-            <Button type="button" variant="outline" asChild>
-              <Link href="/sub-domain/audit-logs">クリア</Link>
-            </Button>
+            <div className="flex gap-2">
+              <Button type="submit" className="flex-1 sm:flex-none">フィルタ適用</Button>
+              <Button type="button" variant="outline" asChild className="flex-1 sm:flex-none">
+                <Link href="/sub-domain/audit-logs">クリア</Link>
+              </Button>
+            </div>
           </form>
-
-          <div className="mt-3 text-xs text-muted-foreground">
-            全 {total.toLocaleString("ja-JP")} 件 / ページ {page} / {Math.max(1, totalPages)}
-          </div>
+          <p className="text-xs text-muted-foreground">
+            全 {total.toLocaleString("ja-JP")} 件 · ページ {page} / {Math.max(1, totalPages)}
+          </p>
         </CardContent>
       </Card>
 
+      {/* ログ一覧 */}
       <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          {/* ── モバイル: カードリスト ── */}
+          <div className="grid gap-0 divide-y divide-black/5 sm:hidden dark:divide-white/5">
+            {rows.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">ログが見つかりません</p>
+            ) : (
+              rows.map((row) => (
+                <div key={row.id} className="grid gap-1.5 px-4 py-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <Badge
+                      variant={actionBadgeVariant(row.action)}
+                      className="max-w-[180px] truncate text-[10px]"
+                    >
+                      {row.action}
+                    </Badge>
+                    <span className="shrink-0 text-[11px] text-muted-foreground">
+                      {fmtDateShort(row.created_at)}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                    {row.tenant_slug ? (
+                      <Link
+                        href={`/sub-domain/tenants/${row.tenant_id}`}
+                        className="text-blue-600 hover:underline dark:text-blue-400"
+                      >
+                        {row.tenant_slug}
+                      </Link>
+                    ) : (
+                      <span className="font-mono">{row.tenant_id.slice(0, 8)}…</span>
+                    )}
+                    <span>
+                      {row.actor_email ?? (row.actor_user_id ? `${row.actor_user_id.slice(0, 8)}…` : "system")}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    <span>{row.target_type}</span>
+                    {row.target_id ? (
+                      <span className="ml-1 font-mono">{row.target_id.slice(0, 12)}…</span>
+                    ) : null}
+                  </div>
+                  {Object.keys(row.metadata).length > 0 ? (
+                    <p className="text-[11px] text-muted-foreground">
+                      {JSON.stringify(row.metadata).slice(0, 80)}
+                    </p>
+                  ) : null}
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* ── デスクトップ: テーブル ── */}
+          <div className="hidden sm:block overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -171,6 +231,7 @@ export default async function AuditLogsPage({
         </CardContent>
       </Card>
 
+      {/* ページネーション */}
       {totalPages > 1 ? (
         <div className="flex items-center justify-center gap-2">
           {page > 1 ? (
@@ -178,9 +239,7 @@ export default async function AuditLogsPage({
               <Link href={buildQuery({ page: page - 1 })}>← 前へ</Link>
             </Button>
           ) : null}
-          <span className="text-sm text-muted-foreground">
-            {page} / {totalPages}
-          </span>
+          <span className="text-sm text-muted-foreground">{page} / {totalPages}</span>
           {page < totalPages ? (
             <Button variant="outline" size="sm" asChild>
               <Link href={buildQuery({ page: page + 1 })}>次へ →</Link>
