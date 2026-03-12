@@ -59,6 +59,9 @@ function SiteHeader() {
     }
   }, [mobileMenuOpen])
 
+  // 管理者コンソールはマーケティングヘッダーを表示しない
+  if (pathname.startsWith("/sub-domain")) return null
+
   return (
     <header className="sticky top-0 z-40 border-b border-black/50 bg-white/80 backdrop-blur-md dark:border-white/50 dark:bg-slate-950/75">
       <Container className="flex h-16 max-w-none items-center justify-between gap-3 px-4 sm:px-8 xl:px-12">

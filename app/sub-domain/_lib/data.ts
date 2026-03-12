@@ -3,6 +3,33 @@ import { notFound, redirect } from "next/navigation"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 
+export type AuditLogRow = {
+  id: string
+  tenant_id: string
+  tenant_slug: string | null
+  actor_user_id: string | null
+  actor_email: string | null
+  action: string
+  target_type: string
+  target_id: string | null
+  metadata: Record<string, unknown>
+  created_at: string
+}
+
+export type IndexingJobRow = {
+  id: string
+  tenant_id: string
+  bot_id: string | null
+  source_id: string | null
+  status: string
+  job_type: string
+  requested_at: string
+  started_at: string | null
+  finished_at: string | null
+  pages_indexed: number
+  error_message: string | null
+}
+
 export type PlatformAdminContext = {
   user: { id: string; email?: string | null }
   role: "owner" | "staff"
@@ -13,7 +40,7 @@ export type PlatformTenantRow = {
   id: string
   slug: string
   display_name: string
-  is_active: boolean
+  active: boolean
   force_stopped: boolean
   force_stop_reason: string | null
   force_stopped_at: string | null
@@ -115,7 +142,7 @@ export async function fetchPlatformDashboard(searchText?: string): Promise<{
 
   let tenantQuery = admin
     .from("tenants")
-    .select("id, slug, display_name, is_active, force_stopped, force_stop_reason, force_stopped_at, created_at")
+    .select("id, slug, display_name, active, force_stopped, force_stop_reason, force_stopped_at, created_at")
     .order("created_at", { ascending: false })
     .limit(200)
 
@@ -135,7 +162,7 @@ export async function fetchPlatformDashboard(searchText?: string): Promise<{
     id: string
     slug: string
     display_name: string
-    is_active: boolean
+    active: boolean
     force_stopped: boolean
     force_stop_reason: string | null
     force_stopped_at: string | null
@@ -214,6 +241,94 @@ export async function fetchPlatformDashboard(searchText?: string): Promise<{
       override: overrideMap.get(row.id) ?? null,
     })),
     plans: (plansRaw ?? []) as PlatformPlan[],
+  }
+}
+
+export async function fetchAuditLogs(options?: {
+  tenantId?: string
+  actionPrefix?: string
+  page?: number
+  perPage?: number
+}): Promise<{ rows: AuditLogRow[]; total: number }> {
+  const admin = createAdminClient()
+  const { tenantId, actionPrefix, page = 1, perPage = 50 } = options ?? {}
+  const from = (page - 1) * perPage
+  const to = from + perPage - 1
+
+  let query = admin
+    .from("audit_logs")
+    .select("id, tenant_id, actor_user_id, action, target_type, target_id, metadata, created_at", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .range(from, to)
+
+  if (tenantId) query = query.eq("tenant_id", tenantId)
+  if (actionPrefix) query = query.ilike("action", `${actionPrefix}%`)
+
+  const { data, count } = await query
+
+  const tenantIds = [...new Set((data ?? []).map((r) => r.tenant_id))]
+  const actorIds = [...new Set((data ?? []).filter((r) => r.actor_user_id).map((r) => r.actor_user_id as string))]
+
+  const [slugResult, usersResult] = await Promise.all([
+    tenantIds.length > 0
+      ? admin.from("tenants").select("id, slug").in("id", tenantIds)
+      : Promise.resolve({ data: [] }),
+    actorIds.length > 0
+      ? admin.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      : Promise.resolve({ data: { users: [] } }),
+  ])
+
+  const slugMap = new Map<string, string>()
+  for (const t of (slugResult.data ?? []) as { id: string; slug: string }[]) {
+    slugMap.set(t.id, t.slug)
+  }
+
+  const emailMap = new Map<string, string>()
+  for (const u of usersResult.data.users) {
+    emailMap.set(u.id, u.email ?? u.id)
+  }
+
+  return {
+    rows: (data ?? []).map((row) => ({
+      id: row.id,
+      tenant_id: row.tenant_id,
+      tenant_slug: slugMap.get(row.tenant_id) ?? null,
+      actor_user_id: row.actor_user_id ?? null,
+      actor_email: row.actor_user_id ? (emailMap.get(row.actor_user_id) ?? null) : null,
+      action: row.action,
+      target_type: row.target_type,
+      target_id: row.target_id ?? null,
+      metadata: (row.metadata ?? {}) as Record<string, unknown>,
+      created_at: row.created_at,
+    })),
+    total: count ?? 0,
+  }
+}
+
+export async function fetchIndexingJobStats(): Promise<{
+  rows: IndexingJobRow[]
+  counts: Record<string, number>
+}> {
+  const admin = createAdminClient()
+  const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+
+  const [{ data: recentJobs }, { data: countRows }] = await Promise.all([
+    admin
+      .from("indexing_jobs")
+      .select("id, tenant_id, bot_id, source_id, status, job_type, requested_at, started_at, finished_at, pages_indexed, error_message")
+      .order("requested_at", { ascending: false })
+      .limit(100),
+    admin.from("indexing_jobs").select("status").gte("requested_at", since7d),
+  ])
+
+  const counts: Record<string, number> = {}
+  for (const row of countRows ?? []) {
+    counts[row.status] = (counts[row.status] ?? 0) + 1
+  }
+
+  return {
+    rows: (recentJobs ?? []) as IndexingJobRow[],
+    counts,
   }
 }
 

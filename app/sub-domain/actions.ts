@@ -332,16 +332,205 @@ export async function disableContractOverrideAction(formData: FormData) {
 }
 
 async function findUserIdByEmail(admin: ReturnType<typeof createAdminClient>, email: string) {
+  const normalized = email.toLowerCase()
+  // Fetch up to 5000 users in blocks of 1000 (Supabase max perPage)
   let page = 1
-  while (page <= 20) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 })
+  while (page <= 5) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 })
     if (error) throw error
-    const found = data.users.find((user) => (user.email ?? "").toLowerCase() === email.toLowerCase())
+    const found = data.users.find((user) => (user.email ?? "").toLowerCase() === normalized)
     if (found) return found.id
-    if (!data.users.length) break
+    if (data.users.length < 1000) break
     page += 1
   }
   return null
+}
+
+export async function setTenantActiveAction(formData: FormData) {
+  const redirectTo = normalizeRedirectTo(formData.get("redirect_to"))
+
+  try {
+    const { admin, userId } = await requirePlatformAdminActionContext()
+    const tenantId = String(formData.get("tenant_id") ?? "").trim()
+    const active = parseSwitchEnabled(formData.get("active"))
+
+    if (!parseUuid(tenantId)) throw new Error("tenant_id が不正です。")
+
+    const { error } = await admin
+      .from("tenants")
+      .update({ active, updated_at: new Date().toISOString() })
+      .eq("id", tenantId)
+
+    if (error) throw error
+
+    await writeAuditLog(admin, {
+      tenantId,
+      action: active ? "platform.tenant.activate" : "platform.tenant.deactivate",
+      targetType: "tenant",
+      targetId: tenantId,
+      after: { active },
+      metadata: { actor_user_id: userId },
+    })
+
+    revalidatePath("/sub-domain")
+    revalidatePath(`/sub-domain/tenants/${tenantId}`)
+    redirect(
+      `${redirectTo}?notice=${encodeURIComponent(active ? "テナントを有効化しました。" : "テナントを無効化しました。解約処理が完了した場合は Stripe 側の操作も確認してください。")}`
+    )
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "テナント有効化状態の更新に失敗しました。"
+    redirect(`${redirectTo}?error=${encodeURIComponent(message)}`)
+  }
+}
+
+export async function createTenantAction(formData: FormData) {
+  try {
+    const { admin, userId } = await requirePlatformAdminActionContext()
+    const displayName = String(formData.get("display_name") ?? "").trim()
+    const ownerEmail = String(formData.get("owner_email") ?? "").trim().toLowerCase()
+    const slugInput = String(formData.get("slug") ?? "").trim().toLowerCase()
+    const planId = Number(formData.get("plan_id") ?? "")
+    const billingMode = normalizeBillingMode(String(formData.get("billing_mode") ?? "stripe").trim())
+    const setupOverride = String(formData.get("setup_override") ?? "") === "on"
+    const notes = String(formData.get("notes") ?? "").trim()
+
+    if (!displayName) throw new Error("display_name は必須です。")
+    if (!ownerEmail.includes("@")) throw new Error("有効なオーナーメールアドレスを入力してください。")
+    if (setupOverride && (!Number.isFinite(planId) || planId <= 0)) {
+      throw new Error("請求形態を設定する場合はプランを選択してください。")
+    }
+
+    const ownerId = await findUserIdByEmail(admin, ownerEmail)
+    if (!ownerId) throw new Error("該当メールアドレスのユーザーが見つかりません。先にサインアップしてください。")
+
+    const baseSlug = (slugInput || displayName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")) || "tenant"
+    const shortId = Math.random().toString(36).slice(2, 8)
+    const slug = `${baseSlug}-${shortId}`
+
+    const { data: tenant, error: tenantError } = await admin
+      .from("tenants")
+      .insert({ slug, display_name: displayName, owner_user_id: ownerId })
+      .select("id")
+      .single()
+
+    if (tenantError) throw tenantError
+
+    const tenantId = tenant.id
+
+    await admin.from("tenant_memberships").upsert(
+      { tenant_id: tenantId, user_id: ownerId, role: "editor", is_active: true },
+      { onConflict: "tenant_id,user_id" }
+    )
+
+    // 請求形態が指定されている場合は Override を自動作成
+    if (setupOverride && planId > 0) {
+      await admin.from("tenant_contract_overrides").upsert(
+        {
+          tenant_id: tenantId,
+          plan_id: planId,
+          status: "active",
+          billing_mode: billingMode,
+          is_active: true,
+          notes: notes || null,
+          effective_from: new Date().toISOString(),
+          created_by: userId,
+          updated_by: userId,
+        },
+        { onConflict: "tenant_id" }
+      )
+    }
+
+    await writeAuditLog(admin, {
+      tenantId,
+      action: "platform.tenant.create",
+      targetType: "tenant",
+      targetId: tenantId,
+      after: { display_name: displayName, slug, owner_user_id: ownerId, billing_mode: setupOverride ? billingMode : null },
+      metadata: { actor_user_id: userId },
+    })
+
+    revalidatePath("/sub-domain")
+    redirect(`/sub-domain/tenants/${tenantId}?notice=${encodeURIComponent("テナントを作成しました。")}`)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "テナント作成に失敗しました。"
+    redirect(`/sub-domain?error=${encodeURIComponent(message)}`)
+  }
+}
+
+export async function inviteUserToTenantAction(formData: FormData) {
+  const redirectTo = normalizeRedirectTo(formData.get("redirect_to"))
+
+  try {
+    const { admin, userId } = await requirePlatformAdminActionContext()
+    const tenantId = String(formData.get("tenant_id") ?? "").trim()
+    const email = String(formData.get("email") ?? "").trim().toLowerCase()
+    const role = normalizeMembershipRole(String(formData.get("role") ?? "editor"))
+
+    if (!parseUuid(tenantId)) throw new Error("tenant_id が不正です。")
+    if (!email.includes("@")) throw new Error("有効なメールアドレスを入力してください。")
+
+    const { data: tenantRow } = await admin
+      .from("tenants")
+      .select("display_name")
+      .eq("id", tenantId)
+      .maybeSingle()
+
+    if (!tenantRow) throw new Error("テナントが見つかりません。")
+
+    // 招待メールを送信（未登録ユーザーならアカウントを作成してメール送信）
+    const { data: inviteData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
+      data: { tenant_id: tenantId },
+    })
+
+    if (inviteError) {
+      // すでにアカウントがある場合は既存ユーザーIDを検索してメンバーシップだけ付与
+      if (inviteError.message.includes("already been registered") || inviteError.code === "email_exists") {
+        const existingUserId = await findUserIdByEmail(admin, email)
+        if (!existingUserId) throw new Error("招待に失敗しました: " + inviteError.message)
+
+        await admin.from("tenant_memberships").upsert(
+          { tenant_id: tenantId, user_id: existingUserId, role, is_active: true },
+          { onConflict: "tenant_id,user_id" }
+        )
+
+        await writeAuditLog(admin, {
+          tenantId,
+          action: "platform.tenant.member.invite",
+          targetType: "tenant",
+          targetId: tenantId,
+          after: { email, role, note: "existing_user_membership_granted" },
+          metadata: { actor_user_id: userId },
+        })
+
+        revalidatePath(`/sub-domain/tenants/${tenantId}`)
+        redirect(`${redirectTo}?notice=${encodeURIComponent("既存アカウントにメンバーシップを付与しました。")}`)
+      }
+      throw inviteError
+    }
+
+    const invitedUserId = inviteData.user.id
+
+    // 招待完了後にメンバーシップをあらかじめ登録
+    await admin.from("tenant_memberships").upsert(
+      { tenant_id: tenantId, user_id: invitedUserId, role, is_active: true },
+      { onConflict: "tenant_id,user_id" }
+    )
+
+    await writeAuditLog(admin, {
+      tenantId,
+      action: "platform.tenant.member.invite",
+      targetType: "tenant",
+      targetId: tenantId,
+      after: { email, role, invited_user_id: invitedUserId },
+      metadata: { actor_user_id: userId },
+    })
+
+    revalidatePath(`/sub-domain/tenants/${tenantId}`)
+    redirect(`${redirectTo}?notice=${encodeURIComponent(`${email} に招待メールを送信し、メンバーシップを付与しました。`)}`)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "招待メールの送信に失敗しました。"
+    redirect(`${redirectTo}?error=${encodeURIComponent(message)}`)
+  }
 }
 
 export async function upsertTenantMembershipAction(formData: FormData) {

@@ -151,3 +151,75 @@ stripe listen --forward-to localhost:3000/api/stripe/webhook
 
 4. 手動再同期
 - `/console/billing` の「Webhook再同期を実行」ボタン（Editorのみ）
+
+---
+
+## 10. 今後の拡張開発項目
+
+### 10-1. 料金変更の運用フロー
+
+Stripe の Price は作成後に金額を変更できない（イミュータブル）。変更時は必ず新しい Price を作成する。
+
+#### 恒久的な値上げ（例: Standard ¥24,800 → ¥29,800）
+
+1. Stripe Dashboard で同一 Product に新 Price を作成
+2. 環境変数 `STRIPE_PRICE_STANDARD_MONTHLY` を新 price_id に更新
+3. 再デプロイ
+4. **既存契約者は旧価格のまま自動継続**（Stripe 仕様。意図的に移行しない限り変わらない）
+5. 既存契約者を新価格へ移行する場合は Stripe API で subscription の price を差し替える
+
+#### キャンペーン・期間限定割引（例: 期間限定スタンダード ¥20,000）
+
+Stripe の **Coupon + Promotion Code** を使うのが推奨。コード変更・再デプロイ不要でStripe Dashboard のみで完結する。
+
+1. Stripe Dashboard → Coupons → 「新規作成」
+   - 割引額: ¥4,800 off（または任意の割合）
+   - Duration: once / repeating（N ヶ月） / forever から選択
+   - `redeem_by`: キャンペーン終了日時を設定（自動終了）
+   - `max_redemptions`: 使用上限件数（任意）
+2. Promotion Code を発行（例: `OPEN2026`）してユーザーに告知
+3. チェックアウト画面でコードを入力 → 割引が適用される
+
+現在のコードは `allow_promotion_codes: true`（`app/api/stripe/checkout/route.ts`）が設定済みのため、追加実装不要。
+
+### 10-2. 現在の設計の制約と将来の改善案
+
+現在、price_id → plan_code のマッピングは環境変数でハードコードされている。
+
+```ts
+// lib/stripe.ts
+STRIPE_PRICE_LITE_MONTHLY     → "lite"
+STRIPE_PRICE_STANDARD_MONTHLY → "standard"
+STRIPE_PRICE_PRO_MONTHLY      → "pro"
+```
+
+このため、プランを追加・変更するたびに `lib/stripe.ts` のコード修正 + 環境変数更新 + 再デプロイが必要になる。
+
+**改善案: `plans` テーブルに `stripe_price_id` カラムを追加**
+
+```sql
+-- patch-YYYYMMDD-plans-stripe-price-id.sql
+ALTER TABLE public.plans ADD COLUMN stripe_price_id text;
+```
+
+```ts
+// resolvePlanCodeFromPriceId をDB参照に変更
+const { data } = await admin
+  .from("plans")
+  .select("code")
+  .eq("stripe_price_id", priceId)
+  .maybeSingle()
+```
+
+この変更を適用すれば、新 Price を作成してDBに登録するだけで運用でき、コード変更・再デプロイが不要になる。プランの追加・変更頻度が高くなった段階で対応する。
+
+### 10-3. プラン管理UIの実装
+
+現在、`plans` テーブルの変更は SQL を直接実行する必要がある。将来的に `/sub-domain`（プラットフォーム管理コンソール）にプラン管理画面を追加し、以下の操作をUIから行えるようにする。
+
+- プランの上限数値変更（ボット数・メッセージ数・ストレージ等）
+- `stripe_price_id` の設定（10-2 の改善案実施後）
+- プランの有効/無効切り替え（`is_active` フラグ）
+- 新プランの追加
+
+なお、Stripe 上での Product/Price の作成自体は引き続き Stripe Dashboard で行う必要がある。

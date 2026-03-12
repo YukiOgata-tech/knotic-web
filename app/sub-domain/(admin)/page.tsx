@@ -1,6 +1,8 @@
 import Link from "next/link"
+import { Plus } from "lucide-react"
 import { startImpersonationAction, upsertContractOverrideAction, upsertTenantMembershipAction, disableContractOverrideAction } from "@/app/sub-domain/actions"
 import { fetchPlatformDashboard } from "@/app/sub-domain/_lib/data"
+import { ConfirmSubmitButton } from "@/app/sub-domain/_components/confirm-submit-button"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -60,8 +62,18 @@ export default async function PlatformAdminPage({
 
       <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
         <CardHeader>
-          <CardTitle>Tenants</CardTitle>
-          <CardDescription>Stripe契約と手動オーバーライドの両方を同時表示します。</CardDescription>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <CardTitle>Tenants</CardTitle>
+              <CardDescription>Stripe契約と手動オーバーライドの両方を同時表示します。</CardDescription>
+            </div>
+            <Button asChild size="sm">
+              <Link href="/sub-domain/tenants/new">
+                <Plus className="size-4" />
+                テナントを作成
+              </Link>
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
@@ -83,7 +95,8 @@ export default async function PlatformAdminPage({
                     <p className="mt-1 text-[11px] text-muted-foreground">{tenant.id}</p>
                     <div className="mt-1 flex flex-wrap items-center gap-2">
                       <Link href={`/sub-domain/tenants/${tenant.id}`} className="text-xs text-blue-600 hover:underline dark:text-blue-400">詳細を開く</Link>
-                      {tenant.force_stopped ? <Badge variant="destructive">Tenant停止中</Badge> : null}
+                      {!tenant.active ? <Badge variant="secondary">無効</Badge> : null}
+                      {tenant.force_stopped ? <Badge variant="destructive">強制停止中</Badge> : null}
                     </div>
                     <form action={startImpersonationAction} className="mt-2">
                       <input type="hidden" name="tenant_id" value={tenant.id} />
@@ -215,14 +228,23 @@ export default async function PlatformAdminPage({
                 <input type="checkbox" name="is_active" defaultChecked className="size-4" />
                 overrideを有効化
               </label>
-              <Button type="submit">契約オーバーライドを保存</Button>
+              <ConfirmSubmitButton description="この内容で契約オーバーライドを保存します。既存のオーバーライドがある場合は上書きされます。よろしいですか？">
+                契約オーバーライドを保存
+              </ConfirmSubmitButton>
             </form>
 
             <form action={disableContractOverrideAction} className="mt-4 grid gap-2 border-t border-black/20 pt-4 dark:border-white/10">
               <input type="hidden" name="redirect_to" value="/sub-domain" />
               <label className="text-xs text-muted-foreground">tenant_id（無効化対象）</label>
               <Input name="tenant_id" placeholder="UUID" required />
-              <Button type="submit" variant="outline">このtenantのoverrideを無効化</Button>
+              <ConfirmSubmitButton
+                description="指定したテナントの契約オーバーライドを無効化します。プラン制限がStripeサブスクリプションに戻ります。よろしいですか？"
+                confirmLabel="無効化する"
+                destructive
+                variant="outline"
+              >
+                このtenantのoverrideを無効化
+              </ConfirmSubmitButton>
             </form>
           </CardContent>
         </Card>
@@ -260,7 +282,9 @@ export default async function PlatformAdminPage({
                 <input type="checkbox" name="is_active" defaultChecked className="size-4" />
                 membershipを有効化
               </label>
-              <Button type="submit">権限を保存</Button>
+              <ConfirmSubmitButton description="指定したテナントにユーザーの権限を付与・更新します。既存メンバーシップがある場合は上書きされます。よろしいですか？">
+                権限を保存
+              </ConfirmSubmitButton>
             </form>
           </CardContent>
         </Card>

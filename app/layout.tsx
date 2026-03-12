@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { Suspense } from "react"
 
-import { SiteFooter } from "@/components/layout/site-footer"
+import { ConditionalSiteFooter } from "@/components/layout/conditional-site-footer"
 import { SiteHeader } from "@/components/layout/site-header"
 import { SiteBreadcrumbs } from "@/components/layout/site-breadcrumbs"
 import { RouteTransitionLoader } from "@/components/layout/route-transition-loader"
@@ -67,7 +67,7 @@ export default function RootLayout({
             <SiteHeader />
             <SiteBreadcrumbs />
             <main>{children}</main>
-            <SiteFooter />
+            <ConditionalSiteFooter />
           </div>
           <ThemeToggle />
         </ThemeProvider>
