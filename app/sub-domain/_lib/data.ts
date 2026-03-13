@@ -76,6 +76,20 @@ export type PlatformPlan = {
   monthly_price_jpy: number
 }
 
+export type PlatformPlanFull = {
+  id: number
+  code: string
+  name: string
+  monthly_price_jpy: number
+  max_bots: number
+  max_monthly_messages: number
+  max_storage_mb: number
+  max_hosted_pages: number
+  internal_max_bots_cap: number
+  has_api: boolean
+  has_hosted_page: boolean
+}
+
 export type PlatformTenantMembership = {
   user_id: string
   role: "editor" | "reader"
@@ -133,30 +147,43 @@ export async function requirePlatformAdminContext(): Promise<PlatformAdminContex
   }
 }
 
-export async function fetchPlatformDashboard(searchText?: string): Promise<{
+const TENANT_PER_PAGE = 30
+
+export async function fetchPlatformDashboard(
+  searchText?: string,
+  page = 1,
+): Promise<{
   tenants: PlatformTenantRow[]
   plans: PlatformPlan[]
+  total: number
+  totalPages: number
+  page: number
 }> {
   const admin = createAdminClient()
   const search = (searchText ?? "").trim().toLowerCase()
+  const currentPage = Math.max(1, page)
+  const from = (currentPage - 1) * TENANT_PER_PAGE
+  const to = from + TENANT_PER_PAGE - 1
 
   let tenantQuery = admin
     .from("tenants")
-    .select("id, slug, display_name, active, force_stopped, force_stop_reason, force_stopped_at, created_at")
+    .select("id, slug, display_name, active, force_stopped, force_stop_reason, force_stopped_at, created_at", { count: "exact" })
     .order("created_at", { ascending: false })
-    .limit(200)
+    .range(from, to)
 
   if (search) {
     tenantQuery = tenantQuery.or(`slug.ilike.%${search}%,display_name.ilike.%${search}%`)
   }
 
-  const [{ data: tenantsRaw }, { data: plansRaw }] = await Promise.all([
+  const [{ data: tenantsRaw, count: tenantsCount }, { data: plansRaw }] = await Promise.all([
     tenantQuery,
     admin
       .from("plans")
       .select("id, code, name, monthly_price_jpy")
       .order("monthly_price_jpy", { ascending: true }),
   ])
+  const total = tenantsCount ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / TENANT_PER_PAGE))
 
   const tenants = (tenantsRaw ?? []) as Array<{
     id: string
@@ -174,6 +201,9 @@ export async function fetchPlatformDashboard(searchText?: string): Promise<{
     return {
       tenants: [],
       plans: (plansRaw ?? []) as PlatformPlan[],
+      total,
+      totalPages,
+      page: currentPage,
     }
   }
 
@@ -241,6 +271,9 @@ export async function fetchPlatformDashboard(searchText?: string): Promise<{
       override: overrideMap.get(row.id) ?? null,
     })),
     plans: (plansRaw ?? []) as PlatformPlan[],
+    total,
+    totalPages,
+    page: currentPage,
   }
 }
 
@@ -303,6 +336,19 @@ export async function fetchAuditLogs(options?: {
     })),
     total: count ?? 0,
   }
+}
+
+export async function fetchAllPlansWithLimits(): Promise<PlatformPlanFull[]> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from("plans")
+    .select(
+      "id, code, name, monthly_price_jpy, max_bots, max_monthly_messages, max_storage_mb, max_hosted_pages, internal_max_bots_cap, has_api, has_hosted_page"
+    )
+    .order("monthly_price_jpy", { ascending: true })
+
+  if (error) throw error
+  return (data ?? []) as PlatformPlanFull[]
 }
 
 export async function fetchIndexingJobStats(): Promise<{

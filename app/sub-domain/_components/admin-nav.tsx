@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ClipboardList, LayoutDashboard, ScrollText, UserPlus } from "lucide-react"
+import { BookOpen, ClipboardList, LayoutDashboard, ScrollText, Settings2, UserPlus } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -39,6 +39,18 @@ const NAV_ITEMS: NavItem[] = [
     label: "インデックスジョブ",
     icon: ClipboardList,
     isActive: (p) => p.startsWith("/sub-domain/indexing-jobs"),
+  },
+  {
+    href: "/sub-domain/plans",
+    label: "プラン管理",
+    icon: Settings2,
+    isActive: (p) => p.startsWith("/sub-domain/plans"),
+  },
+  {
+    href: "/sub-domain/docs",
+    label: "運用ドキュメント",
+    icon: BookOpen,
+    isActive: (p) => p.startsWith("/sub-domain/docs"),
   },
 ]
 

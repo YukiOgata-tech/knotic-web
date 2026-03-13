@@ -4,10 +4,12 @@ import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
+  BookOpen,
   ClipboardList,
   LayoutDashboard,
   Menu,
   ScrollText,
+  Settings2,
   ShieldCheck,
   UserPlus,
   X,
@@ -49,6 +51,18 @@ const NAV_ITEMS: NavItem[] = [
     label: "インデックスジョブ",
     icon: ClipboardList,
     isActive: (p) => p.startsWith("/sub-domain/indexing-jobs"),
+  },
+  {
+    href: "/sub-domain/plans",
+    label: "プラン管理",
+    icon: Settings2,
+    isActive: (p) => p.startsWith("/sub-domain/plans"),
+  },
+  {
+    href: "/sub-domain/docs",
+    label: "運用ドキュメント",
+    icon: BookOpen,
+    isActive: (p) => p.startsWith("/sub-domain/docs"),
   },
 ]
 

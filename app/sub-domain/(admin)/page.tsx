@@ -9,6 +9,7 @@ import {
 } from "@/app/sub-domain/actions"
 import { fetchPlatformDashboard } from "@/app/sub-domain/_lib/data"
 import { ConfirmSubmitButton } from "@/app/sub-domain/_components/confirm-submit-button"
+import { OverrideActiveToggle } from "@/app/sub-domain/_components/override-active-toggle"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -47,20 +48,40 @@ export default async function PlatformAdminPage({
   const errorRaw = params.error
   const notice = Array.isArray(noticeRaw) ? noticeRaw[0] : noticeRaw
   const error = Array.isArray(errorRaw) ? errorRaw[0] : errorRaw
+  const pageRaw = Array.isArray(params.page) ? params.page[0] : (params.page ?? "1")
+  const page = Math.max(1, Number(pageRaw) || 1)
 
-  const { tenants, plans } = await fetchPlatformDashboard(q)
+  const { tenants, plans, total, totalPages } = await fetchPlatformDashboard(q, page)
+
+  function buildQuery(overrides: Record<string, string | number>) {
+    const qs = new URLSearchParams()
+    if (q) qs.set("q", q)
+    qs.set("page", String(page))
+    for (const [k, v] of Object.entries(overrides)) qs.set(k, String(v))
+    return `/sub-domain?${qs.toString()}`
+  }
 
   return (
     <div className="grid gap-4">
-      {/* ── ヘッダー & 検索 ── */}
+      {/* ── テナント一覧（検索込み） ── */}
       <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
         <CardHeader className="pb-3">
-          <CardTitle>Platform Console</CardTitle>
-          <CardDescription>
-            契約者一覧、手動契約（Stripe非依存）、契約者ユーザー権限の付与を管理します。
-          </CardDescription>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <CardTitle>テナント一覧</CardTitle>
+              <CardDescription>
+                契約者一覧。Stripe契約と手動オーバーライドの両方を同時表示します。
+              </CardDescription>
+            </div>
+            <Button asChild size="sm" className="w-full sm:w-auto">
+              <Link href="/sub-domain/tenants/new">
+                <Plus className="size-4" />
+                テナントを作成
+              </Link>
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent className="grid gap-3">
+        <CardContent className="grid gap-3 pb-3">
           {notice ? (
             <p className="rounded-md border border-emerald-300/40 bg-emerald-100/60 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-900/20 dark:text-emerald-200">
               {notice}
@@ -78,27 +99,13 @@ export default async function PlatformAdminPage({
               </label>
               <Input name="q" defaultValue={q ?? ""} placeholder="例: acme" />
             </div>
-            <Button type="submit" className="w-full sm:w-auto">検索</Button>
+            <input type="hidden" name="page" value="1" />
+            <Button type="submit" variant="outline" className="w-full sm:w-auto">検索</Button>
           </form>
+          <p className="text-xs text-muted-foreground">
+            全 {total.toLocaleString("ja-JP")} 件 · ページ {page} / {totalPages}
+          </p>
         </CardContent>
-      </Card>
-
-      {/* ── テナント一覧 ── */}
-      <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
-        <CardHeader className="pb-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <CardTitle>Tenants</CardTitle>
-              <CardDescription>Stripe契約と手動オーバーライドの両方を同時表示します。</CardDescription>
-            </div>
-            <Button asChild size="sm" className="w-full sm:w-auto">
-              <Link href="/sub-domain/tenants/new">
-                <Plus className="size-4" />
-                テナントを作成
-              </Link>
-            </Button>
-          </div>
-        </CardHeader>
         <CardContent className="p-0 sm:p-6 sm:pt-0">
           {/* ── モバイル: カードリスト ── */}
           <div className="grid gap-2 p-4 sm:hidden">
@@ -253,6 +260,23 @@ export default async function PlatformAdminPage({
             </Table>
           </div>
         </CardContent>
+        {totalPages > 1 ? (
+          <CardContent className="pt-0">
+            <div className="flex items-center justify-center gap-2">
+              {page > 1 ? (
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={buildQuery({ page: page - 1 })}>← 前へ</Link>
+                </Button>
+              ) : null}
+              <span className="text-sm text-muted-foreground">{page} / {totalPages}</span>
+              {page < totalPages ? (
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={buildQuery({ page: page + 1 })}>次へ →</Link>
+                </Button>
+              ) : null}
+            </div>
+          </CardContent>
+        ) : null}
       </Card>
 
       {/* ── 手動契約・権限フォーム ── */}
@@ -328,10 +352,7 @@ export default async function PlatformAdminPage({
                 <label className="mb-1 block text-xs text-muted-foreground">備考</label>
                 <Textarea name="notes" rows={3} placeholder="契約メモ・請求条件" />
               </div>
-              <label className="inline-flex items-center gap-2 text-sm">
-                <input type="checkbox" name="is_active" defaultChecked className="size-4" />
-                overrideを有効化
-              </label>
+              <OverrideActiveToggle defaultChecked={true} />
               <ConfirmSubmitButton description="この内容で契約オーバーライドを保存します。既存のオーバーライドがある場合は上書きされます。よろしいですか？">
                 契約オーバーライドを保存
               </ConfirmSubmitButton>

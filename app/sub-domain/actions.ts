@@ -533,6 +533,58 @@ export async function inviteUserToTenantAction(formData: FormData) {
   }
 }
 
+export async function updatePlanLimitsAction(formData: FormData) {
+  try {
+    const { admin, role, userId } = await requirePlatformAdminActionContext()
+    if (role !== "owner") {
+      throw new Error("owner権限が必要です。")
+    }
+
+    const planId = Number(formData.get("plan_id") ?? "")
+    if (!Number.isFinite(planId) || planId <= 0) throw new Error("plan_id が不正です。")
+
+    const parseNonNegInt = (key: string) => {
+      const v = Number(formData.get(key) ?? "")
+      if (!Number.isFinite(v) || v < 0) throw new Error(`${key} は0以上の整数を入力してください。`)
+      return Math.floor(v)
+    }
+
+    const payload = {
+      max_bots: parseNonNegInt("max_bots"),
+      max_monthly_messages: parseNonNegInt("max_monthly_messages"),
+      max_storage_mb: parseNonNegInt("max_storage_mb"),
+      max_hosted_pages: parseNonNegInt("max_hosted_pages"),
+      internal_max_bots_cap: parseNonNegInt("internal_max_bots_cap"),
+      has_api: String(formData.get("has_api") ?? "") === "on",
+      has_hosted_page: String(formData.get("has_hosted_page") ?? "") === "on",
+    }
+
+    const { data: planRow } = await admin.from("plans").select("code,name").eq("id", planId).maybeSingle()
+    if (!planRow) throw new Error("プランが見つかりません。")
+
+    const { error } = await admin.from("plans").update(payload).eq("id", planId)
+    if (error) throw error
+
+    // audit_logsはtenant_idが必須のためplatform管理操作として汎用テナントIDを使わず
+    // 別途platform audit logに書く（tenant_idはダミーとして書く場合の代わりにskip）
+    // 代わりに console audit_log の writeAuditLog を使わず直接insert
+    await admin.from("audit_logs").insert({
+      tenant_id: "00000000-0000-0000-0000-000000000000",
+      actor_user_id: userId,
+      action: "platform.plan.limits.update",
+      target_type: "plan",
+      target_id: String(planId),
+      metadata: { plan_code: planRow.code, plan_name: planRow.name, ...payload },
+    })
+
+    revalidatePath("/sub-domain/plans")
+    redirect(`/sub-domain/plans?notice=${encodeURIComponent(`「${planRow.name}」のリミットを更新しました。`)}`)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "プランリミット更新に失敗しました。"
+    redirect(`/sub-domain/plans?error=${encodeURIComponent(message)}`)
+  }
+}
+
 export async function upsertTenantMembershipAction(formData: FormData) {
   const redirectTo = normalizeRedirectTo(formData.get("redirect_to"))
 
