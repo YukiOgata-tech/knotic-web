@@ -36,7 +36,7 @@ function FeaturesPreview() {
           導入しやすく、続けやすい
           <span className="block font-mono text-cyan-700 dark:text-cyan-300">実運用向けAIボット機能</span>
         </h2>
-        <p className="max-w-3xl text-zinc-800 dark:text-zinc-200">
+        <p className="hidden md:block max-w-3xl text-zinc-800 dark:text-zinc-200">
           Web問い合わせ対応とマニュアル案内を主目的に、公開導線と運用導線をセットで設計しています。
         </p>
       </div>

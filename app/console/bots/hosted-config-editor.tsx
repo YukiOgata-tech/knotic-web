@@ -141,6 +141,9 @@ const PURPOSE_LABEL: Record<string, string> = {
   custom: "その他",
 }
 
+const ROUTE_LOADER_BLOCK_ATTR = "data-knotic-route-loader-blocked"
+const ROUTE_LOADER_START_EVENT = "knotic:route-loader:start"
+
 const DEFAULT_HEADER_BG = "#0f172a"
 const DEFAULT_HEADER_TEXT = "#f8fafc"
 const DEFAULT_FOOTER_BG = "#f8fafc"
@@ -177,6 +180,19 @@ function formatDateTime(value: string | null | undefined) {
   return parsed.toLocaleString("ja-JP", { hour12: false })
 }
 
+function normalizePreviewPageUrl(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+  try {
+    const parsed = new URL(withProtocol)
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null
+    return parsed.toString()
+  } catch {
+    return null
+  }
+}
+
 const SOURCE_STATUS_MAP: Record<string, { label: string; className: string }> = {
   ready:   { label: "同期済み", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
   queued:  { label: "待機中",   className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
@@ -199,6 +215,7 @@ function Panel({ active, children }: { active: boolean; children: React.ReactNod
 }
 
 type WidgetPreviewProps = {
+  pageUrl: string
   logoUrl: string | null
   launcherLabel: string
   launcherShowLabel: boolean
@@ -220,6 +237,7 @@ type WidgetPreviewProps = {
 }
 
 function WidgetLauncherPreview({
+  pageUrl,
   logoUrl,
   launcherLabel,
   launcherShowLabel,
@@ -283,6 +301,8 @@ function WidgetLauncherPreview({
             logoUrl={logoUrl}
             embedded
             disablePersistence
+            forceMobileView={fullScreen}
+            showUsageCounterDebug
           />
         </div>
       </div>
@@ -359,45 +379,14 @@ function WidgetLauncherPreview({
       {/* ── デスクトップビュー ── */}
       {viewMode === "desktop" && (
         <div className="relative overflow-hidden rounded-xl border border-black/15 dark:border-white/10" style={{ height: 540 }}>
-          {/* 仮ウェブページ */}
-          <div className="absolute inset-0 overflow-y-auto bg-slate-50 dark:bg-slate-950">
-            <div className="flex items-center gap-4 bg-slate-900 px-5 py-3">
-              <div className="flex items-center gap-2">
-                <div className="size-5 rounded bg-cyan-400/70" />
-                <div className="h-2.5 w-16 rounded bg-white/40" />
-              </div>
-              <div className="ml-auto flex gap-5">
-                {["製品", "機能", "料金", "導入事例"].map((t) => (
-                  <div key={t} className="h-2 w-9 rounded bg-white/25" />
-                ))}
-                <div className="h-6 w-16 rounded-full bg-cyan-500/60" />
-              </div>
-            </div>
-            <div className="bg-linear-to-br from-slate-900 via-slate-800 to-slate-900 px-8 py-12 text-center">
-              <div className="mx-auto mb-2 h-3 w-20 rounded bg-cyan-400/50" />
-              <div className="mx-auto mb-3 h-6 w-64 rounded-md bg-white/25" />
-              <div className="mx-auto mb-1.5 h-3 w-72 rounded bg-white/15" />
-              <div className="mx-auto mb-6 h-3 w-56 rounded bg-white/10" />
-              <div className="flex justify-center gap-3">
-                <div className="h-9 w-28 rounded-full bg-cyan-500/70" />
-                <div className="h-9 w-24 rounded-full border border-white/20 bg-white/10" />
-              </div>
-            </div>
-            <div className="px-6 py-6">
-              <div className="mx-auto mb-4 h-3 w-40 rounded bg-slate-300 dark:bg-slate-700" />
-              <div className="grid grid-cols-3 gap-3">
-                {[...Array(6)].map((_, i) => (
-                  <div key={i} className="rounded-lg border border-black/10 bg-white p-3 shadow-sm dark:border-white/8 dark:bg-slate-900">
-                    <div className="mb-2 size-6 rounded bg-cyan-100 dark:bg-cyan-900/40" />
-                    <div className="mb-2 h-2.5 w-16 rounded bg-slate-300 dark:bg-slate-600" />
-                    <div className="space-y-1.5">
-                      <div className="h-2 w-full rounded bg-slate-200 dark:bg-slate-700" />
-                      <div className="h-2 w-5/6 rounded bg-slate-200 dark:bg-slate-700" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+          <div className="absolute inset-0 bg-slate-50 dark:bg-slate-950">
+            <iframe
+              src={pageUrl}
+              title="Widget preview desktop page"
+              className="h-full w-full border-0"
+              loading="eager"
+              referrerPolicy="strict-origin-when-cross-origin"
+            />
           </div>
 
           <LauncherBtn scale={1} />
@@ -418,7 +407,7 @@ function WidgetLauncherPreview({
       {viewMode === "mobile" && (
         <div className="flex justify-center py-2">
           {/* スマホ外枠 */}
-          <div className="relative" style={{ width: 300 }}>
+          <div className="relative" style={{ width: 360 }}>
             {/* ノッチ */}
             <div className="absolute left-1/2 top-3.5 z-10 h-4 w-20 -translate-x-1/2 rounded-full bg-slate-700" />
             <div className="overflow-hidden rounded-[2.5rem] border-[6px] border-slate-700 bg-slate-700 shadow-2xl">
@@ -434,45 +423,14 @@ function WidgetLauncherPreview({
 
               {/* スクリーン */}
               <div className="relative overflow-hidden bg-slate-50 dark:bg-slate-950" style={{ height: 520 }}>
-                {/* 仮モバイルページ */}
-                <div className="absolute inset-0 overflow-y-auto">
-                  {/* モバイルナビ */}
-                  <div className="flex items-center justify-between bg-slate-900 px-4 py-3">
-                    <div className="flex items-center gap-1.5">
-                      <div className="size-4 rounded bg-cyan-400/70" />
-                      <div className="h-2 w-12 rounded bg-white/40" />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <div className="h-0.5 w-4 rounded bg-white/60" />
-                      <div className="h-0.5 w-4 rounded bg-white/60" />
-                      <div className="h-0.5 w-4 rounded bg-white/60" />
-                    </div>
-                  </div>
-                  {/* ヒーロー */}
-                  <div className="bg-linear-to-br from-slate-900 via-slate-800 to-slate-900 px-5 py-10 text-center">
-                    <div className="mx-auto mb-2 h-2.5 w-16 rounded bg-cyan-400/50" />
-                    <div className="mx-auto mb-2 h-5 w-40 rounded-md bg-white/25" />
-                    <div className="mx-auto mb-5 h-2 w-44 rounded bg-white/15" />
-                    <div className="flex justify-center gap-2">
-                      <div className="h-8 w-22 rounded-full bg-cyan-500/70" />
-                      <div className="h-8 w-18 rounded-full border border-white/20 bg-white/10" />
-                    </div>
-                  </div>
-                  {/* カード */}
-                  <div className="space-y-2.5 px-4 py-4">
-                    {[...Array(4)].map((_, i) => (
-                      <div key={i} className="rounded-xl border border-black/10 bg-white p-3.5 shadow-sm dark:border-white/8 dark:bg-slate-900">
-                        <div className="mb-2 flex items-center gap-2">
-                          <div className="size-5 rounded bg-cyan-100 dark:bg-cyan-900/40" />
-                          <div className="h-2.5 w-20 rounded bg-slate-300 dark:bg-slate-600" />
-                        </div>
-                        <div className="space-y-1.5">
-                          <div className="h-2 w-full rounded bg-slate-200 dark:bg-slate-700" />
-                          <div className="h-2 w-4/5 rounded bg-slate-200 dark:bg-slate-700" />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                <div className="absolute inset-0">
+                  <iframe
+                    src={pageUrl}
+                    title="Widget preview mobile page"
+                    className="h-full w-full border-0"
+                    loading="eager"
+                    referrerPolicy="strict-origin-when-cross-origin"
+                  />
                 </div>
 
                 <LauncherBtn scale={0.85} />
@@ -591,8 +549,24 @@ export function HostedConfigEditor({
   const [isSaving, startSaveTransition] = React.useTransition()
   const [previewKey, setPreviewKey] = React.useState(0)
   const [previewMode, setPreviewMode] = React.useState<"chat" | "widget">("chat")
+  const initialPreviewPageUrl = React.useMemo(() => {
+    const firstUrlSource = botSources.find((source) => source.type === "url" && source.url)?.url ?? ""
+    return normalizePreviewPageUrl(firstUrlSource) ?? "https://example.com"
+  }, [botSources])
+  const [previewPageUrlInput, setPreviewPageUrlInput] = React.useState(initialPreviewPageUrl)
+  const [previewPageUrl, setPreviewPageUrl] = React.useState(initialPreviewPageUrl)
+  const [previewPageUrlError, setPreviewPageUrlError] = React.useState<string | null>(null)
   const [isDirty, setIsDirty] = React.useState(false)
   const [leaveTarget, setLeaveTarget] = React.useState<string | null>(null)
+
+  const setRouteLoaderBlocked = React.useCallback((blocked: boolean) => {
+    if (typeof document === "undefined") return
+    if (blocked) {
+      document.documentElement.setAttribute(ROUTE_LOADER_BLOCK_ATTR, "true")
+      return
+    }
+    document.documentElement.removeAttribute(ROUTE_LOADER_BLOCK_ATTR)
+  }, [])
 
   // ブラウザの閉じる・リロード・外部遷移を警告
   React.useEffect(() => {
@@ -621,6 +595,41 @@ export function HostedConfigEditor({
     return () => document.removeEventListener("click", handler, true)
   }, [isDirty, isSaving])
 
+  React.useEffect(() => {
+    const shouldBlock = isDirty && !isSaving
+    setRouteLoaderBlocked(shouldBlock)
+    return () => setRouteLoaderBlocked(false)
+  }, [isDirty, isSaving, setRouteLoaderBlocked])
+
+  const handleFormChange = React.useCallback((event: React.FormEvent<HTMLFormElement>) => {
+    const target = event.target as HTMLElement | null
+    if (target?.closest("[data-ignore-dirty='true']")) return
+    setIsDirty(true)
+  }, [])
+
+  const handleDiscardAndLeave = React.useCallback(() => {
+    if (!leaveTarget) return
+    const target = leaveTarget
+    setLeaveTarget(null)
+    setIsDirty(false)
+    setRouteLoaderBlocked(false)
+
+    if (target.startsWith("/")) {
+      window.dispatchEvent(new Event(ROUTE_LOADER_START_EVENT))
+      router.push(target)
+      return
+    }
+
+    if (target.startsWith(window.location.origin)) {
+      const url = new URL(target)
+      window.dispatchEvent(new Event(ROUTE_LOADER_START_EVENT))
+      router.push(`${url.pathname}${url.search}${url.hash}`)
+      return
+    }
+
+    window.location.href = target
+  }, [leaveTarget, router, setRouteLoaderBlocked])
+
   type ReindexState = { sourceId: string | null; phase: "idle" | "running" | "done" | "error"; error: string | null; warnings: string[] }
   const [reindexState, setReindexState] = React.useState<ReindexState>({ sourceId: null, phase: "idle", error: null, warnings: [] })
   const [confirmDeleteId, setConfirmDeleteId] = React.useState<string | null>(null)
@@ -647,6 +656,17 @@ export function HostedConfigEditor({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reindexState.phase])
+
+  const applyPreviewPageUrl = React.useCallback(() => {
+    const normalized = normalizePreviewPageUrl(previewPageUrlInput)
+    if (!normalized) {
+      setPreviewPageUrlError("URL形式が不正です。http:// または https:// のURLを入力してください。")
+      return
+    }
+    setPreviewPageUrl(normalized)
+    setPreviewPageUrlInput(normalized)
+    setPreviewPageUrlError(null)
+  }, [previewPageUrlInput])
 
   async function handleRotateToken() {
     setRotatingToken(true)
@@ -963,7 +983,7 @@ export function HostedConfigEditor({
             このページに残る
           </AlertDialogCancel>
           <AlertDialogAction
-            onClick={() => { if (leaveTarget) window.location.href = leaveTarget }}
+            onClick={handleDiscardAndLeave}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
             変更を破棄して移動
@@ -1070,7 +1090,7 @@ export function HostedConfigEditor({
       <form
         id={`save_bot_${bot.id}`}
         action={(fd) => startSaveTransition(() => saveAction(fd))}
-        onChange={() => setIsDirty(true)}
+        onChange={handleFormChange}
         className="grid min-w-0 gap-4 rounded-xl border border-black/20 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80 sm:p-4"
       >
         <input type="hidden" name="redirect_to" value={redirectTo} />
@@ -1539,102 +1559,147 @@ export function HostedConfigEditor({
         </Panel>
 
         <Panel active={activeTab === "preview"}>
-          {/* ヘッダー: タイトル + モード切り替え + リセット */}
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="grid gap-0.5">
-              <p className="text-sm font-semibold">プレビュー</p>
-              <p className="text-xs text-muted-foreground">実際のAIに接続されたテストチャットです。保存前の表示設定が反映されます。</p>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              {/* モード切り替えタブ */}
-              <div className="flex rounded-lg border border-black/15 p-0.5 text-xs dark:border-white/10">
+          <div className="grid gap-4" data-ignore-dirty="true">
+            {/* ヘッダー: タイトル + モード切り替え + リセット */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="grid gap-0.5">
+                <p className="text-sm font-semibold">プレビュー</p>
+                <p className="text-xs text-muted-foreground">実際のAIに接続されたテストチャットです。保存前の表示設定が反映されます。</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                {/* モード切り替えタブ */}
+                <div className="flex rounded-lg border border-black/15 p-0.5 text-xs dark:border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewMode("chat")}
+                    className={cn(
+                      "rounded-md px-3 py-1.5 font-medium transition-colors",
+                      previewMode === "chat"
+                        ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                        : "text-muted-foreground hover:text-slate-700 dark:hover:text-slate-200"
+                    )}
+                  >
+                    チャットUI
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewMode("widget")}
+                    className={cn(
+                      "rounded-md px-3 py-1.5 font-medium transition-colors",
+                      previewMode === "widget"
+                        ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                        : "text-muted-foreground hover:text-slate-700 dark:hover:text-slate-200"
+                    )}
+                  >
+                    Widgetランチャー
+                  </button>
+                </div>
                 <button
                   type="button"
-                  onClick={() => setPreviewMode("chat")}
-                  className={cn(
-                    "rounded-md px-3 py-1.5 font-medium transition-colors",
-                    previewMode === "chat"
-                      ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                      : "text-muted-foreground hover:text-slate-700 dark:hover:text-slate-200"
-                  )}
+                  onClick={() => {
+                    try { window.localStorage.removeItem(`knotic_hosted_chat_v1_${bot.public_id}`) } catch { /* ignore */ }
+                    setPreviewKey((k) => k + 1)
+                  }}
+                  className="rounded-md border border-black/15 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-slate-50 hover:text-slate-700 dark:border-white/10 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                 >
-                  チャットUI
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPreviewMode("widget")}
-                  className={cn(
-                    "rounded-md px-3 py-1.5 font-medium transition-colors",
-                    previewMode === "widget"
-                      ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                      : "text-muted-foreground hover:text-slate-700 dark:hover:text-slate-200"
-                  )}
-                >
-                  Widgetランチャー
+                  リセット
                 </button>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  try { window.localStorage.removeItem(`knotic_hosted_chat_v1_${bot.public_id}`) } catch { /* ignore */ }
-                  setPreviewKey((k) => k + 1)
-                }}
-                className="rounded-md border border-black/15 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-slate-50 hover:text-slate-700 dark:border-white/10 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-              >
-                リセット
-              </button>
             </div>
-          </div>
 
-          {/* チャットUIモード */}
-          {previewMode === "chat" ? (
-            <div className="-mx-4 sm:mx-0">
-              <HostedChatClient
-                key={previewKey}
-                botPublicId={bot.public_id}
-                displayName={displayName || bot.name}
-                purposeLabel={PURPOSE_LABEL[chatPurpose] ?? "カスタム"}
-                welcomeMessage={welcomeMessage || "こんにちは。ご質問を入力してください。"}
-                faqQuestions={faqQuestions.filter((q) => q.trim() !== "")}
-                placeholderText={placeholderText || "質問を入力"}
-                disclaimerText={disclaimerText || "回答は参考情報です。重要事項は担当者へ確認してください。"}
-                showCitations={showCitations}
-                showRetentionNotice={!effectiveRequireAuth}
-                retentionHours={24}
-                historyTurnLimit={historyLimit}
-                headerBgColor={headerBgColor}
-                headerTextColor={headerTextColor}
-                footerBgColor={footerBgColor}
-                footerTextColor={footerTextColor}
-                logoUrl={logoUrl}
-              />
-            </div>
-          ) : (
-            /* Widgetランチャーモード */
-            <div className="-mx-4 sm:mx-0">
-              <WidgetLauncherPreview
-                key={previewKey}
-                logoUrl={logoUrl}
-                launcherLabel={widgetLauncherLabel}
-                launcherShowLabel={launcherShowLabel}
-                widgetPosition={widgetPosition}
-                previewKey={previewKey}
-                botPublicId={bot.public_id}
-                displayName={displayName || bot.name}
-                purposeLabel={PURPOSE_LABEL[chatPurpose] ?? "カスタム"}
-                welcomeMessage={welcomeMessage || "こんにちは。ご質問を入力してください。"}
-                faqQuestions={faqQuestions.filter((q) => q.trim() !== "")}
-                placeholderText={placeholderText || "質問を入力"}
-                disclaimerText={disclaimerText || "回答は参考情報です。重要事項は担当者へ確認してください。"}
-                showCitations={showCitations}
-                historyTurnLimit={historyLimit}
-                headerBgColor={headerBgColor}
-                headerTextColor={headerTextColor}
-                footerBgColor={footerBgColor}
-                footerTextColor={footerTextColor}
-              />
-            </div>
-          )}
+            {previewMode === "widget" ? (
+              <div className="grid gap-1.5 rounded-lg border border-black/15 bg-slate-50/80 p-2.5 dark:border-white/10 dark:bg-slate-900/40">
+                <p className="text-xs font-medium">表示確認URL（既存サイト）</p>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Input
+                    value={previewPageUrlInput}
+                    onChange={(event) => {
+                      setPreviewPageUrlInput(event.target.value)
+                      if (previewPageUrlError) setPreviewPageUrlError(null)
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter") return
+                      event.preventDefault()
+                      applyPreviewPageUrl()
+                    }}
+                    placeholder="https://example.com"
+                  />
+                  <div className="flex items-center gap-2">
+                    <Button type="button" size="sm" variant="outline" onClick={applyPreviewPageUrl}>
+                      URLを反映
+                    </Button>
+                    <Link
+                      href={previewPageUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center rounded-md border border-black/15 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-slate-50 hover:text-slate-700 dark:border-white/10 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                    >
+                      別タブで開く
+                    </Link>
+                  </div>
+                </div>
+                {previewPageUrlError ? (
+                  <p className="text-[11px] text-rose-600 dark:text-rose-400">{previewPageUrlError}</p>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">
+                    注意: 一部サイトはプレビューに表示できない場合があります。また、実際の表示環境と多少異なる場合があります。
+                  </p>
+                )}
+              </div>
+            ) : null}
+
+            {/* チャットUIモード */}
+            {previewMode === "chat" ? (
+              <div className="-mx-4 sm:mx-0">
+                <HostedChatClient
+                  key={previewKey}
+                  botPublicId={bot.public_id}
+                  displayName={displayName || bot.name}
+                  purposeLabel={PURPOSE_LABEL[chatPurpose] ?? "カスタム"}
+                  welcomeMessage={welcomeMessage || "こんにちは。ご質問を入力してください。"}
+                  faqQuestions={faqQuestions.filter((q) => q.trim() !== "")}
+                  placeholderText={placeholderText || "質問を入力"}
+                  disclaimerText={disclaimerText || "回答は参考情報です。重要事項は担当者へ確認してください。"}
+                  showCitations={showCitations}
+                  showRetentionNotice={!effectiveRequireAuth}
+                  retentionHours={24}
+                  historyTurnLimit={historyLimit}
+                  headerBgColor={headerBgColor}
+                  headerTextColor={headerTextColor}
+                  footerBgColor={footerBgColor}
+                  footerTextColor={footerTextColor}
+                  logoUrl={logoUrl}
+                  showUsageCounterDebug
+                />
+              </div>
+            ) : (
+              /* Widgetランチャーモード */
+              <div className="-mx-4 sm:mx-0">
+                <WidgetLauncherPreview
+                  key={previewKey}
+                  pageUrl={previewPageUrl}
+                  logoUrl={logoUrl}
+                  launcherLabel={widgetLauncherLabel}
+                  launcherShowLabel={launcherShowLabel}
+                  widgetPosition={widgetPosition}
+                  previewKey={previewKey}
+                  botPublicId={bot.public_id}
+                  displayName={displayName || bot.name}
+                  purposeLabel={PURPOSE_LABEL[chatPurpose] ?? "カスタム"}
+                  welcomeMessage={welcomeMessage || "こんにちは。ご質問を入力してください。"}
+                  faqQuestions={faqQuestions.filter((q) => q.trim() !== "")}
+                  placeholderText={placeholderText || "質問を入力"}
+                  disclaimerText={disclaimerText || "回答は参考情報です。重要事項は担当者へ確認してください。"}
+                  showCitations={showCitations}
+                  historyTurnLimit={historyLimit}
+                  headerBgColor={headerBgColor}
+                  headerTextColor={headerTextColor}
+                  footerBgColor={footerBgColor}
+                  footerTextColor={footerTextColor}
+                />
+              </div>
+            )}
+          </div>
         </Panel>
 
         <div className="border-t border-black/20 pt-3 text-xs text-muted-foreground dark:border-white/10">

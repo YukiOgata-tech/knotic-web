@@ -7,6 +7,8 @@ import { DotLottieReact } from "@lottiefiles/dotlottie-react"
 import type { DotLottie } from "@lottiefiles/dotlottie-react"
 
 const ROUTE_LOADER_DOTLOTTIE_ANIMATION_ID = "main"
+const ROUTE_LOADER_BLOCK_ATTR = "data-knotic-route-loader-blocked"
+const ROUTE_LOADER_START_EVENT = "knotic:route-loader:start"
 
 function isModifiedClick(event: MouseEvent) {
   return event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
@@ -100,6 +102,7 @@ function RouteTransitionLoader() {
       if (event.defaultPrevented) return
       if (event.button !== 0) return
       if (isModifiedClick(event)) return
+      if (document.documentElement.getAttribute(ROUTE_LOADER_BLOCK_ATTR) === "true") return
 
       const target = event.target as Element | null
       const anchor = target?.closest("a[href]") as HTMLAnchorElement | null
@@ -128,12 +131,19 @@ function RouteTransitionLoader() {
       startNavigation()
     }
 
+    const onManualStart = () => {
+      if (document.documentElement.getAttribute(ROUTE_LOADER_BLOCK_ATTR) === "true") return
+      startNavigation()
+    }
+
     document.addEventListener("click", onDocumentClick, true)
     window.addEventListener("popstate", onPopState)
+    window.addEventListener(ROUTE_LOADER_START_EVENT, onManualStart)
 
     return () => {
       document.removeEventListener("click", onDocumentClick, true)
       window.removeEventListener("popstate", onPopState)
+      window.removeEventListener(ROUTE_LOADER_START_EVENT, onManualStart)
       clearTimer(showDelayRef)
       clearTimer(hideTimerRef)
       clearTimer(failSafeTimerRef)
@@ -183,7 +193,7 @@ function RouteTransitionLoader() {
           dotLottieRefCallback={(instance) => {
             dotLottieRef.current = instance
           }}
-          className="h-80 w-80 sm:h-120 sm:w-120"
+          className="h-80 w-80 sm:h-[30rem] sm:w-[30rem]"
         />
       </div>
     </div>

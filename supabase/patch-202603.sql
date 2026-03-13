@@ -84,3 +84,73 @@ begin
     add constraint bots_ai_fallback_model_ck
     check (ai_fallback_model is null or ai_fallback_model in ('5-nano', '5-mini', '5'));
 end $$;
+
+-- ── 05: FAQ preset questions for hosted chat UI ──────────────────────────────
+-- Stores up to 5 preset quick-tap question strings.
+
+alter table public.bots
+  add column if not exists faq_questions text[] not null default '{}';
+
+-- ── 06: Bot logo and launcher label visibility ───────────────────────────────
+-- Adds bot logo URL and launcher text visibility toggle.
+
+alter table public.bots
+  add column if not exists bot_logo_url text,
+  add column if not exists launcher_show_label boolean not null default true;
+
+-- Public storage bucket for bot logos (must be externally accessible via Widget).
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'bot-logos',
+  'bot-logos',
+  true,
+  2097152,  -- 2MB
+  array['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml']
+)
+on conflict (id) do nothing;
+
+-- Allow public read of bot logos.
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'storage'
+      and tablename = 'objects'
+      and policyname = 'bot logos public read'
+  ) then
+    create policy "bot logos public read"
+      on storage.objects for select
+      using (bucket_id = 'bot-logos');
+  end if;
+end
+$$;
+
+-- ── 07: Public wrapper for usage increment RPC ───────────────────────────────
+-- Exposes app.increment_usage_daily via public schema for client/RPC calls.
+
+create or replace function public.increment_usage_daily(
+  p_tenant_id uuid,
+  p_bot_id uuid,
+  p_usage_date date,
+  p_messages integer default 0,
+  p_tokens_in integer default 0,
+  p_tokens_out integer default 0
+)
+returns void
+language sql
+security definer
+set search_path = public, app
+as $$
+  select app.increment_usage_daily(
+    p_tenant_id,
+    p_bot_id,
+    p_usage_date,
+    p_messages,
+    p_tokens_in,
+    p_tokens_out
+  );
+$$;
+
+grant execute on function public.increment_usage_daily(uuid, uuid, date, integer, integer, integer) to authenticated;
+grant execute on function public.increment_usage_daily(uuid, uuid, date, integer, integer, integer) to service_role;

@@ -77,8 +77,8 @@ export default function Home() {
       {/* Hero */}
       <section className="w-full">
         <div className="relative">
-          <Badge className="absolute left-1/2 top-5 z-10 w-fit -translate-x-1/2 rounded-full bg-amber-500/90 px-3 text-white hover:bg-amber-500 md:left-[8%] md:translate-x-0">
-            Webに埋め込み、即公開できるAIボット
+          <Badge className="absolute left-1/6 top-24 z-10 w-fit -translate-x-1/2 rounded-full bg-amber-500/90 px-3 text-white hover:bg-amber-500 md:left-[8%] md:translate-x-0">
+            Webに埋め込み<span className="hidden md:block">、即公開できるAIボット</span>
           </Badge>
           <Image
             src="/images/hero-knotic-mobile.png"
@@ -108,7 +108,7 @@ export default function Home() {
             </h1>
             <p className="mx-auto max-w-7xl text-sm leading-5 text-zinc-600 dark:text-zinc-300 sm:mx-0 sm:text-lg sm:leading-6">
               URLやファイルを登録するだけで、Web埋め込みや共有URLで公開できるAIボット作成サービスです。
-              <span className="hidden sm:inline">まずは低コストで導入し、運用しながら応答品質を育てていけます。</span>
+              <span className="hidden sm:inline">低コストで導入し、運用しながら応答品質を育てていけます。</span>
             </p>
             <div className="flex items-center gap-2 flex-row sm:items-start sm:gap-3 mx-auto">
               <AuthAwareCtaButton

@@ -105,9 +105,9 @@ export default async function ConsoleBotsPage({ searchParams }: PageProps) {
               {botLimit !== null ? ` / 上限 ${botLimit}` : ""}
               {botOverCount > 0 ? `（${botOverCount} 件超過）` : ""}
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">
+            {/* <p className="mt-1 text-xs text-muted-foreground">
               上限超過時は新規Bot作成不可。既存Botは維持されるため、必要に応じて運用対象を整理してください。
-            </p>
+            </p> */}
 
             <div className="my-2 border-b"/>
 
@@ -208,7 +208,7 @@ export default async function ConsoleBotsPage({ searchParams }: PageProps) {
                 const token = data.tokenByBotId.get(bot.id)
                 return (
                   <TableRow key={bot.id}>
-                    <TableCell className="max-w-[160px]">
+                    <TableCell className="max-w-40">
                       <Link
                         href={botSettingsPath(bot.name, bot.public_id)}
                         className="font-medium text-cyan-700 hover:underline dark:text-cyan-300"
@@ -228,7 +228,7 @@ export default async function ConsoleBotsPage({ searchParams }: PageProps) {
                         </Badge>
                       </div>
                     </TableCell>
-                    <TableCell className="max-w-[200px]">
+                    <TableCell className="max-w-50">
                       {data.currentPlan?.has_hosted_page ? (
                         <Link
                           href={`/chat-by-knotic/${bot.public_id}`}

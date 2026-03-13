@@ -9,6 +9,7 @@ import {
   getTenantMonthlyMessages,
   getTenantPlanSnapshot,
 } from "@/lib/billing/limits"
+import { incrementUsageDailySafe } from "@/lib/billing/usage"
 import { answerWithOpenAiFileSearch, getBotOpenAiVectorStoreId } from "@/lib/filesearch/openai"
 import { type ConversationTurn } from "@/lib/llm/responses"
 import { createAdminClient } from "@/lib/supabase/admin"
@@ -426,26 +427,22 @@ async function handleChat(request: NextRequest) {
     token_usage_out: outputTokens,
   })
 
-  const { error: usageError } = await admin.rpc("increment_usage_daily", {
-    p_tenant_id: bot.tenant_id,
-    p_bot_id: bot.id,
-    p_usage_date: today,
-    p_messages: 1,
-    p_tokens_in: inputTokens,
-    p_tokens_out: outputTokens,
+  const usageIncrement = await incrementUsageDailySafe(admin, {
+    tenantId: bot.tenant_id,
+    botId: bot.id,
+    usageDate: today,
+    messages: 1,
+    tokensIn: inputTokens,
+    tokensOut: outputTokens,
   })
-  if (usageError) {
-    await admin.from("usage_daily").upsert(
-      {
-        tenant_id: bot.tenant_id,
-        bot_id: bot.id,
-        usage_date: today,
-        messages_count: 1,
-        tokens_in: inputTokens,
-        tokens_out: outputTokens,
-      },
-      { onConflict: "tenant_id,bot_id,usage_date" }
-    )
+  if (usageIncrement.counterSource !== "rpc") {
+    console.warn("[usage.increment.v1.chat] fallback used", {
+      tenantId: bot.tenant_id,
+      botId: bot.id,
+      counterSource: usageIncrement.counterSource,
+      rpcError: usageIncrement.rpcError,
+      fallbackError: usageIncrement.fallbackError,
+    })
   }
 
   const usedMessages = await getTenantMonthlyMessages(bot.tenant_id)
@@ -474,6 +471,7 @@ async function handleChat(request: NextRequest) {
       outputTokens,
       monthlyMessagesUsed: usedMessages,
       monthlyMessagesLimit: plan.maxMonthlyMessages,
+      counterSource: usageIncrement.counterSource,
     },
   })
 }

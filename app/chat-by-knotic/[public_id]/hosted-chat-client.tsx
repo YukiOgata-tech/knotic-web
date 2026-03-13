@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { cn } from "@/lib/utils"
 
 type Citation = {
   rank: number
@@ -50,6 +51,8 @@ type Props = {
   embedded?: boolean
   authenticatedMode?: boolean
   logoUrl?: string | null
+  forceMobileView?: boolean
+  showUsageCounterDebug?: boolean
 }
 
 const STORAGE_KEY_PREFIX = "knotic_hosted_chat_v1_"
@@ -155,6 +158,8 @@ export function HostedChatClient({
   embedded = false,
   authenticatedMode = false,
   logoUrl,
+  forceMobileView = false,
+  showUsageCounterDebug = false,
 }: Props) {
   const [messages, setMessages] = React.useState<Message[]>([
     firstAssistantMessage(welcomeMessage),
@@ -162,6 +167,7 @@ export function HostedChatClient({
   const [input, setInput] = React.useState("")
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [usageCounterSource, setUsageCounterSource] = React.useState<string | null>(null)
   const bottomRef = React.useRef<HTMLDivElement | null>(null)
   const shouldAnimateNextRef = React.useRef(false)
   const [animatingMsgId, setAnimatingMsgId] = React.useState<string | null>(null)
@@ -361,7 +367,14 @@ export function HostedChatClient({
       })
 
       const rawText = await res.text().catch(() => "")
-      let data: { answer?: string; citations?: Citation[]; error?: string } = {}
+      let data: {
+        answer?: string
+        citations?: Citation[]
+        error?: string
+        usage?: {
+          counterSource?: string
+        }
+      } = {}
       try {
         data = JSON.parse(rawText) as typeof data
       } catch {
@@ -390,6 +403,7 @@ export function HostedChatClient({
       if (authenticatedMode) {
         void loadRooms()
       }
+      setUsageCounterSource(data.usage?.counterSource ?? null)
     } catch (e) {
       setError(e instanceof Error ? e.message : "不明なエラーが発生しました。")
     } finally {
@@ -417,25 +431,45 @@ export function HostedChatClient({
 
   return (
     <div className={embedded ? "flex h-full min-h-0 w-full flex-col gap-3" : "mx-auto flex w-full max-w-4xl flex-col gap-4"}>
-      <Card className={embedded ? "border-black/20 px-3 py-2 dark:border-white/10" : "border-black/20 p-3 dark:border-white/10 sm:p-4"} style={{ backgroundColor: headerBgColor, color: headerTextColor }}>
+      <Card
+        className={embedded
+          ? cn("border-black/20 px-3 py-2 dark:border-white/10", !forceMobileView && "sm:p-4")
+          : cn("border-black/20 p-3 dark:border-white/10", !forceMobileView && "sm:p-4")}
+        style={{ backgroundColor: headerBgColor, color: headerTextColor }}
+      >
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <img
               src={logoUrl ?? "/images/knotic-square-logo.png"}
               alt=""
-              className={embedded ? "size-6 shrink-0 rounded object-contain" : "size-8 shrink-0 rounded object-contain sm:size-9"}
+              className={embedded
+                ? "size-6 shrink-0 rounded object-contain"
+                : cn("size-8 shrink-0 rounded object-contain", !forceMobileView && "sm:size-9")}
             />
             <div className="min-w-0">
-              <h1 className={embedded ? "truncate text-sm font-semibold" : "truncate text-base font-semibold sm:text-xl"}>{displayName}</h1>
+              <h1 className={embedded
+                ? "truncate text-sm font-semibold"
+                : cn("truncate text-base font-semibold", !forceMobileView && "sm:text-xl")}
+              >
+                {displayName}
+              </h1>
               {!embedded && <p className="truncate text-xs opacity-80">{purposeLabel}</p>}
             </div>
           </div>
-          <Badge variant="outline" className="shrink-0 border-current/30 text-current text-[10px] sm:text-xs">
+          <Badge
+            variant="outline"
+            className={cn("shrink-0 border-current/30 text-current text-[10px]", !forceMobileView && "sm:text-xs")}
+          >
             Hosted Chat
           </Badge>
         </div>
         {!embedded && (showRetentionNotice || disclaimerText) ? (
-          <div className="mt-2 flex flex-col gap-0.5 border-t border-current/15 pt-2 sm:flex-row sm:flex-wrap sm:gap-x-4">
+          <div
+            className={cn(
+              "mt-2 flex flex-col gap-0.5 border-t border-current/15 pt-2",
+              !forceMobileView && "sm:flex-row sm:flex-wrap sm:gap-x-4"
+            )}
+          >
             {showRetentionNotice ? (
               <p className="text-[11px] opacity-60">履歴はブラウザ上で{retentionHours}時間保持されます。</p>
             ) : null}
@@ -474,7 +508,11 @@ export function HostedChatClient({
         </Card>
       ) : null}
 
-      <Card className={embedded ? "flex min-h-0 flex-1 flex-col border-black/20 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80 sm:p-4" : "flex min-h-[55vh] flex-col border-black/20 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80 sm:min-h-[62vh] sm:p-4"}>
+      <Card
+        className={embedded
+          ? cn("flex min-h-0 flex-1 flex-col border-black/20 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80", !forceMobileView && "sm:p-4")
+          : cn("flex min-h-[55vh] flex-col border-black/20 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80", !forceMobileView && "sm:min-h-[62vh] sm:p-4")}
+      >
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
           {messages.map((message) => {
             const isAnimating = message.role === "assistant" && message.id === animatingMsgId
@@ -540,7 +578,7 @@ export function HostedChatClient({
           })}
 
           {faqQuestions.length > 0 && messages.length === 1 && !loading ? (
-            <div className="flex flex-wrap gap-1.5 pt-1 sm:gap-2">
+            <div className={cn("flex flex-wrap gap-1.5 pt-1", !forceMobileView && "sm:gap-2")}>
               {faqQuestions.filter(Boolean).slice(0, 5).map((q, i) => (
                 <button
                   key={i}
@@ -566,6 +604,20 @@ export function HostedChatClient({
 
         <div className="mt-4">
           {error ? <p className="mb-2 text-sm text-destructive">{error}</p> : null}
+          {showUsageCounterDebug ? (
+            <p
+              className={cn(
+                "mb-2 text-[11px]",
+                usageCounterSource === "rpc"
+                  ? "text-emerald-700 dark:text-emerald-300"
+                  : usageCounterSource
+                    ? "text-amber-700 dark:text-amber-300"
+                    : "text-muted-foreground"
+              )}
+            >
+              集計経路: {usageCounterSource ?? "未取得"}
+            </p>
+          ) : null}
           {showRetentionNotice ? (
             <div className="mb-1.5 flex justify-end">
               <button
@@ -592,7 +644,11 @@ export function HostedChatClient({
                 disabled={loading}
                 className="h-11 min-w-0 flex-1"
               />
-              <Button onClick={() => void sendMessage()} disabled={loading || input.trim().length === 0 || (authenticatedMode && !currentRoomId)} className="h-11 shrink-0 rounded-full px-4 sm:px-5">
+              <Button
+                onClick={() => void sendMessage()}
+                disabled={loading || input.trim().length === 0 || (authenticatedMode && !currentRoomId)}
+                className={cn("h-11 shrink-0 rounded-full px-4", !forceMobileView && "sm:px-5")}
+              >
                 送信
               </Button>
             </div>

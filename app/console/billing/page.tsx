@@ -50,6 +50,14 @@ type PendingPlanChange = {
   effectiveAt: string
 }
 
+type BillingEventFailureRow = {
+  event_type: string
+  processing_error: string | null
+  attempt_count: number | null
+  last_attempt_at: string | null
+  next_retry_at: string | null
+}
+
 function formatJpy(value: number | null | undefined) {
   if (typeof value !== "number") return "-"
   return `${value.toLocaleString()} 円`
@@ -85,10 +93,24 @@ export default async function ConsoleBillingPage({ searchParams }: PageProps) {
     checkout_canceled: "決済をキャンセルしました。",
     subscription_item_missing: "契約情報の取得に失敗しました。サポートにお問い合わせください。",
     permission_denied: "この操作はEditor権限が必要です。",
+    customer_not_found: "請求先情報が見つかりません。先にプラン契約を完了してください。",
+    portal_failed: "Customer Portalへの遷移に失敗しました。時間をおいて再試行してください。",
+    subscription_not_found: "契約情報が見つかりません。しばらく待ってから再読み込みしてください。",
+    cancel_failed: "解約予約に失敗しました。時間をおいて再試行してください。",
+    resume_failed: "自動更新の再開に失敗しました。時間をおいて再試行してください。",
   }
 
+  const retryPartialPrefix = "retry_partial_failed_"
+  const retryPartialCount = errorRaw?.startsWith(retryPartialPrefix)
+    ? Number(errorRaw.slice(retryPartialPrefix.length))
+    : NaN
+
   const notice = noticeRaw ? noticeMap[noticeRaw] ?? noticeRaw : undefined
-  const error = errorRaw ? errorMap[errorRaw] ?? errorRaw : undefined
+  const error = Number.isFinite(retryPartialCount) && retryPartialCount > 0
+    ? `再同期を実行しましたが、${retryPartialCount} 件のイベント処理に失敗しました。`
+    : errorRaw
+      ? errorMap[errorRaw] ?? errorRaw
+      : undefined
 
   const { membership } = await requireConsoleContext()
   if (!membership) return null
@@ -126,7 +148,12 @@ export default async function ConsoleBillingPage({ searchParams }: PageProps) {
     getTenantStorageUsageBytes(tenantId),
   ])
   const storageUsedMb = Math.round((storageBytes / (1024 * 1024)) * 10) / 10
-  const [{ count: hostedCandidateCount }, { count: activeApiKeyCount }] = await Promise.all([
+  const [
+    { count: hostedCandidateCount },
+    { count: activeApiKeyCount },
+    { count: pendingBillingEventCount },
+    { data: latestBillingEventFailureRaw },
+  ] = await Promise.all([
     admin
       .from("bots")
       .select("id", { count: "exact", head: true })
@@ -139,6 +166,22 @@ export default async function ConsoleBillingPage({ searchParams }: PageProps) {
       .eq("tenant_id", tenantId)
       .eq("is_active", true)
       .is("revoked_at", null),
+    admin
+      .from("billing_events")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .eq("provider", "stripe")
+      .is("processed_at", null),
+    admin
+      .from("billing_events")
+      .select("event_type, processing_error, attempt_count, last_attempt_at, next_retry_at")
+      .eq("tenant_id", tenantId)
+      .eq("provider", "stripe")
+      .is("processed_at", null)
+      .not("processing_error", "is", null)
+      .order("last_attempt_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ])
 
   const { data: planRowsRaw } = await admin
@@ -219,10 +262,77 @@ export default async function ConsoleBillingPage({ searchParams }: PageProps) {
   const currentPlan = currentCode ? planByCode.get(currentCode) ?? null : null
   const willLoseApi = Boolean(currentPlan?.has_api) && targetPlan?.has_api === false
   const activeApiKeys = activeApiKeyCount ?? 0
+  const pendingBillingEvents = pendingBillingEventCount ?? 0
+  const latestBillingEventFailure = (latestBillingEventFailureRaw as BillingEventFailureRow | null) ?? null
+  const needsPaymentRecovery = subscription?.status === "past_due" || subscription?.status === "unpaid"
 
   return (
     <div className="grid gap-4">
       <ConsoleAlerts notice={notice} error={error} />
+
+      {needsPaymentRecovery ? (
+        <Card className="border-rose-300/60 bg-rose-50/70 dark:border-rose-500/40 dark:bg-rose-950/20">
+          <CardHeader>
+            <CardTitle className="text-base">
+              {subscription?.status === "unpaid" ? "お支払いが未完了です" : "お支払いに失敗しています"}
+            </CardTitle>
+            <CardDescription>
+              {subscription?.status === "unpaid"
+                ? "サービス継続のため、カード情報の確認とお支払い対応を行ってください。"
+                : "再請求やカード再認証が必要な可能性があります。Customer Portalからご確認ください。"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-2 text-sm text-rose-900 dark:text-rose-200">
+            <p>現在の契約ステータス: {subscription?.status === "unpaid" ? "未払い (unpaid)" : "支払い遅延 (past_due)"}</p>
+            <form action="/api/stripe/portal" method="post">
+              <button
+                type="submit"
+                disabled={!isEditor || !stripeReady}
+                className="inline-flex w-fit items-center justify-center rounded-md bg-rose-700 px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                支払い方法を更新する（Customer Portal）
+              </button>
+            </form>
+            {!isEditor ? (
+              <p className="text-xs">支払い操作はEditor権限のユーザーのみ実行できます。管理者へ連絡してください。</p>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {isEditor ? (
+        <Card className="border-slate-300/60 bg-slate-50/70 dark:border-slate-600/40 dark:bg-slate-900/50">
+          <CardHeader>
+            <CardTitle className="text-base">Webhook同期の運用</CardTitle>
+            <CardDescription>
+              未処理イベントの再同期を実行できます。支払い再試行（Customer Portal）とは別機能です。
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-2 text-sm">
+            <p>未処理イベント: {pendingBillingEvents} 件</p>
+            {latestBillingEventFailure?.processing_error ? (
+              <div className="rounded-md border border-amber-300/60 bg-amber-50/80 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-200">
+                <p>最新失敗: {latestBillingEventFailure.event_type}</p>
+                <p>理由: {latestBillingEventFailure.processing_error}</p>
+                <p>試行回数: {latestBillingEventFailure.attempt_count ?? 0} 回</p>
+                <p>次回自動再試行予定: {fmtDate(latestBillingEventFailure.next_retry_at)}</p>
+              </div>
+            ) : null}
+            <form action="/api/stripe/retry-failed" method="post">
+              <button
+                type="submit"
+                disabled={!stripeReady || pendingBillingEvents <= 0}
+                className="inline-flex w-fit items-center justify-center rounded-md border border-black/15 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/20"
+              >
+                Webhook再同期を実行
+              </button>
+            </form>
+            {!stripeReady ? (
+              <p className="text-xs text-muted-foreground">Stripe環境変数が未設定のため、再同期を実行できません。</p>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
         <CardHeader>
@@ -407,5 +517,4 @@ export default async function ConsoleBillingPage({ searchParams }: PageProps) {
     </div>
   )
 }
-
 
