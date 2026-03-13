@@ -2,6 +2,7 @@ import { notFound } from "next/navigation"
 
 import {
   addFileSourceAction,
+  deleteBotAction,
   deleteSourceAction,
   rotateWidgetTokenAction,
   toggleBotPublicAction,
@@ -67,6 +68,7 @@ export default async function ConsoleBotDetailPage({ params, searchParams }: Pag
         updateAllowedOriginsAction={updateAllowedOriginsAction}
         addFileSourceAction={addFileSourceAction}
         deleteSourceAction={deleteSourceAction}
+        deleteBotAction={deleteBotAction}
       />
     </div>
   )

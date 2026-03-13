@@ -77,7 +77,7 @@ export default function Home() {
       {/* Hero */}
       <section className="w-full">
         <div className="relative">
-          <Badge className="absolute left-1/6 top-24 z-10 w-fit -translate-x-1/2 rounded-full bg-amber-500/90 px-3 text-white hover:bg-amber-500 md:left-[8%] md:translate-x-0">
+          <Badge className="absolute left-1/6 top-24 z-10 w-fit -translate-x-1/2 rounded-full bg-amber-500/90 px-3 text-white hover:bg-amber-500 md:left-[8%] md:translate-x-0 md:top-5">
             Webに埋め込み<span className="hidden md:block">、即公開できるAIボット</span>
           </Badge>
           <Image

@@ -3,11 +3,11 @@
 import * as React from "react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import { Bot, SendHorizontal, Trash2 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 
 type Citation = {
@@ -169,6 +169,7 @@ export function HostedChatClient({
   const [error, setError] = React.useState<string | null>(null)
   const [usageCounterSource, setUsageCounterSource] = React.useState<string | null>(null)
   const bottomRef = React.useRef<HTMLDivElement | null>(null)
+  const inputRef = React.useRef<HTMLTextAreaElement | null>(null)
   const shouldAnimateNextRef = React.useRef(false)
   const [animatingMsgId, setAnimatingMsgId] = React.useState<string | null>(null)
   const [typedChars, setTypedChars] = React.useState(0)
@@ -177,10 +178,47 @@ export function HostedChatClient({
   const [rooms, setRooms] = React.useState<Array<{ id: string; title: string; updated_at: string }>>([])
   const [currentRoomId, setCurrentRoomId] = React.useState<string | null>(null)
   const [roomsLoading, setRoomsLoading] = React.useState(false)
+  const [keyboardInset, setKeyboardInset] = React.useState(0)
+  const [isFramed, setIsFramed] = React.useState(false)
 
   React.useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
   }, [messages, loading])
+
+  React.useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = "0px"
+    el.style.height = `${Math.min(el.scrollHeight, 168)}px`
+  }, [input])
+
+  React.useEffect(() => {
+    if (typeof window === "undefined" || !window.visualViewport) return
+    const viewport = window.visualViewport
+    const updateInset = () => {
+      const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+      setKeyboardInset(Math.round(inset))
+    }
+    updateInset()
+    viewport.addEventListener("resize", updateInset)
+    viewport.addEventListener("scroll", updateInset)
+    window.addEventListener("orientationchange", updateInset)
+    return () => {
+      viewport.removeEventListener("resize", updateInset)
+      viewport.removeEventListener("scroll", updateInset)
+      window.removeEventListener("orientationchange", updateInset)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    if (keyboardInset <= 0) return
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
+  }, [keyboardInset])
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return
+    setIsFramed(window.parent !== window)
+  }, [])
 
   // 新しいアシスタントメッセージのタイプライターアニメーション開始
   React.useEffect(() => {
@@ -330,7 +368,11 @@ export function HostedChatClient({
   }, [authenticatedMode, loadRoomMessages])
 
   function clearHistory() {
-    window.localStorage.removeItem(storageKey)
+    try {
+      window.localStorage.removeItem(storageKey)
+    } catch {
+      // ignore localStorage errors
+    }
     setMessages([firstAssistantMessage(welcomeMessage)])
     setError(null)
   }
@@ -429,182 +471,217 @@ export function HostedChatClient({
     }
   }
 
-  return (
-    <div className={embedded ? "flex h-full min-h-0 w-full flex-col gap-3" : "mx-auto flex w-full max-w-4xl flex-col gap-4"}>
-      <Card
-        className={embedded
-          ? cn("border-black/20 px-3 py-2 dark:border-white/10", !forceMobileView && "sm:p-4")
-          : cn("border-black/20 p-3 dark:border-white/10", !forceMobileView && "sm:p-4")}
-        style={{ backgroundColor: headerBgColor, color: headerTextColor }}
-      >
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <img
-              src={logoUrl ?? "/images/knotic-square-logo.png"}
-              alt=""
-              className={embedded
-                ? "size-6 shrink-0 rounded object-contain"
-                : cn("size-8 shrink-0 rounded object-contain", !forceMobileView && "sm:size-9")}
-            />
-            <div className="min-w-0">
-              <h1 className={embedded
-                ? "truncate text-sm font-semibold"
-                : cn("truncate text-base font-semibold", !forceMobileView && "sm:text-xl")}
-              >
-                {displayName}
-              </h1>
-              {!embedded && <p className="truncate text-xs opacity-80">{purposeLabel}</p>}
-            </div>
-          </div>
-          <Badge
-            variant="outline"
-            className={cn("shrink-0 border-current/30 text-current text-[10px]", !forceMobileView && "sm:text-xs")}
-          >
-            Hosted Chat
-          </Badge>
-        </div>
-        {!embedded && (showRetentionNotice || disclaimerText) ? (
-          <div
-            className={cn(
-              "mt-2 flex flex-col gap-0.5 border-t border-current/15 pt-2",
-              !forceMobileView && "sm:flex-row sm:flex-wrap sm:gap-x-4"
-            )}
-          >
-            {showRetentionNotice ? (
-              <p className="text-[11px] opacity-60">履歴はブラウザ上で{retentionHours}時間保持されます。</p>
-            ) : null}
-            {disclaimerText ? (
-              <p className="text-[11px] opacity-60">{disclaimerText}</p>
-            ) : null}
-          </div>
-        ) : null}
-      </Card>
+  const canSend = !loading && input.trim().length > 0 && (!authenticatedMode || Boolean(currentRoomId))
+  const compactLayout = embedded || forceMobileView
+  const showUsageDebugPanel = showUsageCounterDebug && !embedded
+  const canCloseEmbedded = embedded && isFramed
+  const showHeaderAction = !embedded || canCloseEmbedded
+  const headerActionLabel = canCloseEmbedded ? "閉じる" : "戻る"
+  const composerBottomPadding = `calc(${compactLayout ? "0.6rem" : "0.8rem"} + env(safe-area-inset-bottom) + ${keyboardInset}px)`
 
-      {authenticatedMode ? (
-        <Card className="border-black/20 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80">
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-sm font-medium">チャットルーム</p>
-            <Button size="sm" variant="outline" className="rounded-full" onClick={() => void createRoom()}>
-              新規ルーム
-            </Button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {roomsLoading ? <span className="text-xs text-muted-foreground">読み込み中...</span> : null}
-            {rooms.map((room) => (
-              <button
-                key={room.id}
-                type="button"
-                onClick={() => setCurrentRoomId(room.id)}
-                className={`rounded-full border px-3 py-1 text-xs ${
-                  currentRoomId === room.id
-                    ? "border-cyan-500 bg-cyan-50 text-cyan-800 dark:bg-cyan-950/40 dark:text-cyan-200"
-                    : "border-black/15 text-zinc-700 dark:border-white/20 dark:text-zinc-200"
-                }`}
-              >
-                {room.title}
-              </button>
-            ))}
-          </div>
-        </Card>
+  const handleHeaderAction = React.useCallback(() => {
+    if (canCloseEmbedded) {
+      window.parent.postMessage({ type: "knotic-widget-close" }, "*")
+      return
+    }
+    if (window.history.length > 1) {
+      window.history.back()
+      return
+    }
+    window.location.href = "/"
+  }, [canCloseEmbedded])
+
+  return (
+    <div className={embedded ? "flex h-full min-h-0 w-full flex-col" : "mx-auto flex w-full max-w-5xl flex-col gap-3 sm:gap-4"}>
+      {!embedded && (showRetentionNotice || disclaimerText) ? (
+        <div className="rounded-2xl border border-black/10 bg-white/75 px-3 py-2 text-[11px] text-slate-600 shadow-xs backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/70 dark:text-slate-300 sm:px-4">
+          {showRetentionNotice ? `履歴はブラウザ上で${retentionHours}時間保持されます。` : null}
+          {showRetentionNotice && disclaimerText ? " " : null}
+          {disclaimerText ? disclaimerText : null}
+        </div>
       ) : null}
 
-      <Card
-        className={embedded
-          ? cn("flex min-h-0 flex-1 flex-col border-black/20 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80", !forceMobileView && "sm:p-4")
-          : cn("flex min-h-[55vh] flex-col border-black/20 bg-white/90 p-3 dark:border-white/10 dark:bg-slate-900/80", !forceMobileView && "sm:min-h-[62vh] sm:p-4")}
+      <section
+        className={cn(
+          "relative flex min-h-0 flex-1 flex-col overflow-hidden border border-black/15 bg-white/90 shadow-[0_18px_60px_rgba(2,6,23,0.12)] dark:border-white/10 dark:bg-slate-900/88",
+          compactLayout ? "rounded-2xl" : "min-h-[68vh] rounded-3xl"
+        )}
       >
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
-          {messages.map((message) => {
-            const isAnimating = message.role === "assistant" && message.id === animatingMsgId
-            const displayContent = isAnimating
-              ? message.content.slice(0, typedChars)
-              : message.content
-            const animationDone = !isAnimating || typedChars >= message.content.length
-
-            return (
-              <div
-                key={message.id}
-                className={message.role === "user" ? "flex justify-end" : "flex justify-start"}
-              >
-                <div
-                  className={
-                    message.role === "user"
-                      ? "max-w-[85%] rounded-2xl bg-slate-900 px-4 py-2.5 text-sm text-white dark:bg-slate-100 dark:text-slate-900"
-                      : "max-w-[85%] rounded-2xl border border-black/20 bg-slate-50 px-4 py-2.5 text-sm dark:border-white/10 dark:bg-slate-800"
-                  }
-                >
-                  {message.role === "assistant" ? (
-                    <div className="relative">
-                      <MarkdownMessage content={displayContent} />
-                      {isAnimating && !animationDone && (
-                        <span className="ml-0.5 inline-block h-[1em] w-0.5 animate-pulse bg-current align-text-bottom opacity-70" />
-                      )}
-                    </div>
-                  ) : (
-                    <p className="whitespace-pre-wrap break-words leading-relaxed">{message.content}</p>
-                  )}
-
-                  {showCitations && message.role === "assistant" && animationDone && message.citations && message.citations.length > 0 ? (
-                    <div className="mt-3 space-y-1.5 border-t border-black/15 pt-2.5 dark:border-white/10">
-                      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">参照元</p>
-                      {message.citations.map((c) => (
-                        <div key={`${message.id}_${c.rank}`} className="flex min-w-0 items-start gap-2 rounded-lg border border-black/15 bg-white/70 px-2.5 py-2 dark:border-white/10 dark:bg-slate-900/60">
-                          <Badge variant="outline" className="mt-0.5 shrink-0 text-[10px]">{c.rank}</Badge>
-                          <div className="min-w-0 flex-1 overflow-hidden">
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <Badge variant={c.sourceType === "url" ? "secondary" : "outline"} className="text-[10px]">
-                                {c.sourceType === "url" ? "Web" : c.sourceType === "pdf" ? "PDF" : "File"}
-                              </Badge>
-                              <span className="truncate text-xs font-medium">{c.title ?? "source"}</span>
-                            </div>
-                            {c.url ? (
-                              <a
-                                href={c.url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="mt-1 inline-flex max-w-full items-center gap-1 truncate text-[11px] text-cyan-600 underline underline-offset-2 hover:text-cyan-500 dark:text-cyan-400"
-                              >
-                                {c.linkLabel} →
-                              </a>
-                            ) : null}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
+        <header
+          className="sticky top-0 z-20 border-b border-current/15 px-3 py-2.5 backdrop-blur-xl sm:px-5 sm:py-3"
+          style={{ backgroundColor: headerBgColor, color: headerTextColor }}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <img
+                src={logoUrl ?? "/images/knotic-square-logo.png"}
+                alt=""
+                className="size-8 shrink-0 rounded-md object-contain sm:size-9"
+              />
+              <div className="min-w-0">
+                <h1 className={cn("truncate font-semibold", compactLayout ? "text-sm" : "text-base sm:text-lg")}>{displayName}</h1>
+                {!embedded ? <p className="truncate text-[11px] opacity-80">{purposeLabel}</p> : null}
               </div>
-            )
-          })}
-
-          {faqQuestions.length > 0 && messages.length === 1 && !loading ? (
-            <div className={cn("flex flex-wrap gap-1.5 pt-1", !forceMobileView && "sm:gap-2")}>
-              {faqQuestions.filter(Boolean).slice(0, 5).map((q, i) => (
-                <button
-                  key={i}
+            </div>
+            <div className="flex items-center gap-1.5">
+              {showHeaderAction ? (
+                <Button
                   type="button"
-                  onClick={() => void sendMessage(q)}
-                  className="max-w-full rounded-full border border-black/20 bg-white px-3 py-1.5 text-left text-xs text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/15 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleHeaderAction}
+                  className="h-8 rounded-full px-3 text-[11px] text-current hover:bg-current/10"
                 >
-                  {q}
+                  {headerActionLabel}
+                </Button>
+              ) : null}
+              {showRetentionNotice ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearHistory}
+                  className="h-8 rounded-full px-2.5 text-[11px] text-current hover:bg-current/10"
+                >
+                  <Trash2 className="mr-1 size-3.5" />
+                  履歴消去
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        </header>
+
+        {authenticatedMode ? (
+          <div className="border-b border-black/10 bg-black/[0.02] px-3 py-2 dark:border-white/10 dark:bg-white/[0.02] sm:px-4">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="text-xs font-medium text-muted-foreground">チャットルーム</p>
+              <Button size="sm" variant="outline" className="h-8 rounded-full px-3 text-xs" onClick={() => void createRoom()}>
+                新規ルーム
+              </Button>
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-0.5">
+              {roomsLoading ? <span className="text-xs text-muted-foreground">読み込み中...</span> : null}
+              {rooms.map((room) => (
+                <button
+                  key={room.id}
+                  type="button"
+                  onClick={() => setCurrentRoomId(room.id)}
+                  className={cn(
+                    "shrink-0 rounded-full border px-3 py-1.5 text-xs transition-colors",
+                    currentRoomId === room.id
+                      ? "border-cyan-500 bg-cyan-50 text-cyan-800 dark:bg-cyan-950/40 dark:text-cyan-200"
+                      : "border-black/15 text-zinc-700 hover:bg-black/5 dark:border-white/20 dark:text-zinc-200 dark:hover:bg-white/10"
+                  )}
+                >
+                  {room.title}
                 </button>
               ))}
             </div>
-          ) : null}
+          </div>
+        ) : null}
 
-          {loading ? (
-            <div className="flex justify-start">
-              <div className="rounded-2xl border border-black/20 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-slate-800">
-                <TypingDots />
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-5 pt-3 sm:px-5">
+          <div className="space-y-4">
+            {messages.map((message) => {
+              const isAnimating = message.role === "assistant" && message.id === animatingMsgId
+              const displayContent = isAnimating ? message.content.slice(0, typedChars) : message.content
+              const animationDone = !isAnimating || typedChars >= message.content.length
+
+              if (message.role === "user") {
+                return (
+                  <div key={message.id} className="flex justify-end">
+                    <div className="max-w-[88%] rounded-[1.25rem] rounded-br-md bg-linear-to-br from-slate-900 to-slate-700 px-4 py-2.5 text-[13px] leading-relaxed text-white shadow-sm dark:from-slate-100 dark:to-slate-200 dark:text-slate-900 sm:text-sm">
+                      <p className="whitespace-pre-wrap break-words">{message.content}</p>
+                    </div>
+                  </div>
+                )
+              }
+
+              return (
+                <div key={message.id} className="flex items-start gap-2.5">
+                  <span className="mt-1 inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-black/10 bg-white text-slate-700 shadow-xs dark:border-white/15 dark:bg-slate-800 dark:text-slate-200">
+                    <Bot className="size-3.5" />
+                  </span>
+                  <div className="max-w-[88%] rounded-[1.2rem] rounded-tl-md border border-black/12 bg-white/95 px-4 py-2.5 text-[13px] text-slate-800 shadow-[0_6px_24px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-slate-800/92 dark:text-slate-100 sm:text-sm">
+                    <div className="relative">
+                      <MarkdownMessage content={displayContent} />
+                      {isAnimating && !animationDone ? (
+                        <span className="ml-0.5 inline-block h-[1em] w-0.5 animate-pulse bg-current align-text-bottom opacity-70" />
+                      ) : null}
+                    </div>
+
+                    {showCitations && animationDone && message.citations && message.citations.length > 0 ? (
+                      <div className="mt-3 space-y-1.5 border-t border-black/10 pt-2.5 dark:border-white/10">
+                        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">参照元</p>
+                        {message.citations.map((c) => (
+                          <div key={`${message.id}_${c.rank}`} className="flex min-w-0 items-start gap-2 rounded-xl border border-black/10 bg-white px-2.5 py-2 dark:border-white/10 dark:bg-slate-900/60">
+                            <Badge variant="outline" className="mt-0.5 shrink-0 text-[10px]">{c.rank}</Badge>
+                            <div className="min-w-0 flex-1 overflow-hidden">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <Badge variant={c.sourceType === "url" ? "secondary" : "outline"} className="text-[10px]">
+                                  {c.sourceType === "url" ? "Web" : c.sourceType === "pdf" ? "PDF" : "File"}
+                                </Badge>
+                                <span className="truncate text-xs font-medium">{c.title ?? "source"}</span>
+                              </div>
+                              {c.url ? (
+                                <a
+                                  href={c.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="mt-1 inline-flex max-w-full items-center gap-1 truncate text-[11px] text-cyan-600 underline underline-offset-2 hover:text-cyan-500 dark:text-cyan-400"
+                                >
+                                  {c.linkLabel} →
+                                </a>
+                              ) : null}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              )
+            })}
+
+            {faqQuestions.length > 0 && messages.length === 1 && !loading ? (
+              <div className="rounded-2xl border border-black/10 bg-white/80 p-2.5 dark:border-white/10 dark:bg-slate-800/40">
+                <p className="mb-2 text-[11px] font-medium text-muted-foreground">よくある質問</p>
+                <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                  {faqQuestions.filter(Boolean).slice(0, 5).map((q, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => void sendMessage(q)}
+                      className="max-w-full rounded-full border border-black/15 bg-white px-3 py-1.5 text-left text-xs text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/15 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          ) : null}
-          <div ref={bottomRef} />
+            ) : null}
+
+            {loading ? (
+              <div className="flex items-start gap-2.5">
+                <span className="mt-1 inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-black/10 bg-white text-slate-700 shadow-xs dark:border-white/15 dark:bg-slate-800 dark:text-slate-200">
+                  <Bot className="size-3.5" />
+                </span>
+                <div className="rounded-[1.2rem] rounded-tl-md border border-black/12 bg-white/95 px-3.5 py-2.5 dark:border-white/10 dark:bg-slate-800/92">
+                  <TypingDots />
+                </div>
+              </div>
+            ) : null}
+
+            <div ref={bottomRef} />
+          </div>
         </div>
 
-        <div className="mt-4">
+        <div
+          className="sticky bottom-0 z-20 border-t border-black/10 px-3 pt-2 backdrop-blur-xl dark:border-white/10 sm:px-4"
+          style={{ backgroundColor: footerBgColor, color: footerTextColor, paddingBottom: composerBottomPadding }}
+        >
           {error ? <p className="mb-2 text-sm text-destructive">{error}</p> : null}
-          {showUsageCounterDebug ? (
+          {showUsageDebugPanel ? (
             <p
               className={cn(
                 "mb-2 text-[11px]",
@@ -618,22 +695,14 @@ export function HostedChatClient({
               集計経路: {usageCounterSource ?? "未取得"}
             </p>
           ) : null}
-          {showRetentionNotice ? (
-            <div className="mb-1.5 flex justify-end">
-              <button
-                type="button"
-                onClick={clearHistory}
-                className="rounded-full border border-black/20 px-3 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-black/5 dark:border-white/15 dark:hover:bg-white/5"
-              >
-                履歴を消去
-              </button>
-            </div>
-          ) : null}
-          <div className="rounded-lg border border-black/20 p-2 dark:border-white/10" style={{ backgroundColor: footerBgColor, color: footerTextColor }}>
-            <div className="flex items-center gap-2">
-              <Input
+
+          <div className="flex items-end gap-2">
+            <div className="min-w-0 flex-1 rounded-3xl border border-black/15 bg-white/80 p-1.5 dark:border-white/15 dark:bg-slate-900/60">
+              <Textarea
+                ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
+                onFocus={() => bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault()
@@ -642,19 +711,21 @@ export function HostedChatClient({
                 }}
                 placeholder={placeholderText}
                 disabled={loading}
-                className="h-11 min-w-0 flex-1"
+                rows={1}
+                className="max-h-42 min-h-[44px] resize-none border-0 bg-transparent px-3 py-2 text-[13px] leading-6 shadow-none focus-visible:ring-0 sm:text-sm"
               />
-              <Button
-                onClick={() => void sendMessage()}
-                disabled={loading || input.trim().length === 0 || (authenticatedMode && !currentRoomId)}
-                className={cn("h-11 shrink-0 rounded-full px-4", !forceMobileView && "sm:px-5")}
-              >
-                送信
-              </Button>
             </div>
+            <Button
+              onClick={() => void sendMessage()}
+              disabled={!canSend}
+              className="h-11 w-11 shrink-0 rounded-full p-0 shadow-sm"
+              aria-label="送信"
+            >
+              <SendHorizontal className="size-4.5" />
+            </Button>
           </div>
         </div>
-      </Card>
+      </section>
     </div>
   )
 }

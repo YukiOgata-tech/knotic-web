@@ -121,6 +121,7 @@ type Props = {
   updateAllowedOriginsAction: ActionFn
   addFileSourceAction: ActionFn
   deleteSourceAction: ActionFn
+  deleteBotAction: ActionFn
 }
 
 type ConfigTab = "basic" | "bot" | "ai" | "theme" | "widget" | "preview"
@@ -302,7 +303,6 @@ function WidgetLauncherPreview({
             embedded
             disablePersistence
             forceMobileView={fullScreen}
-            showUsageCounterDebug
           />
         </div>
       </div>
@@ -466,6 +466,7 @@ export function HostedConfigEditor({
   updateAllowedOriginsAction,
   addFileSourceAction,
   deleteSourceAction,
+  deleteBotAction,
 }: Props) {
   const [activeTab, setActiveTab] = React.useState<ConfigTab>("basic")
 
@@ -547,6 +548,7 @@ export function HostedConfigEditor({
   const urlInputRef = React.useRef<HTMLInputElement>(null)
   const router = useRouter()
   const [isSaving, startSaveTransition] = React.useTransition()
+  const [isDeletingBot, startDeleteBotTransition] = React.useTransition()
   const [previewKey, setPreviewKey] = React.useState(0)
   const [previewMode, setPreviewMode] = React.useState<"chat" | "widget">("chat")
   const initialPreviewPageUrl = React.useMemo(() => {
@@ -558,6 +560,7 @@ export function HostedConfigEditor({
   const [previewPageUrlError, setPreviewPageUrlError] = React.useState<string | null>(null)
   const [isDirty, setIsDirty] = React.useState(false)
   const [leaveTarget, setLeaveTarget] = React.useState<string | null>(null)
+  const [showDeleteBotConfirm, setShowDeleteBotConfirm] = React.useState(false)
 
   const setRouteLoaderBlocked = React.useCallback((blocked: boolean) => {
     if (typeof document === "undefined") return
@@ -629,6 +632,14 @@ export function HostedConfigEditor({
 
     window.location.href = target
   }, [leaveTarget, router, setRouteLoaderBlocked])
+
+  const handleDeleteBot = React.useCallback(() => {
+    const formData = new FormData()
+    formData.set("redirect_to", backHref)
+    formData.set("bot_id", bot.id)
+    setShowDeleteBotConfirm(false)
+    startDeleteBotTransition(() => deleteBotAction(formData))
+  }, [backHref, bot.id, deleteBotAction])
 
   type ReindexState = { sourceId: string | null; phase: "idle" | "running" | "done" | "error"; error: string | null; warnings: string[] }
   const [reindexState, setReindexState] = React.useState<ReindexState>({ sourceId: null, phase: "idle", error: null, warnings: [] })
@@ -987,6 +998,29 @@ export function HostedConfigEditor({
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
             変更を破棄して移動
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+    <AlertDialog open={showDeleteBotConfirm}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="text-rose-700 dark:text-rose-300">Botを削除しますか？</AlertDialogTitle>
+          <AlertDialogDescription>
+            この操作を実行すると、Botは削除状態（アーカイブ）になり、公開URLとWidget利用は停止されます。
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => setShowDeleteBotConfirm(false)} disabled={isDeletingBot}>
+            キャンセル
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleDeleteBot}
+            disabled={!isEditor || isDeletingBot}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            {isDeletingBot ? "削除中..." : "削除する"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -1356,7 +1390,7 @@ export function HostedConfigEditor({
         <Panel active={activeTab === "theme"}>
           <div className="grid gap-1">
             <p className="text-sm font-semibold">テーマ設定</p>
-            <p className="text-xs text-muted-foreground">ロゴ画像とヘッダー/フッター配色を調整します。</p>
+            <p className="text-xs text-muted-foreground">ロゴとヘッダー/フッター配色を調整できます。</p>
           </div>
 
           {/* ロゴアップロード */}
@@ -1394,7 +1428,7 @@ export function HostedConfigEditor({
                   ) : null}
                 </div>
                 {logoError ? <p className="text-[11px] text-destructive">{logoError}</p> : null}
-                <p className="text-[11px] text-muted-foreground">PNG・JPG・WebP・SVG、最大2MB。未設定時はデフォルトロゴを使用します。</p>
+                <p className="text-[11px] text-muted-foreground">PNG/JPG/WebP/SVG  最大2MB。未設定時はデフォルトロゴを使用します。</p>
               </div>
             </div>
           </div>
@@ -1642,7 +1676,7 @@ export function HostedConfigEditor({
                   <p className="text-[11px] text-rose-600 dark:text-rose-400">{previewPageUrlError}</p>
                 ) : (
                   <p className="text-[11px] text-muted-foreground">
-                    注意: 一部サイトはプレビューに表示できない場合があります。また、実際の表示環境と多少異なる場合があります。
+                    注意: 一部サイトはプレビューに表示できない場合や実際の表示環境と多少異なる場合があります。
                   </p>
                 )}
               </div>
@@ -1722,6 +1756,27 @@ export function HostedConfigEditor({
             redirectTo={redirectTo}
             action={togglePublicAction}
           />
+        </div>
+      </section>
+
+      <section className={cn("grid min-w-0 gap-3 rounded-xl border border-rose-300/70 bg-rose-50/80 p-3 dark:border-rose-500/40 dark:bg-rose-950/20 sm:p-4", activeTab !== "basic" && "hidden")}>
+        <div className="grid gap-1">
+          <p className="text-sm font-semibold text-rose-700 dark:text-rose-300">危険操作</p>
+          <p className="text-xs text-rose-700/90 dark:text-rose-200/90">
+            Botを削除すると公開URLとWidget利用が停止されます。実行前に必要なデータを確認してください。
+          </p>
+        </div>
+        <div>
+          <Button
+            type="button"
+            variant="destructive"
+            size="sm"
+            disabled={!isEditor || isDeletingBot}
+            onClick={() => setShowDeleteBotConfirm(true)}
+          >
+            <Trash2 className="mr-1.5 size-3.5" />
+            {isDeletingBot ? "削除中..." : "Botを削除"}
+          </Button>
         </div>
       </section>
 
@@ -2202,7 +2257,7 @@ export function HostedConfigEditor({
         <div className="rounded-xl border border-black/10 bg-slate-50/80 px-4 py-3 dark:border-white/8 dark:bg-slate-900/40">
           <p className="text-xs text-muted-foreground">
             <span className="font-medium text-slate-700 dark:text-slate-300">Standardプラン以上</span>
-            でご利用いただける機能：Hosted公開URL・社内限定モード・Hosted認証必須化。
+            でご利用いただける機能：公開URL・社内限定モード・Hosted認証必須化。
             <Link href="/console/billing" className="ml-1 text-cyan-700 hover:underline dark:text-cyan-400">
               プランを確認する
             </Link>

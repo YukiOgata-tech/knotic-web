@@ -193,6 +193,66 @@ export async function toggleBotPublicAction(formData: FormData) {
   }
 }
 
+export async function deleteBotAction(formData: FormData) {
+  try {
+    const redirectTo = String(formData.get("redirect_to") ?? "")
+    const { supabase, tenantId } = await getTenantContext(true)
+    const botId = String(formData.get("bot_id") ?? "")
+    if (!botId) {
+      redirect(toAppUrl(redirectTo, { error: "Botが指定されていません。" }))
+    }
+
+    const { data: bot, error: botError } = await supabase
+      .from("bots")
+      .select("id, name, public_id, status")
+      .eq("id", botId)
+      .maybeSingle()
+
+    if (botError) throw botError
+    if (!bot) {
+      redirect(toAppUrl(redirectTo, { error: "対象Botが見つかりません。" }))
+    }
+
+    const { error } = await supabase
+      .from("bots")
+      .update({
+        status: "archived",
+        is_public: false,
+        widget_enabled: false,
+        require_auth_for_hosted: false,
+        access_mode: "public",
+      })
+      .eq("id", botId)
+
+    if (error) throw error
+
+    await writeAuditLog(supabase, {
+      tenantId,
+      action: "bot.delete",
+      targetType: "bot",
+      targetId: botId,
+      before: {
+        name: bot.name,
+        public_id: bot.public_id,
+        status: bot.status,
+      },
+      after: {
+        status: "archived",
+        is_public: false,
+        widget_enabled: false,
+      },
+    })
+
+    redirect(toAppUrl(redirectTo, { notice: "Botを削除しました。" }))
+  } catch (error) {
+    redirect(
+      toAppUrl(String(formData.get("redirect_to") ?? "/console/bots"), {
+        error: error instanceof Error ? error.message : "Bot削除に失敗しました。",
+      })
+    )
+  }
+}
+
 export async function addUrlSourceAction(formData: FormData) {
   const redirectTo = String(formData.get("redirect_to") ?? "")
   try {

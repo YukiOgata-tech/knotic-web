@@ -64,29 +64,6 @@
       box-shadow: -24px 0 50px rgba(2, 6, 23, 0.2);
     }
 
-    .knotic-widget-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      padding: 10px 12px;
-      border-bottom: 1px solid #e2e8f0;
-      background: #f8fafc;
-    }
-    .knotic-widget-title { font-size: 13px; font-weight: 600; color: #0f172a; }
-    .knotic-widget-actions { display: flex; align-items: center; gap: 8px; }
-    .knotic-widget-link,
-    .knotic-widget-close {
-      border: 1px solid #cbd5e1;
-      background: #fff;
-      border-radius: 999px;
-      padding: 6px 10px;
-      font-size: 12px;
-      color: #0f172a;
-      cursor: pointer;
-      text-decoration: none;
-    }
-
     .knotic-widget-iframe {
       flex: 1;
       width: 100%;
@@ -191,32 +168,6 @@
       const panel = document.createElement("div");
       panel.className = "knotic-widget-panel";
 
-      const header = document.createElement("div");
-      header.className = "knotic-widget-header";
-
-      const title = document.createElement("div");
-      title.className = "knotic-widget-title";
-      title.textContent = config.launcherLabel || "チャット";
-
-      const actions = document.createElement("div");
-      actions.className = "knotic-widget-actions";
-
-      if (mode === "both") {
-        const link = document.createElement("a");
-        link.className = "knotic-widget-link";
-        link.href = config.hostedUrl;
-        link.target = config.redirectNewTab ? "_blank" : "_self";
-        link.rel = "noreferrer";
-        link.textContent = "別ページで開く";
-        actions.appendChild(link);
-      }
-
-      const close = document.createElement("button");
-      close.type = "button";
-      close.className = "knotic-widget-close";
-      close.textContent = "閉じる";
-      actions.appendChild(close);
-
       const body = document.createElement("div");
       body.className = "knotic-widget-body";
 
@@ -247,11 +198,20 @@
       policy.className = "knotic-widget-policy";
       policy.textContent = policyText;
 
-      header.appendChild(title);
-      header.appendChild(actions);
+      if (mode === "both") {
+        const openHosted = document.createElement("a");
+        openHosted.href = config.hostedUrl;
+        openHosted.target = config.redirectNewTab ? "_blank" : "_self";
+        openHosted.rel = "noreferrer";
+        openHosted.textContent = "別ページで開く";
+        openHosted.style.cssText =
+          "display:inline-flex;margin-top:6px;color:#0f172a;text-decoration:underline;text-underline-offset:2px;font-weight:600;";
+        policy.appendChild(document.createElement("br"));
+        policy.appendChild(openHosted);
+      }
+
       body.appendChild(loading);
       body.appendChild(iframe);
-      panel.appendChild(header);
       panel.appendChild(body);
       panel.appendChild(policy);
       overlay.appendChild(panel);
@@ -259,6 +219,15 @@
 
       const openOverlay = () => overlay.classList.add("knotic-open");
       const closeOverlay = () => overlay.classList.remove("knotic-open");
+      const onFrameMessage = (event) => {
+        if (event.source !== iframe.contentWindow) return;
+        const payload = event.data;
+        if (!payload || typeof payload !== "object") return;
+        if (payload.type === "knotic-widget-close") {
+          closeOverlay();
+        }
+      };
+      window.addEventListener("message", onFrameMessage);
 
       launcher.addEventListener("click", () => {
         if (mode === "redirect") {
@@ -272,7 +241,6 @@
         openOverlay();
       });
 
-      close.addEventListener("click", closeOverlay);
       overlay.addEventListener("click", (event) => {
         if (event.target === overlay) closeOverlay();
       });

@@ -101,19 +101,8 @@ export default async function ConsoleBotsPage({ searchParams }: PageProps) {
         <CardContent className="grid gap-4">
           <div className="rounded-xl border border-black/20 bg-slate-50 p-4 text-sm dark:border-white/10 dark:bg-slate-900/50">
             <p>
-              Bot数: {data.botCount}
-              {botLimit !== null ? ` / 上限 ${botLimit}` : ""}
-              {botOverCount > 0 ? `（${botOverCount} 件超過）` : ""}
-            </p>
-            {/* <p className="mt-1 text-xs text-muted-foreground">
-              上限超過時は新規Bot作成不可。既存Botは維持されるため、必要に応じて運用対象を整理してください。
-            </p> */}
-
-            <div className="my-2 border-b"/>
-
-            <p>
-              Hosted URL対象: {hostedCandidates.length}
-              {data.currentPlan?.has_hosted_page ? ` / 上限 ${hostedLimit}` : " / プラン対象外"}
+              Hosted URL: {hostedCandidates.length}
+              {data.currentPlan?.has_hosted_page ? ` / 上限 ${hostedLimit}` : " / 0 (対象外)"}
               {hostedOverflow.length > 0 ? `（${hostedOverflow.length} 件が対象外）` : ""}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
@@ -133,13 +122,7 @@ export default async function ConsoleBotsPage({ searchParams }: PageProps) {
             <div className="my-2 border-b"/>
 
             <p className="font-medium text-cyan-900 dark:text-cyan-100">
-              Widget導入フロー（設定済み {widgetConfiguredCount}/{data.bots.length} Bot）
-            </p>
-            <p className="text-xs text-cyan-800/90 dark:text-cyan-200/90">
-              1. 対象Botで「トークン再発行」 2. 「許可オリジン」を保存 3. 発行されたscriptタグを既存サイトに貼り付け
-            </p>
-            <p className="text-xs text-cyan-800/90 dark:text-cyan-200/90">
-              トークン再発行時は以前のトークンが失効します。運用中サイトの切替タイミングに注意してください。
+              Widget導入（ {widgetConfiguredCount}/{data.bots.length} Bot ）
             </p>
           </div>
 
@@ -197,9 +180,18 @@ export default async function ConsoleBotsPage({ searchParams }: PageProps) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Bot</TableHead>
+                <TableHead>
+                  <div className=" gap-0.5">
+                    <span>Bot</span>
+                    <span className="text-[11px] font-normal text-muted-foreground ml-1">
+                      数: {data.botCount}
+                      {botLimit !== null ? ` / 上限 ${botLimit}` : ""}
+                      {botOverCount > 0 ? `（${botOverCount} 件超過）` : ""}
+                    </span>
+                  </div>
+                </TableHead>
                 <TableHead>状態</TableHead>
-                <TableHead>Hosted URL</TableHead>
+                <TableHead>Hosted URL (公開URL)</TableHead>
                 <TableHead className="text-right">遷移</TableHead>
               </TableRow>
             </TableHeader>
@@ -238,7 +230,7 @@ export default async function ConsoleBotsPage({ searchParams }: PageProps) {
                           <ExternalLink className="size-3 shrink-0" />
                         </Link>
                       ) : (
-                        <span className="text-xs text-muted-foreground">プラン対象外</span>
+                        <span className="text-xs text-muted-foreground">*対象外</span>
                       )}
                     </TableCell>
                     <TableCell className="text-right">
