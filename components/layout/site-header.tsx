@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Menu, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { usePathname } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 import { AnimatePresence, motion } from "framer-motion"
 
 import { HeaderAuthActions } from "@/components/auth/auth-aware"
@@ -19,6 +19,8 @@ function SiteHeader() {
   const mobileMenuPanelRef = useRef<HTMLElement | null>(null)
   const mobileMenuTriggerRef = useRef<HTMLButtonElement | null>(null)
   const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const isEmbeddedChat = pathname.startsWith("/chat-by-knotic") && ["1", "true", "yes"].includes((searchParams.get("embed") ?? "").toLowerCase())
 
   useEffect(() => {
     setMounted(true)
@@ -60,7 +62,7 @@ function SiteHeader() {
   }, [mobileMenuOpen])
 
   // 管理者コンソールはマーケティングヘッダーを表示しない
-  if (pathname.startsWith("/sub-domain")) return null
+  if (pathname.startsWith("/sub-domain") || isEmbeddedChat) return null
 
   return (
     <header className="sticky top-0 z-40 border-b border-black/50 bg-white/80 backdrop-blur-md dark:border-white/50 dark:bg-slate-950/75">

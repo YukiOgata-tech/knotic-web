@@ -1,4 +1,49 @@
 (() => {
+  function resolveWidgetErrorMessage(status, reason) {
+    const code = typeof reason === "string" ? reason : "";
+
+    if (code.includes("botPublicId and widgetToken are required")) {
+      return "Bot ID または Widgetトークンが未設定です。埋め込みコードを確認してください。";
+    }
+    if (code.includes("bot not found")) {
+      return "指定した Bot ID が見つかりません。Bot設定の公開IDを確認してください。";
+    }
+    if (code.includes("invalid widget token")) {
+      return "Widgetトークンが無効です。トークンを再発行して貼り直してください。";
+    }
+    if (code.includes("origin not allowed")) {
+      return "このサイトのドメインが許可オリジンに未登録です。コンソールで追加してください。";
+    }
+    if (code.includes("widget is disabled")) {
+      return "このBotではWidgetが無効です。Bot設定でWidgetを有効化してください。";
+    }
+    if (code.includes("widget unavailable for internal mode")) {
+      return "社内限定モードではWidgetを利用できません。公開モードを確認してください。";
+    }
+    if (code.includes("bot is not public")) {
+      return "このBotは公開停止中です。Bot状態を有効にしてください。";
+    }
+    if (code.includes("bot is not ready")) {
+      return "Botの準備が完了していません。インデックス処理完了後に再試行してください。";
+    }
+    if (code.includes("force-stopped")) {
+      return "運営側設定で現在このBotは停止中です。管理者に確認してください。";
+    }
+
+    if (status === 401) return "認証情報が無効です。Widgetトークンを確認してください。";
+    if (status === 403) return "現在の公開設定ではWidgetを利用できません。";
+    if (status === 404) return "Widget設定が見つかりません。Bot ID を確認してください。";
+    if (status === 409) return "Botの準備が完了していないため、まだ利用できません。";
+    if (status === 423) return "Botまたはテナントが停止状態のため利用できません。";
+    if (status >= 500) return "サーバー側でエラーが発生しました。時間をおいて再試行してください。";
+    return "Widgetの読み込みに失敗しました。設定内容をご確認ください。";
+  }
+
+  function toErrorMessage(error) {
+    if (error instanceof Error) return error.message;
+    return String(error ?? "unknown error");
+  }
+
   const script = document.currentScript;
   if (!script) return;
 
@@ -8,7 +53,7 @@
   const dataPosition = script.getAttribute("data-position");
 
   if (!botPublicId || !widgetToken) {
-    console.warn("[knotic-widget] data-bot-id and data-widget-token are required.");
+    console.warn("[knotic-widget] Bot ID または Widgetトークンが未設定です。埋め込みコードを確認してください。");
     return;
   }
 
@@ -132,9 +177,18 @@
   )}&widgetToken=${encodeURIComponent(widgetToken)}`;
 
   fetch(configUrl, { method: "GET", mode: "cors" })
-    .then((res) => {
-      if (!res.ok) throw new Error("failed to load widget config");
-      return res.json();
+    .then(async (res) => {
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        const reason = payload && typeof payload.error === "string" ? payload.error : "";
+        const userMessage = resolveWidgetErrorMessage(res.status, reason);
+        const detail = reason ? ` / detail=${reason}` : "";
+        throw new Error(`${userMessage} (status=${res.status}${detail})`);
+      }
+      if (!payload || typeof payload !== "object") {
+        throw new Error("Widget設定の取得に失敗しました。時間をおいて再試行してください。");
+      }
+      return payload;
     })
     .then((config) => {
       const mode = dataMode || config.mode || "overlay";
@@ -246,6 +300,6 @@
       });
     })
     .catch((err) => {
-      console.warn("[knotic-widget]", err.message || err);
+      console.warn("[knotic-widget]", toErrorMessage(err));
     });
 })();
