@@ -10,7 +10,6 @@ import {
   type PageResult,
   type SendFn,
   artifactPath,
-  createAdminClient,
   createEdgeFunctionHandler,
   fetchPage,
   runIndexingPipeline,
@@ -29,8 +28,7 @@ type SseEvent =
 
 async function fetchAndStorePage(
   admin: AdminClient,
-  params: { pageUrl: string; tenantId: string; sourceId: string; botId: string },
-  _send: SendFn
+  params: { pageUrl: string; tenantId: string; sourceId: string; botId: string }
 ): Promise<PageResult | null> {
   const page = await fetchPage(params.pageUrl)
   if (!page.text) return null

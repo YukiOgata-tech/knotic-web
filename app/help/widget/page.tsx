@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { ArrowLeft, BookOpen, Code2, ExternalLink, Info, Lightbulb } from "lucide-react"
+import { ArrowLeft, BookOpen, ExternalLink, Info, Lightbulb } from "lucide-react"
 
 import { PageFrame } from "@/components/marketing/page-frame"
 import { CodeBlock } from "./code-block"

@@ -73,7 +73,9 @@ export default function RootLayout({
               <ConditionalSiteFooter />
             </Suspense>
           </div>
-          <ThemeToggle />
+          <Suspense fallback={null}>
+            <ThemeToggle />
+          </Suspense>
         </ThemeProvider>
       </body>
     </html>

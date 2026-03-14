@@ -118,7 +118,6 @@ type Props = {
   initialActiveTab?: ConfigTab
   saveAction: ActionFn
   togglePublicAction: ActionFn
-  rotateWidgetTokenAction: ActionFn
   updateAllowedOriginsAction: ActionFn
   addFileSourceAction: ActionFn
   deleteSourceAction: ActionFn
@@ -334,6 +333,7 @@ function WidgetLauncherPreview({
         zIndex: 10,
       }}
     >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={logoUrl ?? "/images/knotic-square-logo.png"}
         alt=""
@@ -464,7 +464,6 @@ export function HostedConfigEditor({
   initialActiveTab = "basic",
   saveAction,
   togglePublicAction,
-  rotateWidgetTokenAction,
   updateAllowedOriginsAction,
   addFileSourceAction,
   deleteSourceAction,
@@ -1400,6 +1399,7 @@ export function HostedConfigEditor({
           <div className="grid gap-2 rounded-lg border border-black/15 p-3 dark:border-white/10">
             <Label>ロゴ画像</Label>
             <div className="flex flex-wrap items-center gap-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={logoUrl ?? "/images/knotic-square-logo.png"}
                 alt="ロゴプレビュー"

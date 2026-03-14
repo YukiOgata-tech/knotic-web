@@ -149,7 +149,7 @@ function LottiePreviewPanel() {
         dotLottieRef.current = null
       }
     }
-  }, [asset])
+  }, [asset, isPlaying, loop, speed])
 
   useEffect(() => {
     return () => {

@@ -23,7 +23,6 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Underdog } from "next/font/google"
 
 const steps = [
   {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { MutableRefObject } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
 import { DotLottieReact } from "@lottiefiles/dotlottie-react"
@@ -12,6 +12,20 @@ const ROUTE_LOADER_START_EVENT = "knotic:route-loader:start"
 
 function isModifiedClick(event: MouseEvent) {
   return event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
+}
+
+function clearTimeoutRef(timerRef: MutableRefObject<number | null>) {
+  if (timerRef.current !== null) {
+    window.clearTimeout(timerRef.current)
+    timerRef.current = null
+  }
+}
+
+function clearIntervalRef(timerRef: MutableRefObject<number | null>) {
+  if (timerRef.current !== null) {
+    window.clearInterval(timerRef.current)
+    timerRef.current = null
+  }
 }
 
 function RouteTransitionLoader() {
@@ -37,27 +51,13 @@ function RouteTransitionLoader() {
     visibleRef.current = visible
   }, [visible])
 
-  const clearTimer = (timerRef: MutableRefObject<number | null>) => {
-    if (timerRef.current !== null) {
-      window.clearTimeout(timerRef.current)
-      timerRef.current = null
-    }
-  }
-
-  const clearIntervalTimer = (timerRef: MutableRefObject<number | null>) => {
-    if (timerRef.current !== null) {
-      window.clearInterval(timerRef.current)
-      timerRef.current = null
-    }
-  }
-
-  const finishNavigation = () => {
+  const finishNavigation = useCallback(() => {
     if (!activeRef.current) return
     activeRef.current = false
 
-    clearTimer(showDelayRef)
-    clearIntervalTimer(progressIntervalRef)
-    clearTimer(failSafeTimerRef)
+    clearTimeoutRef(showDelayRef)
+    clearIntervalRef(progressIntervalRef)
+    clearTimeoutRef(failSafeTimerRef)
 
     if (!visibleRef.current) {
       setProgress(0)
@@ -65,23 +65,23 @@ function RouteTransitionLoader() {
     }
 
     setProgress(100)
-    clearTimer(hideTimerRef)
+    clearTimeoutRef(hideTimerRef)
     hideTimerRef.current = window.setTimeout(() => {
       setVisible(false)
       setProgress(0)
     }, 220)
-  }
+  }, [])
 
-  const startNavigation = () => {
+  const startNavigation = useCallback(() => {
     if (activeRef.current) return
     activeRef.current = true
 
-    clearTimer(hideTimerRef)
-    clearTimer(showDelayRef)
+    clearTimeoutRef(hideTimerRef)
+    clearTimeoutRef(showDelayRef)
     showDelayRef.current = window.setTimeout(() => {
       setVisible(true)
       setProgress(14)
-      clearIntervalTimer(progressIntervalRef)
+      clearIntervalRef(progressIntervalRef)
       progressIntervalRef.current = window.setInterval(() => {
         setProgress((prev) => {
           if (prev >= 88) return prev
@@ -91,11 +91,11 @@ function RouteTransitionLoader() {
       }, 170)
     }, 120)
 
-    clearTimer(failSafeTimerRef)
+    clearTimeoutRef(failSafeTimerRef)
     failSafeTimerRef.current = window.setTimeout(() => {
       finishNavigation()
     }, 12000)
-  }
+  }, [finishNavigation])
 
   useEffect(() => {
     const onDocumentClick = (event: MouseEvent) => {
@@ -144,19 +144,19 @@ function RouteTransitionLoader() {
       document.removeEventListener("click", onDocumentClick, true)
       window.removeEventListener("popstate", onPopState)
       window.removeEventListener(ROUTE_LOADER_START_EVENT, onManualStart)
-      clearTimer(showDelayRef)
-      clearTimer(hideTimerRef)
-      clearTimer(failSafeTimerRef)
-      clearIntervalTimer(progressIntervalRef)
+      clearTimeoutRef(showDelayRef)
+      clearTimeoutRef(hideTimerRef)
+      clearTimeoutRef(failSafeTimerRef)
+      clearIntervalRef(progressIntervalRef)
       activeRef.current = false
     }
-  }, [])
+  }, [startNavigation])
 
   useEffect(() => {
     knownPathRef.current = `${window.location.pathname}${window.location.search}`
     finishNavigation()
     // routeKey changes when navigation is completed.
-  }, [routeKey])
+  }, [finishNavigation, routeKey])
 
   useEffect(() => {
     const instance = dotLottieRef.current
@@ -193,7 +193,7 @@ function RouteTransitionLoader() {
           dotLottieRefCallback={(instance) => {
             dotLottieRef.current = instance
           }}
-          className="h-80 w-80 sm:h-[30rem] sm:w-[30rem]"
+          className="h-80 w-80 sm:h-120 sm:w-120"
         />
       </div>
     </div>

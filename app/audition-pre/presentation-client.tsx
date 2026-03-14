@@ -293,6 +293,7 @@ export function AuditionPresentationClient({ sourceHtml }: { sourceHtml: string 
               className="rounded-xl border border-black/20 bg-black p-3 dark:border-white/10"
             >
               <div className="mx-auto aspect-video w-full max-w-300 overflow-hidden rounded-lg border border-white/10 bg-black">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={slide.imageData} alt={slide.title} className="h-full w-full object-contain" />
               </div>
               <div className="mt-2 text-center text-xs text-white/70">

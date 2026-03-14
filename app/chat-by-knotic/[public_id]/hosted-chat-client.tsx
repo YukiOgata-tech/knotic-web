@@ -515,6 +515,7 @@ export function HostedChatClient({
         >
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2.5">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={logoUrl ?? "/images/knotic-square-logo.png"}
                 alt=""

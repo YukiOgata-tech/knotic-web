@@ -4,7 +4,6 @@ import {
   addFileSourceAction,
   deleteBotAction,
   deleteSourceAction,
-  rotateWidgetTokenAction,
   toggleBotPublicAction,
   updateAllowedOriginsAction,
   updateHostedConfigAction,
@@ -73,7 +72,6 @@ export default async function ConsoleBotDetailPage({ params, searchParams }: Pag
         initialActiveTab={initialActiveTab}
         saveAction={updateHostedConfigAction}
         togglePublicAction={toggleBotPublicAction}
-        rotateWidgetTokenAction={rotateWidgetTokenAction}
         updateAllowedOriginsAction={updateAllowedOriginsAction}
         addFileSourceAction={addFileSourceAction}
         deleteSourceAction={deleteSourceAction}

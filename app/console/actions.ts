@@ -34,11 +34,6 @@ function normalizeModel(value: string, fallback: (typeof ALLOWED_MODELS)[number]
     : fallback
 }
 
-type Membership = {
-  tenant_id: string
-  role: "editor" | "reader"
-}
-
 function normalizeRedirectTo(value: string | null) {
   if (!value) return "/console/overview"
   if (!value.startsWith("/console")) return "/console/overview"
