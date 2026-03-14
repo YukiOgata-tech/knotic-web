@@ -179,7 +179,6 @@ export function HostedChatClient({
   const [rooms, setRooms] = React.useState<Array<{ id: string; title: string; updated_at: string }>>([])
   const [currentRoomId, setCurrentRoomId] = React.useState<string | null>(null)
   const [roomsLoading, setRoomsLoading] = React.useState(false)
-  const [keyboardInset, setKeyboardInset] = React.useState(0)
   const [isFramed, setIsFramed] = React.useState(false)
 
   React.useEffect(() => {
@@ -192,29 +191,6 @@ export function HostedChatClient({
     el.style.height = "0px"
     el.style.height = `${Math.min(el.scrollHeight, 168)}px`
   }, [input])
-
-  React.useEffect(() => {
-    if (typeof window === "undefined" || !window.visualViewport) return
-    const viewport = window.visualViewport
-    const updateInset = () => {
-      const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
-      setKeyboardInset(Math.round(inset))
-    }
-    updateInset()
-    viewport.addEventListener("resize", updateInset)
-    viewport.addEventListener("scroll", updateInset)
-    window.addEventListener("orientationchange", updateInset)
-    return () => {
-      viewport.removeEventListener("resize", updateInset)
-      viewport.removeEventListener("scroll", updateInset)
-      window.removeEventListener("orientationchange", updateInset)
-    }
-  }, [])
-
-  React.useEffect(() => {
-    if (keyboardInset <= 0) return
-    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
-  }, [keyboardInset])
 
   React.useEffect(() => {
     if (typeof window === "undefined") return
@@ -478,7 +454,7 @@ export function HostedChatClient({
   const canCloseEmbedded = embedded && isFramed
   const showHeaderAction = !embedded || canCloseEmbedded
   const headerActionLabel = canCloseEmbedded ? "閉じる" : "戻る"
-  const composerBottomPadding = `calc(${compactLayout ? "0.6rem" : "0.8rem"} + env(safe-area-inset-bottom) + ${keyboardInset}px)`
+  const composerBottomPadding = `calc(${compactLayout ? "0.6rem" : "0.8rem"} + env(safe-area-inset-bottom))`
   const retentionNoticeText = `このチャット履歴はブラウザ上で${retentionHours}時間保持され、自動的に削除されます。`
 
   const handleHeaderAction = React.useCallback(() => {
