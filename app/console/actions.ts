@@ -84,6 +84,11 @@ function normalizeWidgetPosition(value: string) {
   return value === "right-top" ? "right-top" : "right-bottom"
 }
 
+function normalizeConfigTab(value: string | null | undefined) {
+  const allowed = ["basic", "bot", "ai", "theme", "widget", "preview"] as const
+  return value && (allowed as readonly string[]).includes(value) ? value : "basic"
+}
+
 function getHistoryTurnLimitCap(planCode: string | null | undefined) {
   return planCode === "lite" ? 20 : 30
 }
@@ -786,16 +791,19 @@ export async function testAuditLogAction(formData: FormData) {
 
 
 export async function updateHostedConfigAction(formData: FormData) {
+  const redirectToRaw = String(formData.get("redirect_to") ?? "")
+  const activeTab = normalizeConfigTab(String(formData.get("active_tab") ?? ""))
+  const withActiveTab = (params: Record<string, string>) => ({ ...params, active_tab: activeTab })
   try {
-    const redirectTo = String(formData.get("redirect_to") ?? "")
+    const redirectTo = redirectToRaw
     const { supabase, tenantId } = await getTenantContext(true)
     const botId = String(formData.get("bot_id") ?? "")
     if (!botId) {
-      redirect(toAppUrl(redirectTo, { error: "Botが指定されていません。" }))
+      redirect(toAppUrl(redirectTo, withActiveTab({ error: "Botが指定されていません。" })))
     }
     const botName = String(formData.get("name") ?? "").trim()
     if (!botName) {
-      redirect(toAppUrl(redirectTo, { error: "Bot名を入力してください。" }))
+      redirect(toAppUrl(redirectTo, withActiveTab({ error: "Bot名を入力してください。" })))
     }
 
     const chatPurpose = normalizeChatPurpose(String(formData.get("chat_purpose") ?? "customer_support").trim())
@@ -838,7 +846,7 @@ export async function updateHostedConfigAction(formData: FormData) {
 
     if (currentBotError) throw currentBotError
     if (!currentBot) {
-      redirect(toAppUrl(redirectTo, { error: "対象Botが見つかりません。" }))
+      redirect(toAppUrl(redirectTo, withActiveTab({ error: "対象Botが見つかりません。" })))
     }
 
     const identityChanged =
@@ -860,9 +868,9 @@ export async function updateHostedConfigAction(formData: FormData) {
       if (recentIdentityChangesError) throw recentIdentityChangesError
       if ((recentIdentityChanges ?? 0) >= BOT_IDENTITY_CHANGE_LIMIT) {
         redirect(
-          toAppUrl(redirectTo, {
+          toAppUrl(redirectTo, withActiveTab({
             error: `Bot名/サービス表示名の変更は${BOT_IDENTITY_CHANGE_WINDOW_DAYS}日で${BOT_IDENTITY_CHANGE_LIMIT}回までです。期間経過後に再試行してください。`,
-          })
+          }))
         )
       }
     }
@@ -955,12 +963,12 @@ export async function updateHostedConfigAction(formData: FormData) {
         },
       })
     }
-    redirect(toAppUrl(redirectTo, { notice: "Hostedチャット設定を更新しました。" }))
+    redirect(toAppUrl(redirectTo, withActiveTab({ notice: "Hostedチャット設定を更新しました。" })))
   } catch (error) {
     redirect(
-      toAppUrl(String(formData.get("redirect_to") ?? ""), {
+      toAppUrl(redirectToRaw, withActiveTab({
         error: error instanceof Error ? error.message : "Hosted設定の更新に失敗しました。",
-      })
+      }))
     )
   }
 }

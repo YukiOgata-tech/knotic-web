@@ -115,6 +115,7 @@ type Props = {
   maxHistoryTurnLimit: number
   redirectTo?: string
   backHref?: string
+  initialActiveTab?: ConfigTab
   saveAction: ActionFn
   togglePublicAction: ActionFn
   rotateWidgetTokenAction: ActionFn
@@ -460,6 +461,7 @@ export function HostedConfigEditor({
   maxHistoryTurnLimit,
   redirectTo = "/console/bots",
   backHref = "/console/bots",
+  initialActiveTab = "basic",
   saveAction,
   togglePublicAction,
   rotateWidgetTokenAction,
@@ -468,7 +470,7 @@ export function HostedConfigEditor({
   deleteSourceAction,
   deleteBotAction,
 }: Props) {
-  const [activeTab, setActiveTab] = React.useState<ConfigTab>("basic")
+  const [activeTab, setActiveTab] = React.useState<ConfigTab>(initialActiveTab)
 
   const [botName, setBotName] = React.useState(bot.name)
   const [displayName, setDisplayName] = React.useState(bot.display_name ?? bot.name)
@@ -1129,6 +1131,7 @@ export function HostedConfigEditor({
       >
         <input type="hidden" name="redirect_to" value={redirectTo} />
         <input type="hidden" name="bot_id" value={bot.id} />
+        <input type="hidden" name="active_tab" value={activeTab} />
         <input type="hidden" name="bot_logo_url" value={logoUrl ?? ""} />
         <input type="hidden" name="launcher_show_label" value={String(launcherShowLabel)} />
 

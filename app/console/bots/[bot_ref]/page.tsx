@@ -19,6 +19,13 @@ type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
+type ConfigTab = "basic" | "bot" | "ai" | "theme" | "widget" | "preview"
+
+function normalizeConfigTab(value: string | undefined): ConfigTab {
+  const allowed = ["basic", "bot", "ai", "theme", "widget", "preview"] as const
+  return value && (allowed as readonly string[]).includes(value) ? (value as ConfigTab) : "basic"
+}
+
 function extractPublicId(botRef: string) {
   const value = decodeURIComponent(botRef)
   const parts = value.split("--")
@@ -36,6 +43,7 @@ export default async function ConsoleBotDetailPage({ params, searchParams }: Pag
   const error = firstParam(query.error)
   const issuedApiKey = firstParam(query.issued_api_key)
   const widgetToken = firstParam(query.widget_token)
+  const initialActiveTab = normalizeConfigTab(firstParam(query.active_tab))
 
   const { membership } = await requireConsoleContext()
   if (!membership) return null
@@ -62,6 +70,7 @@ export default async function ConsoleBotDetailPage({ params, searchParams }: Pag
         maxHistoryTurnLimit={maxHistoryTurnLimit}
         backHref="/console/bots"
         redirectTo={`/console/bots/${encodeURIComponent(botRef)}`}
+        initialActiveTab={initialActiveTab}
         saveAction={updateHostedConfigAction}
         togglePublicAction={toggleBotPublicAction}
         rotateWidgetTokenAction={rotateWidgetTokenAction}
