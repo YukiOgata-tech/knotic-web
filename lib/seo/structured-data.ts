@@ -4,6 +4,49 @@ function absolute(path: string) {
   return new URL(path, getAppUrl()).toString()
 }
 
+export function buildHowToJsonLd(opts: {
+  name: string
+  description: string
+  steps: Array<{ name: string; text: string }>
+}) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    name: opts.name,
+    description: opts.description,
+    step: opts.steps.map((s, i) => ({
+      "@type": "HowToStep",
+      position: i + 1,
+      name: s.name,
+      text: s.text,
+    })),
+  }
+}
+
+export function buildAggregateOfferJsonLd(offers: Array<{
+  name: string
+  price: string
+  description: string
+}>) {
+  const siteUrl = getAppUrl()
+  return {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "@id": `${siteUrl}/#softwareapplication`,
+    name: "knotic",
+    applicationCategory: "BusinessApplication",
+    operatingSystem: "Web",
+    offers: offers.map((o) => ({
+      "@type": "Offer",
+      name: o.name,
+      price: o.price,
+      priceCurrency: "JPY",
+      description: o.description,
+      url: `${siteUrl}/pricing`,
+    })),
+  }
+}
+
 export function buildOrganizationJsonLd() {
   const siteUrl = getAppUrl()
   return {

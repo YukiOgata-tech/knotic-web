@@ -16,8 +16,11 @@ function absoluteUrl(path: string) {
   return new URL(normalizedPath, base).toString()
 }
 
+const DEFAULT_OG_IMAGE = "/images/hero-knotic-pc.png"
+
 export function buildMarketingMetadata(input: BuildMarketingMetadataInput): Metadata {
   const canonical = absoluteUrl(input.path)
+  const ogImageUrl = absoluteUrl(DEFAULT_OG_IMAGE)
   const noIndex = Boolean(input.noIndex)
   return {
     title: input.title,
@@ -33,11 +36,13 @@ export function buildMarketingMetadata(input: BuildMarketingMetadataInput): Meta
       type: "website",
       siteName: "knotic",
       locale: "ja_JP",
+      images: [{ url: ogImageUrl, alt: `${input.title} | knotic` }],
     },
     twitter: {
       card: "summary_large_image",
       title: `${input.title} | knotic`,
       description: input.description,
+      images: [ogImageUrl],
     },
     robots: noIndex
       ? {

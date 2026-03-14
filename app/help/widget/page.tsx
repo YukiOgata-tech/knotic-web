@@ -1,15 +1,41 @@
-import type { Metadata } from "next"
 import Link from "next/link"
 import { ArrowLeft, BookOpen, ExternalLink, Info, Lightbulb } from "lucide-react"
 
 import { PageFrame } from "@/components/marketing/page-frame"
+import { buildMarketingMetadata } from "@/lib/seo/metadata"
+import { buildHowToJsonLd } from "@/lib/seo/structured-data"
 import { CodeBlock } from "./code-block"
 import { TableOfContents } from "./toc"
 
-export const metadata: Metadata = {
-  title: "Widget 埋め込みガイド | Help",
-  description: "knotic Widget を Web サイトに埋め込む方法。HTML・Next.js・React・Vue.js・WordPress 向けの実装例。",
-}
+export const metadata = buildMarketingMetadata({
+  title: "Widget 埋め込みガイド",
+  description: "knotic チャットウィジェットをWebサイトへ埋め込む方法。HTML・Next.js・React・Vue.js・WordPress 向けのコード例を掲載。Bot IDとWidgetトークンの取得から公開まで解説。",
+  path: "/help/widget",
+  keywords: ["チャットウィジェット 埋め込み", "knotic widget", "AIチャット 設置方法", "Next.js チャットボット", "WordPress AIチャット"],
+})
+
+const howToJsonLd = buildHowToJsonLd({
+  name: "knoticチャットウィジェットをWebサイトに埋め込む方法",
+  description: "knoticのAIチャットウィジェットをあなたのWebサイトへ設置する手順です。HTML・Next.js・React・Vue.js・WordPressに対応しています。",
+  steps: [
+    {
+      name: "Bot IDとWidgetトークンを取得する",
+      text: "knoticコンソールにログインし、対象のBotの設定画面 → Widgetタブを開きます。表示されているBot IDとWidgetトークンをコピーします。",
+    },
+    {
+      name: "scriptタグをHTMLに追加する",
+      text: "サイトのHTML（またはフレームワークのルートレイアウト）のbody末尾に、widget.jsを読み込むscriptタグを追加します。",
+    },
+    {
+      name: "data属性にBot IDとWidgetトークンを設定する",
+      text: "scriptタグのdata-bot-id属性にBot ID、data-widget-token属性にWidgetトークンを設定します。data-mode・data-positionで表示形式と位置を指定できます。",
+    },
+    {
+      name: "サイトを保存してウィジェットの動作を確認する",
+      text: "ページを保存・デプロイし、ブラウザでサイトを開きます。画面の指定位置にチャットボタンが表示されたら設置完了です。",
+    },
+  ],
+})
 
 const WIDGET_SCRIPT_URL = "https://knotic.make-it-tech.com/widget.js"
 
@@ -166,6 +192,10 @@ export default function WidgetDocsPage() {
       title="Widget 埋め込みガイド"
       description="チャットウィジェットをあなたのサイトに組み込む手順をフレームワーク別に解説します。"
     >
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }}
+      />
       <div className="mb-6">
         <Link
           href="/help"

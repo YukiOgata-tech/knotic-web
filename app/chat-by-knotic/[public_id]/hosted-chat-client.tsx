@@ -179,6 +179,7 @@ export function HostedChatClient({
   const [rooms, setRooms] = React.useState<Array<{ id: string; title: string; updated_at: string }>>([])
   const [currentRoomId, setCurrentRoomId] = React.useState<string | null>(null)
   const [roomsLoading, setRoomsLoading] = React.useState(false)
+  const [keyboardInset, setKeyboardInset] = React.useState(0)
   const [isFramed, setIsFramed] = React.useState(false)
 
   React.useEffect(() => {
@@ -196,6 +197,62 @@ export function HostedChatClient({
     if (typeof window === "undefined") return
     setIsFramed(window.parent !== window)
   }, [])
+
+  React.useEffect(() => {
+    if (!embedded || typeof window === "undefined") return
+
+    const html = document.documentElement
+    const body = document.body
+
+    const prevHtmlOverflow = html.style.overflow
+    const prevHtmlHeight = html.style.height
+    const prevHtmlOverscroll = html.style.overscrollBehavior
+    const prevBodyOverflow = body.style.overflow
+    const prevBodyHeight = body.style.height
+    const prevBodyOverscroll = body.style.overscrollBehavior
+
+    html.style.overflow = "hidden"
+    html.style.height = "100%"
+    html.style.overscrollBehavior = "none"
+    body.style.overflow = "hidden"
+    body.style.height = "100%"
+    body.style.overscrollBehavior = "none"
+
+    return () => {
+      html.style.overflow = prevHtmlOverflow
+      html.style.height = prevHtmlHeight
+      html.style.overscrollBehavior = prevHtmlOverscroll
+      body.style.overflow = prevBodyOverflow
+      body.style.height = prevBodyHeight
+      body.style.overscrollBehavior = prevBodyOverscroll
+    }
+  }, [embedded])
+
+  React.useEffect(() => {
+    if (!embedded || typeof window === "undefined" || !window.visualViewport) return
+
+    const viewport = window.visualViewport
+    const updateInset = () => {
+      const nextInset = Math.max(0, Math.round(window.innerHeight - viewport.height - viewport.offsetTop))
+      setKeyboardInset(nextInset)
+    }
+
+    updateInset()
+    viewport.addEventListener("resize", updateInset)
+    viewport.addEventListener("scroll", updateInset)
+    window.addEventListener("orientationchange", updateInset)
+
+    return () => {
+      viewport.removeEventListener("resize", updateInset)
+      viewport.removeEventListener("scroll", updateInset)
+      window.removeEventListener("orientationchange", updateInset)
+    }
+  }, [embedded])
+
+  React.useEffect(() => {
+    if (keyboardInset <= 0) return
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
+  }, [keyboardInset])
 
   // 新しいアシスタントメッセージのタイプライターアニメーション開始
   React.useEffect(() => {
@@ -454,7 +511,7 @@ export function HostedChatClient({
   const canCloseEmbedded = embedded && isFramed
   const showHeaderAction = !embedded || canCloseEmbedded
   const headerActionLabel = canCloseEmbedded ? "閉じる" : "戻る"
-  const composerBottomPadding = `calc(${compactLayout ? "0.6rem" : "0.8rem"} + env(safe-area-inset-bottom))`
+  const composerBottomPadding = `calc(${compactLayout ? "0.6rem" : "0.8rem"} + env(safe-area-inset-bottom) + ${keyboardInset}px)`
   const retentionNoticeText = `このチャット履歴はブラウザ上で${retentionHours}時間保持され、自動的に削除されます。`
 
   const handleHeaderAction = React.useCallback(() => {
@@ -470,7 +527,7 @@ export function HostedChatClient({
   }, [canCloseEmbedded])
 
   return (
-    <div className={embedded ? "flex h-full min-h-0 w-full flex-col" : "mx-auto flex w-full max-w-5xl flex-col gap-3 sm:gap-4"}>
+    <div className={embedded ? "flex h-full min-h-0 w-full flex-col [-webkit-text-size-adjust:100%]" : "mx-auto flex w-full max-w-5xl flex-col gap-3 sm:gap-4"}>
       {!embedded && (showRetentionNotice || disclaimerText) ? (
         <div className="rounded-2xl border border-black/10 bg-white/75 px-3 py-2 text-[11px] text-slate-600 shadow-xs backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/70 dark:text-slate-300 sm:px-4">
           {showRetentionNotice ? `履歴はブラウザ上で${retentionHours}時間保持されます。` : null}
@@ -680,7 +737,10 @@ export function HostedChatClient({
         </div>
 
         <div
-          className="sticky bottom-0 z-20 border-t border-black/10 px-3 pt-2 backdrop-blur-xl dark:border-white/10 sm:px-4"
+          className={cn(
+            "z-20 border-t border-black/10 px-3 pt-2 backdrop-blur-xl dark:border-white/10 sm:px-4",
+            compactLayout ? "shrink-0" : "sticky bottom-0"
+          )}
           style={{ backgroundColor: footerBgColor, color: footerTextColor, paddingBottom: composerBottomPadding }}
         >
           {error ? <p className="mb-2 text-sm text-destructive">{error}</p> : null}
@@ -715,13 +775,16 @@ export function HostedChatClient({
                 placeholder={placeholderText}
                 disabled={loading}
                 rows={1}
-                className="max-h-42 min-h-[44px] resize-none border-0 bg-transparent px-3 py-2 text-[13px] leading-6 shadow-none focus-visible:ring-0 sm:text-sm"
+                className={cn(
+                  "max-h-42 min-h-[44px] resize-none border-0 bg-transparent px-3 py-2 shadow-none focus-visible:ring-0",
+                  compactLayout ? "text-base leading-6 sm:text-sm" : "text-[13px] leading-6 sm:text-sm"
+                )}
               />
             </div>
             <Button
               onClick={() => void sendMessage()}
               disabled={!canSend}
-              className="h-11 w-11 shrink-0 rounded-full p-0 shadow-sm"
+              className="h-11 w-11 shrink-0 touch-manipulation rounded-full p-0 shadow-sm"
               aria-label="送信"
             >
               <SendHorizontal className="size-4.5" />
