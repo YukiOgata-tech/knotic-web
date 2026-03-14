@@ -3,7 +3,7 @@
 import * as React from "react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import { Bot, SendHorizontal, Trash2 } from "lucide-react"
+import { Bot, SendHorizontal, Trash2, X } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -168,6 +168,7 @@ export function HostedChatClient({
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [usageCounterSource, setUsageCounterSource] = React.useState<string | null>(null)
+  const [showEmbeddedRetentionBanner, setShowEmbeddedRetentionBanner] = React.useState(true)
   const bottomRef = React.useRef<HTMLDivElement | null>(null)
   const inputRef = React.useRef<HTMLTextAreaElement | null>(null)
   const shouldAnimateNextRef = React.useRef(false)
@@ -478,6 +479,7 @@ export function HostedChatClient({
   const showHeaderAction = !embedded || canCloseEmbedded
   const headerActionLabel = canCloseEmbedded ? "閉じる" : "戻る"
   const composerBottomPadding = `calc(${compactLayout ? "0.6rem" : "0.8rem"} + env(safe-area-inset-bottom) + ${keyboardInset}px)`
+  const retentionNoticeText = `このチャット履歴はブラウザ上で${retentionHours}時間保持され、自動的に削除されます。`
 
   const handleHeaderAction = React.useCallback(() => {
     if (canCloseEmbedded) {
@@ -550,6 +552,30 @@ export function HostedChatClient({
             </div>
           </div>
         </header>
+
+        {embedded && showEmbeddedRetentionBanner && (showRetentionNotice || disclaimerText) ? (
+          <div
+            className="border-b border-black/10 px-3 py-2 text-[11px] text-slate-700 dark:border-white/10 dark:text-slate-200 sm:px-4"
+            style={{ backgroundColor: footerBgColor, color: footerTextColor }}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <p className="min-w-0 leading-relaxed">
+                {showRetentionNotice ? retentionNoticeText : null}
+                {showRetentionNotice && disclaimerText ? " " : null}
+                {disclaimerText ? disclaimerText : null}
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowEmbeddedRetentionBanner(false)}
+                className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full border border-black/20 px-2 text-[10px] transition-colors hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
+                aria-label="通知を非表示"
+              >
+                <X className="size-3" />
+                非表示
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         {authenticatedMode ? (
           <div className="border-b border-black/10 bg-black/[0.02] px-3 py-2 dark:border-white/10 dark:bg-white/[0.02] sm:px-4">

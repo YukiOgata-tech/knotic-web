@@ -18,7 +18,7 @@
       return "このBotではWidgetが無効です。Bot設定でWidgetを有効化してください。";
     }
     if (code.includes("widget unavailable for internal mode")) {
-      return "社内限定モードではWidgetを利用できません。公開モードを確認してください。";
+      return "現在のモード設定ではWidgetを利用できません。公開モードを確認してください。";
     }
     if (code.includes("bot is not public")) {
       return "このBotは公開停止中です。Bot状態を有効にしてください。";
@@ -33,7 +33,7 @@
     if (status === 401) return "認証情報が無効です。Widgetトークンを確認してください。";
     if (status === 403) return "現在の公開設定ではWidgetを利用できません。";
     if (status === 404) return "Widget設定が見つかりません。Bot ID を確認してください。";
-    if (status === 409) return "Botの準備が完了していないため、まだ利用できません。";
+    if (status === 409) return "Botの準備が完了していないため、利用できません。";
     if (status === 423) return "Botまたはテナントが停止状態のため利用できません。";
     if (status >= 500) return "サーバー側でエラーが発生しました。時間をおいて再試行してください。";
     return "Widgetの読み込みに失敗しました。設定内容をご確認ください。";
@@ -72,7 +72,7 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      border: none;
+      border-style: inset;
       border-radius: 999px;
       background: #0f172a;
       color: #fff;
@@ -85,8 +85,8 @@
     .knotic-widget-launcher.knotic-icon-only {
       padding: 10px;
     }
-    .knotic-widget-launcher.knotic-right-bottom { right: 20px; bottom: 20px; }
-    .knotic-widget-launcher.knotic-right-top { right: 20px; top: 20px; }
+    .knotic-widget-launcher.knotic-right-bottom { right: 30px; bottom: 30px; }
+    .knotic-widget-launcher.knotic-right-top { right: 30px; top: 30px; }
 
     .knotic-widget-overlay {
       position: fixed;
@@ -155,14 +155,6 @@
       letter-spacing: 0.02em;
     }
 
-    .knotic-widget-policy {
-      border-top: 1px solid #e2e8f0;
-      padding: 8px 12px;
-      font-size: 11px;
-      color: #475569;
-      background: #f8fafc;
-    }
-
     @media (max-width: 768px) {
       .knotic-widget-panel {
         width: 100vw;
@@ -193,9 +185,6 @@
     .then((config) => {
       const mode = dataMode || config.mode || "overlay";
       const position = dataPosition || config.position || "right-bottom";
-      const policyText =
-        config.policyText ||
-        "このチャット履歴はブラウザ上で24時間保持され、自動的に削除されます。";
 
       const launcher = document.createElement("button");
       launcher.type = "button";
@@ -248,26 +237,9 @@
         setTimeout(() => { if (loading.parentNode) loading.parentNode.removeChild(loading); }, 400);
       });
 
-      const policy = document.createElement("div");
-      policy.className = "knotic-widget-policy";
-      policy.textContent = policyText;
-
-      if (mode === "both") {
-        const openHosted = document.createElement("a");
-        openHosted.href = config.hostedUrl;
-        openHosted.target = config.redirectNewTab ? "_blank" : "_self";
-        openHosted.rel = "noreferrer";
-        openHosted.textContent = "別ページで開く";
-        openHosted.style.cssText =
-          "display:inline-flex;margin-top:6px;color:#0f172a;text-decoration:underline;text-underline-offset:2px;font-weight:600;";
-        policy.appendChild(document.createElement("br"));
-        policy.appendChild(openHosted);
-      }
-
       body.appendChild(loading);
       body.appendChild(iframe);
       panel.appendChild(body);
-      panel.appendChild(policy);
       overlay.appendChild(panel);
       document.body.appendChild(overlay);
 

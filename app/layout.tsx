@@ -64,10 +64,14 @@ export default function RootLayout({
             <RouteTransitionLoader />
           </Suspense>
           <div className="min-h-screen bg-background text-foreground">
-            <SiteHeader />
+            <Suspense fallback={null}>
+              <SiteHeader />
+            </Suspense>
             <SiteBreadcrumbs />
             <main>{children}</main>
-            <ConditionalSiteFooter />
+            <Suspense fallback={null}>
+              <ConditionalSiteFooter />
+            </Suspense>
           </div>
           <ThemeToggle />
         </ThemeProvider>
