@@ -30,6 +30,7 @@ export default async function HostedBotPage({ params, searchParams }: PageProps)
   const widgetToken = firstParam(query.widgetToken)
   const embedded = ["1", "true", "yes"].includes((firstParam(query.embed) ?? "").toLowerCase())
   const previewMode = ["1", "true", "yes"].includes((firstParam(query.preview) ?? "").toLowerCase())
+  const isWidgetEmbed = embedded && Boolean(widgetToken)
 
   const admin = createAdminClient()
 
@@ -160,7 +161,7 @@ export default async function HostedBotPage({ params, searchParams }: PageProps)
     )
   }
 
-  if (!isPreviewMember) {
+  if (!isPreviewMember && !isWidgetEmbed) {
     try {
       await assertTenantCanUseHostedPage(bot.tenant_id, bot.id)
     } catch (error) {
