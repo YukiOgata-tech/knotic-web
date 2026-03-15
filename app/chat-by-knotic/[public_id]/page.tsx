@@ -183,7 +183,7 @@ export default async function HostedBotPage({ params, searchParams }: PageProps)
   }
 
   return (
-    <div className={embedded ? "h-dvh min-h-dvh w-screen overflow-hidden bg-transparent" : "min-h-dvh bg-[linear-gradient(180deg,#f8fbff_0%,#ffffff_35%,#fffaf3_100%)] px-3 py-4 dark:bg-[linear-gradient(180deg,#0f172a_0%,#0b1220_45%,#0a0f1a_100%)] sm:px-6 sm:py-8"}>
+    <div className={embedded ? "h-dvh min-h-dvh w-screen overflow-hidden bg-transparent" : "h-dvh overflow-hidden bg-[linear-gradient(180deg,#f8fbff_0%,#ffffff_35%,#fffaf3_100%)] dark:bg-[linear-gradient(180deg,#0f172a_0%,#0b1220_45%,#0a0f1a_100%)] sm:p-6"}>
       {isPreviewMember && (
         <div className="mx-auto mb-3 flex max-w-4xl items-center gap-2 rounded-lg border border-amber-300/70 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-300">
           <span className="font-semibold">プレビュー表示中</span>

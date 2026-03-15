@@ -29,6 +29,16 @@ function toErrorCode(error: unknown) {
   return "checkout_failed"
 }
 
+function isCustomerMissingError(error: unknown) {
+  if (!(error instanceof Stripe.errors.StripeError)) return false
+  if (error.code !== "resource_missing") return false
+  // Stripe returns `param: "customer"` on session create and `param: "id"` on customer retrieve.
+  if (error.param === "customer" || error.param === "id") return true
+  return (
+    error.statusCode === 404
+  )
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
@@ -79,10 +89,6 @@ export async function POST(request: NextRequest) {
       const existingSubscription = await stripe.subscriptions.retrieve(
         activeSubscriptionRow.provider_subscription_id
       )
-      const existingSubscriptionAny = existingSubscription as unknown as {
-        current_period_end?: number
-      }
-      const currentPeriodEnd = existingSubscriptionAny.current_period_end ?? null
       const currentItem = existingSubscription.items.data[0]
       const currentPriceId = currentItem?.price?.id ?? null
       const currentPlanCode = currentPriceId ? resolvePlanCodeFromPriceId(currentPriceId) : null
@@ -99,14 +105,42 @@ export async function POST(request: NextRequest) {
         return NextResponse.redirect(new URL("/console/billing?error=subscription_item_missing", request.url), 303)
       }
 
-      if (!currentPeriodEnd) {
-        return NextResponse.redirect(new URL("/console/billing?error=subscription_item_missing", request.url), 303)
+      const existingScheduleId =
+        typeof existingSubscription.schedule === "string"
+          ? existingSubscription.schedule
+          : existingSubscription.schedule?.id ?? null
+      if (existingScheduleId) {
+        const schedule = await stripe.subscriptionSchedules.retrieve(existingScheduleId)
+        const nowSec = Math.floor(Date.now() / 1000)
+        const hasFuturePhase = schedule.phases.some((phase) => Number(phase.start_date ?? 0) > nowSec)
+        if (hasFuturePhase) {
+          return NextResponse.redirect(new URL("/console/billing?notice=plan_change_already_scheduled", request.url), 303)
+        }
       }
 
       const isDowngrade =
         currentPlanCode !== null && PLAN_RANK[planCode] < PLAN_RANK[currentPlanCode]
 
       if (isDowngrade) {
+        const currentItemAny = currentItem as unknown as { current_period_end?: number }
+        const existingSubscriptionAny = existingSubscription as unknown as { current_period_end?: number }
+        let currentPeriodEnd =
+          currentItemAny.current_period_end ??
+          existingSubscriptionAny.current_period_end ??
+          null
+
+        if (!currentPeriodEnd) {
+          const upcomingInvoice = await stripe.invoices.retrieveUpcoming({
+            subscription: existingSubscription.id,
+          })
+          const upcomingAny = upcomingInvoice as unknown as { period_end?: number }
+          currentPeriodEnd = upcomingAny.period_end ?? null
+        }
+
+        if (!currentPeriodEnd) {
+          return NextResponse.redirect(new URL("/console/billing?error=subscription_item_missing", request.url), 303)
+        }
+
         const scheduleId =
           typeof existingSubscription.schedule === "string" ? existingSubscription.schedule : null
         const schedule = scheduleId
@@ -114,12 +148,20 @@ export async function POST(request: NextRequest) {
           : await stripe.subscriptionSchedules.create({
               from_subscription: existingSubscription.id,
             })
+        const scheduleAny = schedule as unknown as {
+          current_phase?: {
+            start_date?: number | null
+          } | null
+        }
+        // Stripe仕様上、進行中フェーズのstart_dateは変更不可。
+        // 既存スケジュールがある場合は現在フェーズの開始日時を維持して更新する。
+        const currentPhaseStart = scheduleAny.current_phase?.start_date ?? null
 
         await stripe.subscriptionSchedules.update(schedule.id, {
           end_behavior: "release",
           phases: [
             {
-              start_date: "now",
+              start_date: currentPhaseStart ?? "now",
               end_date: currentPeriodEnd,
               items: [
                 {
@@ -178,17 +220,7 @@ export async function POST(request: NextRequest) {
       .eq("id", tenantId)
       .maybeSingle()
 
-    let providerCustomerId: string | null = null
-    const { data: customerRow } = await admin
-      .from("billing_customers")
-      .select("id, provider_customer_id")
-      .eq("tenant_id", tenantId)
-      .eq("provider", "stripe")
-      .maybeSingle()
-
-    if (customerRow?.provider_customer_id) {
-      providerCustomerId = customerRow.provider_customer_id as string
-    } else {
+    const createStripeCustomer = async () => {
       const customer = await stripe.customers.create({
         email: user.email ?? undefined,
         name: (tenantRow?.display_name as string | undefined) ?? undefined,
@@ -196,8 +228,6 @@ export async function POST(request: NextRequest) {
           tenant_id: tenantId,
         },
       })
-      providerCustomerId = customer.id
-
       await admin.from("billing_customers").upsert(
         {
           tenant_id: tenantId,
@@ -207,6 +237,28 @@ export async function POST(request: NextRequest) {
         },
         { onConflict: "tenant_id" }
       )
+      return customer.id
+    }
+
+    let providerCustomerId: string | null = null
+    const { data: customerRow } = await admin
+      .from("billing_customers")
+      .select("id, provider_customer_id")
+      .eq("tenant_id", tenantId)
+      .eq("provider", "stripe")
+      .maybeSingle()
+
+    if (customerRow?.provider_customer_id) {
+      const existingCustomerId = customerRow.provider_customer_id as string
+      try {
+        const existingCustomer = await stripe.customers.retrieve(existingCustomerId)
+        providerCustomerId = existingCustomer.deleted ? await createStripeCustomer() : existingCustomerId
+      } catch (error) {
+        if (!isCustomerMissingError(error)) throw error
+        providerCustomerId = await createStripeCustomer()
+      }
+    } else {
+      providerCustomerId = await createStripeCustomer()
     }
 
     const urls = getStripeReturnUrls()

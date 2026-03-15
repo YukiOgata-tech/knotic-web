@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { Settings2 } from "lucide-react"
+import { Loader2, Settings2 } from "lucide-react"
+import { useFormStatus } from "react-dom"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,6 +25,22 @@ type Props = {
 }
 
 type Tab = "tenant" | "account"
+
+function SaveButton({ disabled, label = "保存" }: { disabled: boolean; label?: string }) {
+  const { pending } = useFormStatus()
+  return (
+    <Button type="submit" className="w-fit rounded-full" disabled={disabled || pending}>
+      {pending ? (
+        <>
+          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+          保存中…
+        </>
+      ) : (
+        label
+      )}
+    </Button>
+  )
+}
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: "tenant", label: "テナント情報" },
@@ -55,6 +72,9 @@ export function SettingsClient({
   const [passwordMismatch, setPasswordMismatch] = React.useState(false)
   const [showPasswordConfirm, setShowPasswordConfirm] = React.useState(false)
   const passwordFormRef = React.useRef<HTMLFormElement>(null)
+
+  const [isSubmittingEmail, setIsSubmittingEmail] = React.useState(false)
+  const [isSubmittingPassword, setIsSubmittingPassword] = React.useState(false)
 
   function handlePasswordSubmit() {
     if (newPassword !== passwordConfirm) {
@@ -135,13 +155,7 @@ export function SettingsClient({
                 disabled={!isEditor || isImpersonating}
               />
             </div>
-            <Button
-              type="submit"
-              className="w-fit rounded-full"
-              disabled={!isEditor || isImpersonating}
-            >
-              保存
-            </Button>
+            <SaveButton disabled={!isEditor || isImpersonating} />
           </form>
         </div>
       )}
@@ -271,12 +285,15 @@ export function SettingsClient({
               </button>
               <button
                 type="button"
-                className="rounded-full bg-slate-900 px-4 py-1.5 text-sm text-white transition-colors hover:bg-slate-700 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+                className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-4 py-1.5 text-sm text-white transition-colors hover:bg-slate-700 disabled:opacity-60 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+                disabled={isSubmittingEmail}
                 onClick={() => {
+                  setIsSubmittingEmail(true)
                   emailFormRef.current?.requestSubmit()
                   setShowEmailConfirm(false)
                 }}
               >
+                {isSubmittingEmail && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 変更する
               </button>
             </div>
@@ -302,12 +319,15 @@ export function SettingsClient({
               </button>
               <button
                 type="button"
-                className="rounded-full bg-slate-900 px-4 py-1.5 text-sm text-white transition-colors hover:bg-slate-700 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+                className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-4 py-1.5 text-sm text-white transition-colors hover:bg-slate-700 disabled:opacity-60 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+                disabled={isSubmittingPassword}
                 onClick={() => {
+                  setIsSubmittingPassword(true)
                   passwordFormRef.current?.requestSubmit()
                   setShowPasswordConfirm(false)
                 }}
               >
+                {isSubmittingPassword && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 変更する
               </button>
             </div>

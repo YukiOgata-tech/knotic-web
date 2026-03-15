@@ -29,17 +29,21 @@ export async function POST(request: NextRequest) {
     }
 
     const tenantId = membership.tenant_id as string
+    const operationalStatuses = new Set(["trialing", "active", "past_due", "unpaid"])
     const { data: subRow } = await admin
       .from("subscriptions")
-      .select("id, provider_subscription_id")
+      .select("id, provider_subscription_id, status")
       .eq("tenant_id", tenantId)
-      .in("status", ["trialing", "active", "past_due", "unpaid"])
+      .in("status", ["trialing", "active", "past_due", "unpaid", "canceled", "incomplete", "paused"])
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle()
 
     if (!subRow?.provider_subscription_id) {
       return NextResponse.redirect(new URL("/console/billing?error=subscription_not_found", request.url))
+    }
+    if (!operationalStatuses.has(String(subRow.status ?? ""))) {
+      return NextResponse.redirect(new URL("/console/billing?error=subscription_not_operational", request.url))
     }
 
     const stripe = getStripeClient()

@@ -1,8 +1,9 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { AnimatePresence, motion } from "framer-motion"
-import { ChevronDown } from "lucide-react"
+import { ArrowRight, ChevronDown } from "lucide-react"
 
 import type { FaqItem } from "@/content/faqs"
 
@@ -75,6 +76,20 @@ function FaqAccordion({ items, defaultOpenIndex = 0, compactMobile = false }: Fa
                     }
                   >
                     {item.a}
+                    {item.links && item.links.length > 0 ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {item.links.map((link) => (
+                          <Link
+                            key={link.href}
+                            href={link.href}
+                            className="inline-flex items-center gap-1 text-xs font-medium text-cyan-600 hover:text-cyan-500 dark:text-cyan-400 dark:hover:text-cyan-300"
+                          >
+                            {link.label}
+                            <ArrowRight className="size-3" />
+                          </Link>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 </motion.div>
               ) : null}

@@ -1,12 +1,10 @@
 import Link from "next/link"
 import { ArrowRight, ExternalLink } from "lucide-react"
 
-import {
-  createBotAction,
-} from "@/app/console/actions"
 import { ConsoleAlerts } from "@/app/console/_components/console-alerts"
 import { fetchConsoleData, requireConsoleContext } from "@/app/console/_lib/data"
 import { firstParam } from "@/app/console/_lib/ui"
+import { CreateBotForm } from "@/app/console/bots/create-bot-form"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -249,15 +247,7 @@ export default async function ConsoleBotsPage({ searchParams }: PageProps) {
           </Table>
           </div>
 
-          <form action={createBotAction} className="grid gap-3 rounded-xl border border-black/20 p-4 dark:border-white/10">
-            <input type="hidden" name="redirect_to" value="/console/bots" />
-            <h3 className="font-medium">新規Bot作成</h3>
-            <Input name="name" placeholder="Bot名（例:会社FAQボット）" required disabled={!isEditor} />
-            <Textarea name="description" placeholder="Botの説明（任意）" disabled={!isEditor} />
-            <Button type="submit" className="w-fit rounded-full" disabled={!isEditor}>
-              Botを作成
-            </Button>
-          </form>
+          <CreateBotForm isEditor={isEditor} />
 
           {/* <div className="grid gap-2 rounded-lg border border-black/20 p-3 text-xs text-muted-foreground dark:border-white/10">
             <div className="flex items-center gap-2">

@@ -11,6 +11,28 @@ function toIsoFromUnix(value: number | null | undefined) {
   return new Date(value * 1000).toISOString()
 }
 
+function extractSubscriptionPeriod(subscription: Stripe.Subscription) {
+  const firstItemAny = subscription.items.data[0] as unknown as {
+    current_period_start?: number
+    current_period_end?: number
+  }
+  const subscriptionAny = subscription as unknown as {
+    current_period_start?: number
+    current_period_end?: number
+  }
+
+  return {
+    currentPeriodStart:
+      firstItemAny.current_period_start ??
+      subscriptionAny.current_period_start ??
+      null,
+    currentPeriodEnd:
+      firstItemAny.current_period_end ??
+      subscriptionAny.current_period_end ??
+      null,
+  }
+}
+
 async function findTenantIdByCustomer(admin: AdminClient, customerId: string) {
   const { data } = await admin
     .from("billing_customers")
@@ -53,9 +75,8 @@ async function upsertSubscriptionFromStripe(admin: AdminClient, subscription: St
     throw new Error(`plan not found for code: ${planCode}`)
   }
 
-  const sub = subscription as unknown as {
-    current_period_start?: number
-    current_period_end?: number
+  const period = extractSubscriptionPeriod(subscription)
+  const subscriptionAny = subscription as unknown as {
     trial_end?: number
   }
 
@@ -66,10 +87,10 @@ async function upsertSubscriptionFromStripe(admin: AdminClient, subscription: St
       provider: "stripe",
       provider_subscription_id: subscription.id,
       status: mapStripeSubscriptionStatus(subscription.status),
-      current_period_start: toIsoFromUnix(sub.current_period_start),
-      current_period_end: toIsoFromUnix(sub.current_period_end),
+      current_period_start: toIsoFromUnix(period.currentPeriodStart),
+      current_period_end: toIsoFromUnix(period.currentPeriodEnd),
       cancel_at_period_end: Boolean(subscription.cancel_at_period_end),
-      trial_ends_at: toIsoFromUnix(sub.trial_end),
+      trial_ends_at: toIsoFromUnix(subscriptionAny.trial_end),
     },
     { onConflict: "provider_subscription_id" }
   )

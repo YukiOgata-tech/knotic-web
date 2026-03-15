@@ -1009,7 +1009,7 @@ export function HostedConfigEditor({
         <AlertDialogHeader>
           <AlertDialogTitle className="text-rose-700 dark:text-rose-300">Botを削除しますか？</AlertDialogTitle>
           <AlertDialogDescription>
-            この操作を実行すると、Botは削除状態（アーカイブ）になり、公開URLとWidget利用は停止されます。
+            この操作を実行すると、Botは削除状態になり、公開URLとWidget利用は停止されます。
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -1034,7 +1034,7 @@ export function HostedConfigEditor({
         <div className="flex items-center justify-between gap-2 border-b border-black/10 px-3 py-2.5 dark:border-white/8 sm:px-4">
           <Link
             href={backHref}
-            className="inline-flex shrink-0 items-center gap-0.5 text-xs text-muted-foreground transition-colors hover:text-slate-700 dark:hover:text-slate-200"
+            className="inline-flex shrink-0 items-center gap-0.5 text-xs text-muted-foreground transition-colors hover:text-slate-700 dark:hover:text-slate-200 hover:underline"
           >
             <ChevronLeft className="size-3.5" />
             <span className="hidden sm:inline">Bot一覧</span>
@@ -1059,7 +1059,7 @@ export function HostedConfigEditor({
               type="submit"
               form={`save_bot_${bot.id}`}
               size="sm"
-              className={`shrink-0 rounded-full transition-all ${isDirty && !isSaving ? "ring-2 ring-amber-400/60" : ""}`}
+              className={`shrink-0 rounded-full transition-all ${isDirty && !isSaving ? "ring-2 ring-amber-400/60" : ""} hover:text-emerald-500`}
               disabled={!isEditor || isSaving}
             >
               {isSaving ? (
@@ -1139,14 +1139,10 @@ export function HostedConfigEditor({
             <p className="text-sm font-semibold">基本設定</p>
             <p className="text-xs text-muted-foreground">Bot情報と公開方式を設定します。</p>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Bot状態（有効/無効）の切り替えは、この下の「Bot状態管理」エリアで実行します。
-          </p>
           <div className="grid gap-3 md:grid-cols-2">
             <div className="grid gap-1.5">
-              <Label htmlFor={`name_${bot.id}`}>Bot名</Label>
+              <Label htmlFor={`name_${bot.id}`}>Bot名  <span className="text-xs font-light">:変更は[3回/30日]まで可能</span></Label>
               <Input id={`name_${bot.id}`} name="name" value={botName} onChange={(e) => setBotName(e.target.value)} disabled={!isEditor} />
-              <p className="text-[11px] text-muted-foreground">Bot名/サービス表示名は30日で3回まで変更できます。</p>
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor={`display_name_${bot.id}`}>サービス表示名</Label>
@@ -1180,10 +1176,10 @@ export function HostedConfigEditor({
                 disabled={!isEditor || !internalOptionEnabled}
               >
                 <option value="public">公開（顧客向け）</option>
-                {internalOptionEnabled ? <option value="internal">社内限定（認証前提）</option> : null}
+                {internalOptionEnabled ? <option value="internal">限定公開(認証前提)</option> : null}
               </select>
               {!internalOptionEnabled ? (
-                <p className="text-[11px] text-muted-foreground">現在プランでは社内限定（認証）モードは利用できません。</p>
+                <p className="text-[11px] text-muted-foreground">現在プランでは限定公開(認証)モードは利用できません。</p>
               ) : null}
             </div>
           </div>
@@ -1192,7 +1188,7 @@ export function HostedConfigEditor({
         <Panel active={activeTab === "bot"}>
           <div className="grid gap-1">
             <p className="text-sm font-semibold">Bot設定</p>
-            <p className="text-xs text-muted-foreground">会話挙動・文言を設定します。</p>
+            <p className="text-xs text-muted-foreground">会話挙動/文言を設定します。</p>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
             <div className="grid gap-1.5">
@@ -1325,15 +1321,12 @@ export function HostedConfigEditor({
         <Panel active={activeTab === "ai"}>
           <div className="grid gap-1">
             <p className="text-sm font-semibold">AI設定</p>
-            <p className="text-xs text-muted-foreground">モデル・トークン制限・情報ソースを管理します。</p>
+            <p className="text-xs text-muted-foreground">モデル/トークン制限/情報ソースを管理します。</p>
           </div>
           <div className="grid gap-3 md:grid-cols-3">
             <div className="grid gap-1.5">
               <Label>RAG方式</Label>
               <Input value="ナレッジ検索（固定）" disabled />
-              <p className="text-[11px] text-muted-foreground">
-                この環境ではFile Search運用を標準化しており、Legacy Vectorは利用しません。
-              </p>
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor={`ai_model_${bot.id}`}>モデル</Label>

@@ -3,10 +3,16 @@ import Stripe from "stripe"
 import { firstParam, fmtDate } from "@/app/console/_lib/ui"
 import { ConsoleAlerts } from "@/app/console/_components/console-alerts"
 import { requireConsoleContext } from "@/app/console/_lib/data"
+import { PlanChangeConfirmButton } from "@/app/console/billing/plan-change-confirm-button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { getTenantBotCount, getTenantStorageUsageBytes } from "@/lib/billing/limits"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { getStripeClient, getStripePriceMapSafe, resolvePlanCodeFromPriceId } from "@/lib/stripe"
+import {
+  getStripeClient,
+  getStripePriceMapSafe,
+  mapStripeSubscriptionStatus,
+  resolvePlanCodeFromPriceId,
+} from "@/lib/stripe"
 
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
@@ -58,6 +64,8 @@ type BillingEventFailureRow = {
   next_retry_at: string | null
 }
 
+const OPERATIONAL_SUBSCRIPTION_STATUSES = new Set(["trialing", "active", "past_due", "unpaid"])
+
 function formatJpy(value: number | null | undefined) {
   if (typeof value !== "number") return "-"
   return `${value.toLocaleString()} 円`
@@ -66,6 +74,35 @@ function formatJpy(value: number | null | undefined) {
 function formatInvoiceAmount(invoice: Stripe.Invoice) {
   const amount = typeof invoice.amount_paid === "number" ? invoice.amount_paid : invoice.amount_due
   return `${Math.round((amount ?? 0) / 1)} ${String(invoice.currency ?? "jpy").toUpperCase()}`
+}
+
+function toIsoFromUnix(value: number | null | undefined) {
+  if (!value) return null
+  return new Date(value * 1000).toISOString()
+}
+
+function extractStripePeriod(subscription: Stripe.Subscription | null | undefined) {
+  if (!subscription) {
+    return { currentPeriodStartIso: null as string | null, currentPeriodEndIso: null as string | null }
+  }
+
+  const firstItemAny = subscription.items.data[0] as unknown as {
+    current_period_start?: number
+    current_period_end?: number
+  }
+  const subscriptionAny = subscription as unknown as {
+    current_period_start?: number
+    current_period_end?: number
+  }
+
+  return {
+    currentPeriodStartIso: toIsoFromUnix(
+      firstItemAny.current_period_start ?? subscriptionAny.current_period_start ?? null
+    ),
+    currentPeriodEndIso: toIsoFromUnix(
+      firstItemAny.current_period_end ?? subscriptionAny.current_period_end ?? null
+    ),
+  }
 }
 
 export default async function ConsoleBillingPage({ searchParams }: PageProps) {
@@ -80,6 +117,7 @@ export default async function ConsoleBillingPage({ searchParams }: PageProps) {
     plan_already_current: "すでに同じプランを利用中です。",
     plan_upgrade_prorated: "アップグレードを適用しました。差額は日割りで追加請求され、機能は即時反映されます。",
     plan_downgrade_scheduled: "ダウングレードを受け付けました。次回更新日から新プランへ切り替わります。",
+    plan_change_already_scheduled: "次回更新でのプラン変更予約が既にあるため、追加の変更はできません。",
     cancel_scheduled: "解約予約を受け付けました。現在の請求期間終了日に停止されます。",
     cancel_resumed: "自動更新を再開しました。",
   }
@@ -96,6 +134,7 @@ export default async function ConsoleBillingPage({ searchParams }: PageProps) {
     customer_not_found: "請求先情報が見つかりません。先にプラン契約を完了してください。",
     portal_failed: "Customer Portalへの遷移に失敗しました。時間をおいて再試行してください。",
     subscription_not_found: "契約情報が見つかりません。しばらく待ってから再読み込みしてください。",
+    subscription_not_operational: "現在の契約状態ではこの操作を実行できません。再契約後に実行してください。",
     cancel_failed: "解約予約に失敗しました。時間をおいて再試行してください。",
     resume_failed: "自動更新の再開に失敗しました。時間をおいて再試行してください。",
   }
@@ -138,7 +177,7 @@ export default async function ConsoleBillingPage({ searchParams }: PageProps) {
       .maybeSingle(),
   ])
 
-  const subscription = (subscriptionRaw as BillingSubscriptionRow | null) ?? null
+  let subscription = (subscriptionRaw as BillingSubscriptionRow | null) ?? null
   const currentCode = subscription?.plans?.code ?? null
 
   const prices = getStripePriceMapSafe()
@@ -192,34 +231,71 @@ export default async function ConsoleBillingPage({ searchParams }: PageProps) {
   const planRows = (planRowsRaw ?? []) as PlanLimitRow[]
   const planByCode = new Map(planRows.map((row) => [row.code, row]))
   let pendingPlanChange: PendingPlanChange | null = null
+  let hasScheduledPlanChange = false
+  let stripeSubscriptionForDisplay: Stripe.Subscription | null = null
 
   let cardSummary = "未登録"
   let invoices: Stripe.Invoice[] = []
 
-  if (stripeReady && customerRow?.provider_customer_id) {
+  if (stripeReady) {
     try {
       const stripe = getStripeClient()
-      const customer = await stripe.customers.retrieve(customerRow.provider_customer_id, {
-        expand: ["invoice_settings.default_payment_method"],
-      })
 
-      if (!customer.deleted) {
-        const pm = customer.invoice_settings?.default_payment_method
-        if (pm && typeof pm !== "string" && pm.type === "card" && pm.card) {
-          cardSummary = `${pm.card.brand?.toUpperCase() ?? "CARD"} **** ${pm.card.last4 ?? "----"} / exp ${pm.card.exp_month}/${pm.card.exp_year}`
+      if (customerRow?.provider_customer_id) {
+        const customer = await stripe.customers.retrieve(customerRow.provider_customer_id, {
+          expand: ["invoice_settings.default_payment_method"],
+        })
+
+        if (!customer.deleted) {
+          const pm = customer.invoice_settings?.default_payment_method
+          if (pm && typeof pm !== "string" && pm.type === "card" && pm.card) {
+            cardSummary = `${pm.card.brand?.toUpperCase() ?? "CARD"} **** ${pm.card.last4 ?? "----"} / exp ${pm.card.exp_month}/${pm.card.exp_year}`
+          }
         }
-      }
 
-      const listed = await stripe.invoices.list({
-        customer: customerRow.provider_customer_id,
-        limit: 8,
-      })
-      invoices = listed.data
+        const listed = await stripe.invoices.list({
+          customer: customerRow.provider_customer_id,
+          limit: 8,
+        })
+        invoices = listed.data
+      }
 
       if (subscription?.provider_subscription_id) {
         const stripeSub = await stripe.subscriptions.retrieve(subscription.provider_subscription_id)
-        if (typeof stripeSub.schedule === "string" && stripeSub.schedule) {
-          const schedule = await stripe.subscriptionSchedules.retrieve(stripeSub.schedule)
+        stripeSubscriptionForDisplay = stripeSub
+
+        const { currentPeriodStartIso: stripePeriodStartIso, currentPeriodEndIso: stripePeriodEndIso } =
+          extractStripePeriod(stripeSub)
+        const shouldBackfillPeriod =
+          (!subscription.current_period_start && Boolean(stripePeriodStartIso)) ||
+          (!subscription.current_period_end && Boolean(stripePeriodEndIso))
+        if (shouldBackfillPeriod) {
+          await admin
+            .from("subscriptions")
+            .update({
+              current_period_start: subscription.current_period_start ?? stripePeriodStartIso,
+              current_period_end: subscription.current_period_end ?? stripePeriodEndIso,
+              status: mapStripeSubscriptionStatus(stripeSub.status),
+              cancel_at_period_end: Boolean(stripeSub.cancel_at_period_end),
+            })
+            .eq("id", subscription.id)
+
+          subscription = {
+            ...subscription,
+            current_period_start: subscription.current_period_start ?? stripePeriodStartIso,
+            current_period_end: subscription.current_period_end ?? stripePeriodEndIso,
+            status: mapStripeSubscriptionStatus(stripeSub.status),
+            cancel_at_period_end: Boolean(stripeSub.cancel_at_period_end),
+          }
+        }
+
+        const scheduleId =
+          typeof stripeSub.schedule === "string"
+            ? stripeSub.schedule
+            : stripeSub.schedule?.id ?? null
+        if (scheduleId) {
+          hasScheduledPlanChange = true
+          const schedule = await stripe.subscriptionSchedules.retrieve(scheduleId)
           const nowSec = Math.floor(Date.now() / 1000)
           const nextPhase = schedule.phases.find((phase) => Number(phase.start_date ?? 0) > nowSec)
           const nextItem = nextPhase?.items?.[0] as { price?: string | { id?: string } } | undefined
@@ -265,6 +341,22 @@ export default async function ConsoleBillingPage({ searchParams }: PageProps) {
   const pendingBillingEvents = pendingBillingEventCount ?? 0
   const latestBillingEventFailure = (latestBillingEventFailureRaw as BillingEventFailureRow | null) ?? null
   const needsPaymentRecovery = subscription?.status === "past_due" || subscription?.status === "unpaid"
+  const subscriptionStatus = subscription?.status ?? null
+  const isOperationalSubscription = Boolean(
+    subscription?.provider_subscription_id &&
+    subscriptionStatus &&
+    OPERATIONAL_SUBSCRIPTION_STATUSES.has(subscriptionStatus)
+  )
+  const canScheduleCancel =
+    isEditor && stripeReady && isOperationalSubscription && !Boolean(subscription?.cancel_at_period_end)
+  const canResumeAutoRenew =
+    isEditor && stripeReady && isOperationalSubscription && Boolean(subscription?.cancel_at_period_end)
+  const isCanceled = subscriptionStatus === "canceled"
+  const isNotOperational = Boolean(subscriptionStatus && !OPERATIONAL_SUBSCRIPTION_STATUSES.has(subscriptionStatus))
+  const { currentPeriodStartIso: stripePeriodStartDisplay, currentPeriodEndIso: stripePeriodEndDisplay } =
+    extractStripePeriod(stripeSubscriptionForDisplay)
+  const currentPeriodStartDisplay = subscription?.current_period_start ?? stripePeriodStartDisplay
+  const currentPeriodEndDisplay = subscription?.current_period_end ?? stripePeriodEndDisplay
 
   return (
     <div className="grid gap-4">
@@ -353,8 +445,8 @@ export default async function ConsoleBillingPage({ searchParams }: PageProps) {
               subscription?.status ?? "未設定"
             }
           </p>
-          <p>契約開始日: {fmtDate(subscription?.current_period_start)}</p>
-          <p>次回更新日: {fmtDate(subscription?.current_period_end)}</p>
+          <p>契約開始日: {fmtDate(currentPeriodStartDisplay)}</p>
+          <p>次回更新日: {fmtDate(currentPeriodEndDisplay)}</p>
           <p>自動更新: {subscription?.cancel_at_period_end ? "停止予約中（期間終了で解約）" : "有効"}</p>
           {!stripeReady ? (
             <p className="rounded-md bg-amber-100 px-3 py-2 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
@@ -400,38 +492,59 @@ export default async function ConsoleBillingPage({ searchParams }: PageProps) {
         </Card>
       ) : null}
 
-      <section className="grid gap-4 lg:grid-cols-3">
+      <section id="plan-options" className="grid gap-4 lg:grid-cols-3">
         {(["lite", "standard", "pro"] as const).map((code) => {
           const isCurrent = currentCode === code
-          const disabled = !isEditor || !stripeReady
+          const isScheduledTarget = pendingPlanChange?.targetPlanCode === code
+          const planChangeLocked = hasScheduledPlanChange || Boolean(pendingPlanChange)
+          const disabled = !isEditor || !stripeReady || planChangeLocked
           return (
             <Card
               key={code}
-              className={isCurrent
-                ? "border-cyan-400/70 bg-cyan-50/60 ring-1 ring-cyan-400/40 dark:border-cyan-500/50 dark:bg-cyan-950/30 dark:ring-cyan-500/30"
-                : "border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80"
+              className={
+                isCurrent
+                  ? "border-cyan-400/70 bg-cyan-50/60 ring-1 ring-cyan-400/40 dark:border-cyan-500/50 dark:bg-cyan-950/30 dark:ring-cyan-500/30"
+                  : isScheduledTarget
+                    ? "border-amber-300/70 bg-amber-50/65 ring-1 ring-amber-300/50 dark:border-amber-500/45 dark:bg-amber-950/25 dark:ring-amber-500/30"
+                    : "border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80"
               }
             >
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   {PLAN_LABELS[code]}
                   {isCurrent ? <span className="rounded-full bg-cyan-600 px-2 py-0.5 text-xs text-white dark:bg-cyan-500">利用中</span> : null}
+                  {!isCurrent && isScheduledTarget ? (
+                    <span className="rounded-full bg-amber-600 px-2 py-0.5 text-xs text-white dark:bg-amber-500 dark:text-slate-950">
+                      次回更新日から適用予定
+                    </span>
+                  ) : null}
                 </CardTitle>
                 <CardDescription>
                   {code === "lite" ? "¥10,000 / 月" : code === "standard" ? "¥24,800 / 月" : "¥100,000 / 月"}
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-2">
-                <form action="/api/stripe/checkout" method="post">
-                  <input type="hidden" name="plan_code" value={code} />
-                  <button
-                    type="submit"
-                    disabled={disabled || isCurrent}
-                    className="inline-flex w-full items-center justify-center rounded-md bg-slate-900 px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-900"
-                  >
-                    {isCurrent ? "現在のプラン" : "このプランに変更"}
-                  </button>
-                </form>
+                <PlanChangeConfirmButton
+                  planCode={code}
+                  planLabel={PLAN_LABELS[code]}
+                  currentPlanCode={currentCode}
+                  currentPlanLabel={subscription?.plans?.name ?? "未契約"}
+                  currentPeriodEndLabel={fmtDate(currentPeriodEndDisplay)}
+                  disabled={disabled}
+                  isCurrent={isCurrent}
+                  planChangeLocked={planChangeLocked}
+                  isScheduledTarget={isScheduledTarget}
+                />
+                {!isCurrent && isScheduledTarget ? (
+                  <p className="text-[11px] text-amber-800 dark:text-amber-300">
+                    変更予約済みです。{fmtDate(pendingPlanChange?.effectiveAt)} からこのプランに切り替わります。
+                  </p>
+                ) : null}
+                {!isCurrent && !isScheduledTarget && planChangeLocked ? (
+                  <p className="text-[11px] text-muted-foreground">
+                    変更予約が登録されているため、次回更新日までは追加のプラン変更操作はできません。
+                  </p>
+                ) : null}
               </CardContent>
             </Card>
           )
@@ -490,13 +603,26 @@ export default async function ConsoleBillingPage({ searchParams }: PageProps) {
           <CardDescription>解約は「期間終了で停止（cancel at period end）」として処理されます。即時停止ではありません。</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-2 text-sm text-amber-900 dark:text-amber-200">
-          <p>停止予定日: {fmtDate(subscription?.current_period_end)}</p>
+          <p>停止予定日: {fmtDate(currentPeriodEndDisplay)}</p>
           <p>注意: 解約予約後も期間終了までは利用可能です。日割り返金は行いません。</p>
+          {isCanceled ? (
+            <div className="rounded-md border border-amber-400/60 bg-amber-100/80 px-3 py-2 text-xs dark:border-amber-500/40 dark:bg-amber-900/30">
+              <p>この契約は解約済みです。再開する場合はプラン契約をやり直してください。</p>
+              <a href="#plan-options" className="mt-1 inline-flex text-cyan-700 underline underline-offset-2 dark:text-cyan-300">
+                プラン選択へ移動
+              </a>
+            </div>
+          ) : null}
+          {!isCanceled && isNotOperational ? (
+            <p className="rounded-md border border-amber-400/60 bg-amber-100/80 px-3 py-2 text-xs dark:border-amber-500/40 dark:bg-amber-900/30">
+              現在の契約状態では解約予約・再開操作は利用できません。契約状態を確認してください。
+            </p>
+          ) : null}
           <div className="flex flex-wrap gap-2">
             <form action="/api/stripe/subscription/cancel" method="post">
               <button
                 type="submit"
-                disabled={!isEditor || !stripeReady || !subscription?.provider_subscription_id || Boolean(subscription?.cancel_at_period_end)}
+                disabled={!canScheduleCancel}
                 className="inline-flex items-center justify-center rounded-md bg-rose-700 px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
                 期間終了で解約予約
@@ -505,7 +631,7 @@ export default async function ConsoleBillingPage({ searchParams }: PageProps) {
             <form action="/api/stripe/subscription/resume" method="post">
               <button
                 type="submit"
-                disabled={!isEditor || !stripeReady || !subscription?.provider_subscription_id || !Boolean(subscription?.cancel_at_period_end)}
+                disabled={!canResumeAutoRenew}
                 className="inline-flex items-center justify-center rounded-md border border-black/15 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/20"
               >
                 自動更新を再開
@@ -517,4 +643,3 @@ export default async function ConsoleBillingPage({ searchParams }: PageProps) {
     </div>
   )
 }
-

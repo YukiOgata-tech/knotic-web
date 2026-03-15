@@ -116,7 +116,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
             <Card className="border-amber-300/50 bg-amber-50/70 dark:border-amber-500/40 dark:bg-amber-950/20">
               <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
                 <div>
-                  <p className="font-medium text-amber-900 dark:text-amber-200">閲覧モード（読み取り専用）</p>
+                  <p className="font-medium text-amber-900 dark:text-amber-200">閲覧モード（閲覧専用）</p>
                   <p className="text-amber-800/90 dark:text-amber-300">tenant: {impersonation.tenantId}</p>
                 </div>
                 <form action={stopImpersonationAction}>

@@ -8,6 +8,16 @@ import { getAppUrl } from "@/lib/env"
 
 const VALID_PLAN_CODES = new Set<PlanCode>(["lite", "standard", "pro"])
 
+function isCustomerMissingError(error: unknown) {
+  if (!(error instanceof Error) || !("code" in error)) return false
+  const code = (error as { code?: unknown }).code
+  const param = (error as { param?: unknown }).param
+  const statusCode = (error as { statusCode?: unknown }).statusCode
+  if (code !== "resource_missing") return false
+  if (param === "customer" || param === "id") return true
+  return statusCode === 404
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -49,6 +59,24 @@ export async function POST(request: NextRequest) {
 
     const stripe = getStripeClient()
 
+    const createStripeCustomer = async () => {
+      const customer = await stripe.customers.create({
+        email: ownerEmail,
+        name: tenant.display_name,
+        metadata: { tenant_id: tenantId },
+      })
+      await admin.from("billing_customers").upsert(
+        {
+          tenant_id: tenantId,
+          provider: "stripe",
+          provider_customer_id: customer.id,
+          billing_email: ownerEmail ?? null,
+        },
+        { onConflict: "tenant_id" }
+      )
+      return customer.id
+    }
+
     // Stripe customer を取得または作成
     let providerCustomerId: string | null = null
     const { data: customerRow } = await admin
@@ -59,24 +87,16 @@ export async function POST(request: NextRequest) {
       .maybeSingle()
 
     if (customerRow?.provider_customer_id) {
-      providerCustomerId = customerRow.provider_customer_id as string
+      const existingCustomerId = customerRow.provider_customer_id as string
+      try {
+        const existingCustomer = await stripe.customers.retrieve(existingCustomerId)
+        providerCustomerId = existingCustomer.deleted ? await createStripeCustomer() : existingCustomerId
+      } catch (error) {
+        if (!isCustomerMissingError(error)) throw error
+        providerCustomerId = await createStripeCustomer()
+      }
     } else {
-      const customer = await stripe.customers.create({
-        email: ownerEmail,
-        name: tenant.display_name,
-        metadata: { tenant_id: tenantId },
-      })
-      providerCustomerId = customer.id
-
-      await admin.from("billing_customers").upsert(
-        {
-          tenant_id: tenantId,
-          provider: "stripe",
-          provider_customer_id: customer.id,
-          billing_email: ownerEmail ?? null,
-        },
-        { onConflict: "tenant_id" }
-      )
+      providerCustomerId = await createStripeCustomer()
     }
 
     const priceMap = getStripePriceMap()

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { buildMarketingMetadata } from "@/lib/seo/metadata"
+import { FaqCsvExampleModal } from "@/app/help/_components/faq-csv-example-modal"
 
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
@@ -196,9 +197,12 @@ export default async function HelpPage({ searchParams }: PageProps) {
                     >
                       <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div className="min-w-0">
-                          <h3 className="wrap-break-word text-base font-semibold tracking-tight sm:text-lg">
-                            {article.title}
-                          </h3>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="wrap-break-word text-base font-semibold tracking-tight sm:text-lg">
+                              {article.title}
+                            </h3>
+                            {article.id === "faq-spreadsheet-guide" && <FaqCsvExampleModal />}
+                          </div>
                           <p className="mt-1 wrap-break-word text-[13px] text-zinc-600 dark:text-zinc-300 sm:text-sm">
                             {article.summary}
                           </p>

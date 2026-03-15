@@ -36,7 +36,7 @@ export function LogoutButton() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="rounded-full" disabled={loading}>
+        <Button variant="outline" className="rounded-full hover:text-red-700" disabled={loading}>
           {loading ? "ログアウト中..." : "ログアウト"}
         </Button>
       </DialogTrigger>

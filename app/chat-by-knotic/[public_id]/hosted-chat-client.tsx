@@ -199,7 +199,7 @@ export function HostedChatClient({
   }, [])
 
   React.useEffect(() => {
-    if (!embedded || typeof window === "undefined") return
+    if (typeof window === "undefined" || !embedded) return
 
     const html = document.documentElement
     const body = document.body
@@ -229,7 +229,7 @@ export function HostedChatClient({
   }, [embedded])
 
   React.useEffect(() => {
-    if (!embedded || typeof window === "undefined" || !window.visualViewport) return
+    if (typeof window === "undefined" || !window.visualViewport) return
 
     const viewport = window.visualViewport
     const updateInset = () => {
@@ -527,20 +527,9 @@ export function HostedChatClient({
   }, [canCloseEmbedded])
 
   return (
-    <div className={embedded ? "flex h-full min-h-0 w-full flex-col [-webkit-text-size-adjust:100%]" : "mx-auto flex w-full max-w-5xl flex-col gap-3 sm:gap-4"}>
-      {!embedded && (showRetentionNotice || disclaimerText) ? (
-        <div className="rounded-2xl border border-black/10 bg-white/75 px-3 py-2 text-[11px] text-slate-600 shadow-xs backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/70 dark:text-slate-300 sm:px-4">
-          {showRetentionNotice ? `履歴はブラウザ上で${retentionHours}時間保持されます。` : null}
-          {showRetentionNotice && disclaimerText ? " " : null}
-          {disclaimerText ? disclaimerText : null}
-        </div>
-      ) : null}
-
+    <div className="flex h-full min-h-0 w-full flex-col [-webkit-text-size-adjust:100%] sm:mx-auto sm:max-w-5xl">
       <section
-        className={cn(
-          "relative flex min-h-0 flex-1 flex-col overflow-hidden border border-black/15 bg-white/90 shadow-[0_18px_60px_rgba(2,6,23,0.12)] dark:border-white/10 dark:bg-slate-900/88",
-          compactLayout ? "rounded-2xl" : "min-h-[68vh] rounded-3xl"
-        )}
+        className="relative flex min-h-0 flex-1 flex-col overflow-hidden border-0 bg-white/90 shadow-[0_18px_60px_rgba(2,6,23,0.12)] dark:bg-slate-900/88 sm:rounded-2xl sm:border sm:border-black/15 sm:dark:border-white/10"
       >
         <header
           className="sticky top-0 z-20 border-b border-current/15 px-3 py-2.5 backdrop-blur-xl sm:px-5 sm:py-3"
@@ -587,7 +576,7 @@ export function HostedChatClient({
           </div>
         </header>
 
-        {embedded && showEmbeddedRetentionBanner && (showRetentionNotice || disclaimerText) ? (
+        {showEmbeddedRetentionBanner && (showRetentionNotice || disclaimerText) ? (
           <div
             className="border-b border-black/10 px-3 py-2 text-[11px] text-slate-700 dark:border-white/10 dark:text-slate-200 sm:px-4"
             style={{ backgroundColor: footerBgColor, color: footerTextColor }}
@@ -739,7 +728,7 @@ export function HostedChatClient({
         <div
           className={cn(
             "z-20 border-t border-black/10 px-3 pt-2 backdrop-blur-xl dark:border-white/10 sm:px-4",
-            compactLayout ? "shrink-0" : "sticky bottom-0"
+            "shrink-0"
           )}
           style={{ backgroundColor: footerBgColor, color: footerTextColor, paddingBottom: composerBottomPadding }}
         >
@@ -777,7 +766,7 @@ export function HostedChatClient({
                 rows={1}
                 className={cn(
                   "max-h-42 min-h-[44px] resize-none border-0 bg-transparent px-3 py-2 shadow-none focus-visible:ring-0",
-                  compactLayout ? "text-base leading-6 sm:text-sm" : "text-[13px] leading-6 sm:text-sm"
+                  "text-base leading-6 sm:text-sm"
                 )}
               />
             </div>
