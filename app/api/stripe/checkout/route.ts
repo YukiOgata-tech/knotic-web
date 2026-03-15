@@ -130,11 +130,17 @@ export async function POST(request: NextRequest) {
           null
 
         if (!currentPeriodEnd) {
-          const upcomingInvoice = await stripe.invoices.retrieveUpcoming({
-            subscription: existingSubscription.id,
-          })
-          const upcomingAny = upcomingInvoice as unknown as { period_end?: number }
-          currentPeriodEnd = upcomingAny.period_end ?? null
+          const invoicesResource = stripe.invoices as unknown as {
+            retrieveUpcoming?: (params: { subscription: string }) => Promise<unknown>
+            createPreview?: (params: { subscription: string }) => Promise<unknown>
+          }
+          const upcomingInvoice = invoicesResource.retrieveUpcoming
+            ? await invoicesResource.retrieveUpcoming({ subscription: existingSubscription.id })
+            : invoicesResource.createPreview
+              ? await invoicesResource.createPreview({ subscription: existingSubscription.id })
+              : null
+          const upcomingAny = upcomingInvoice as { period_end?: number } | null
+          currentPeriodEnd = upcomingAny?.period_end ?? null
         }
 
         if (!currentPeriodEnd) {

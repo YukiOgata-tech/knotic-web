@@ -872,7 +872,7 @@ export function HostedConfigEditor({
     if (!sourceDetail) return
     setSourceDetail((s) => s ? { ...s, viewingPage: page, pageText: null, pageTextLoading: true, pageTextError: undefined } : null)
     if (!page.text_path) {
-      setSourceDetail((s) => s ? { ...s, pageTextLoading: false, pageTextError: "このページのテキストパスが記録されていません。再インデックスを実行してください。" } : null)
+      setSourceDetail((s) => s ? { ...s, pageTextLoading: false, pageTextError: "このページのテキストパスが記録されていません。「ナレッジを更新」を実行してください。" } : null)
       return
     }
     const result = await getSourceTextAction(sourceDetail.sourceId, page.text_path)
@@ -900,7 +900,7 @@ export function HostedConfigEditor({
         body: JSON.stringify({ sourceId, botId: bot.id, mode }),
       })
       if (!initRes.ok) {
-        const err = (await initRes.json().catch(() => ({ error: "再インデックスの開始に失敗しました。" }))) as { error?: string }
+        const err = (await initRes.json().catch(() => ({ error: "ナレッジ更新の開始に失敗しました。" }))) as { error?: string }
         setReindexState((s) => ({ ...s, phase: "error", error: err.error ?? "エラーが発生しました。" }))
         return
       }
@@ -1378,7 +1378,7 @@ export function HostedConfigEditor({
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            情報ソースの追加・再インデックスは、この下の「情報ソース管理」エリアから実行します。
+            情報ソースの追加・更新は、この下の「情報ソース管理」エリアから実行します。
           </p>
         </Panel>
 
@@ -1867,7 +1867,7 @@ export function HostedConfigEditor({
         <div className="grid gap-1">
           <p className="text-sm font-semibold">情報ソース管理</p>
           <p className="text-xs text-muted-foreground">
-            URL/PDFを追加 → 一覧で確認 → インデックス実行、の順で進めます。URL・PDFどちらも再インデックスできます。
+            URL/PDFを追加すると自動でAIに読み込まれます。内容が更新された場合は「ナレッジを更新」で再読み込みできます。
           </p>
         </div>
 
@@ -1919,7 +1919,7 @@ export function HostedConfigEditor({
                     <Button type="submit" size="sm" disabled={!isEditor}>追加</Button>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[11px] text-muted-foreground">インデックス方式:</span>
+                    <span className="text-[11px] text-muted-foreground">読み込みモード:</span>
                     <div className="inline-flex rounded-md bg-slate-100 p-0.5 dark:bg-slate-800/80">
                       <button
                         type="button"
@@ -1931,7 +1931,7 @@ export function HostedConfigEditor({
                             : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                         )}
                       >
-                        Rawテキスト
+                        標準
                       </button>
                       <button
                         type="button"
@@ -1944,7 +1944,7 @@ export function HostedConfigEditor({
                         )}
                       >
                         <Sparkles className="h-2.5 w-2.5" />
-                        AI構造化
+                        AI要約
                       </button>
                     </div>
                     {indexMode === "llm" ? (
@@ -1978,8 +1978,8 @@ export function HostedConfigEditor({
                       urlIndexing.phase === "done" && "text-emerald-700 dark:text-emerald-300",
                       urlIndexing.phase === "error" && "text-rose-700 dark:text-rose-400",
                     )}>
-                      {urlIndexing.phase === "running" && "インデックス中..."}
-                      {urlIndexing.phase === "done" && "インデックス完了"}
+                      {urlIndexing.phase === "running" && "読み込み中..."}
+                      {urlIndexing.phase === "done" && "読み込み完了"}
                       {urlIndexing.phase === "error" && "エラーが発生しました"}
                     </span>
                   </div>
@@ -2091,11 +2091,11 @@ export function HostedConfigEditor({
                     {source.index_mode === "llm" ? (
                       <span className="inline-flex items-center gap-0.5 rounded-full bg-cyan-100 px-1.5 py-0.5 text-[10px] font-medium text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400">
                         <Sparkles className="h-2.5 w-2.5" />
-                        AI構造化
+                        AI要約
                       </span>
                     ) : source.index_mode === "raw" ? (
                       <span className="inline-flex items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-                        Raw
+                        標準
                       </span>
                     ) : null}
                     {source.file_size_bytes ? (
@@ -2144,7 +2144,7 @@ export function HostedConfigEditor({
                   ) : confirmReindexId === source.id ? (
                     <div className="grid gap-1.5">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-[11px] text-slate-500 dark:text-slate-400">再実行しますか？</span>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400">ナレッジを更新しますか？</span>
                         <div className="flex items-center gap-1.5">
                           <Button
                             type="button"
@@ -2208,7 +2208,7 @@ export function HostedConfigEditor({
                           <><Loader2 className="mr-1 h-3 w-3 animate-spin" />処理中</>
                         ) : reindexState.sourceId === source.id && reindexState.phase === "done" ? (
                           <><Check className="mr-1 h-3 w-3" />完了</>
-                        ) : "再インデックス"}
+                        ) : "ナレッジを更新"}
                       </Button>
                       <Button
                         type="button"
@@ -2337,7 +2337,7 @@ export function HostedConfigEditor({
                     <p className="text-[11px] opacity-80">{sourceDetail.pageTextError}</p>
                   ) : null}
                   <p className="text-[11px] opacity-70 mt-0.5">
-                    Supabase Dashboard → Storage で <code className="font-mono bg-amber-100 dark:bg-amber-900/50 px-1 rounded">source-artifacts</code> バケット（Private）を作成後、再インデックスを実行してください。
+                    Supabase Dashboard → Storage で <code className="font-mono bg-amber-100 dark:bg-amber-900/50 px-1 rounded">source-artifacts</code> バケット（Private）を作成後、「ナレッジを更新」を実行してください。
                   </p>
                 </div>
               )}
@@ -2347,8 +2347,8 @@ export function HostedConfigEditor({
             <div className="flex flex-col gap-3 min-h-0">
               {sourceDetail && sourceDetail.pages.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4 text-center">
-                  インデックス済みページが見つかりません。<br />
-                  URLソースは再インデックスを実行してください。
+                  読み込み済みページが見つかりません。<br />
+                  URLソースは「ナレッジを更新」を実行してください。
                 </p>
               ) : (
                 <>
