@@ -63,7 +63,7 @@ npx supabase migration list --project-ref wbsrawibepsvcvkyzwtm
 | `schema.sql` | ベーススキーマ（最初に1回のみ実行） |
 | `patch-20260228-hosted-rooms-and-invites.sql` | Hosted招待・ルーム機能 |
 
-> 新しいパッチを追加した場合はこの表を更新すること。
+> 新しいパッチを追加した場合はこの表を更新すること
 
 ## Edge Functions デプロイ
 

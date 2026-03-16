@@ -21,15 +21,15 @@ function PageFrame({
       <section className="relative isolate border-b border-black/20 dark:border-white/10">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_6%_30%,rgba(251,191,36,.24),transparent_36%),radial-gradient(circle_at_88%_22%,rgba(6,182,212,.22),transparent_36%),linear-gradient(130deg,rgba(255,255,255,.76),rgba(255,255,255,.35))] dark:bg-[radial-gradient(circle_at_6%_30%,rgba(250,204,21,.18),transparent_36%),radial-gradient(circle_at_88%_22%,rgba(34,211,238,.2),transparent_38%),linear-gradient(130deg,rgba(8,20,38,.9),rgba(8,20,38,.55))]" />
         <div className="pointer-events-none absolute inset-0 opacity-50 bg-[linear-gradient(to_right,rgba(15,23,42,.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,23,42,.08)_1px,transparent_1px)] bg-size-[42px_42px] dark:opacity-25" />
-        <Container size="default" className="relative py-6 sm:py-16 lg:py-20">
+        <Container size="default" className="relative py-4 sm:py-14 lg:py-20">
           <div className="max-w-6xl">
-            <p className="inline-flex rounded-full border border-cyan-500/30 bg-white/70 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-800 backdrop-blur dark:border-cyan-300/35 dark:bg-slate-900/55 dark:text-cyan-100">
+            <p className="inline-flex rounded-full border border-cyan-500/30 bg-white/70 px-3 py-1 sm:px-4 sm:py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-800 backdrop-blur dark:border-cyan-300/35 dark:bg-slate-900/55 dark:text-cyan-100">
               {eyebrow}
             </p>
             <h1 className="mt-3 sm:mt-5 text-2xl font-semibold tracking-tight text-zinc-950 sm:text-4xl lg:text-6xl dark:text-zinc-50">
               {title}
             </h1>
-            <p className="mt-2 sm:mt-5 max-w-3xl text-sm leading-6 sm:leading-8 text-zinc-700 sm:text-lg dark:text-zinc-200">
+            <p className="mt-2 sm:mt-5 max-w-6xl text-sm leading-6 sm:leading-8 text-zinc-700 sm:text-lg dark:text-zinc-200">
               {description}
             </p>
           </div>

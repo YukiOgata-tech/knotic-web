@@ -318,8 +318,8 @@ function FeaturesExperience() {
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">
           Customization
         </p>
-        <h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-3xl">Botの設定と調整</h2>
-        <p className="mt-2 text-[13px] leading-6 text-zinc-600 sm:text-sm sm:leading-7 dark:text-zinc-300">
+        <h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-3xl">AIBotの設定と調整</h2>
+        <p className="hidden sm:block mt-2 text-[13px] leading-6 text-zinc-600 sm:text-sm sm:leading-7 dark:text-zinc-300">
           目的・トーン・ビジュアルをコンソールから設定。公開後もいつでも変更できます。
         </p>
 
@@ -331,14 +331,14 @@ function FeaturesExperience() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.35 }}
               transition={{ duration: 0.3, delay: 0.05 * i }}
-              className="flex gap-3 border-b border-black/15 py-3 last:border-b-0 sm:rounded-2xl sm:border sm:border-black/20 sm:bg-white/80 sm:p-4 dark:border-white/10 sm:dark:bg-slate-950/45"
+              className="flex gap-3 border-b border-black/15 py-2 sm:py-3 last:border-b-0 sm:rounded-2xl sm:border sm:border-black/20 sm:bg-white/80 sm:p-4 dark:border-white/10 sm:dark:bg-slate-950/45"
             >
-              <div className="inline-flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+              <div className="inline-flex size-6 sm:size-9 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
                 <item.icon className="size-4" />
               </div>
               <div>
                 <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">{item.title}</p>
-                <p className="mt-1 text-[11px] leading-5 text-zinc-500 sm:text-xs dark:text-zinc-400">{item.description}</p>
+                <p className="hidden sm:block mt-1 text-[11px] leading-5 text-zinc-500 sm:text-xs dark:text-zinc-400">{item.description}</p>
               </div>
             </motion.div>
           ))}

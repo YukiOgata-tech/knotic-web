@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-このファイルは、リポジトリ内のコードを操作する Claude Code (claude.ai/code) への指示書です。
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## プロジェクト概要
 
@@ -55,19 +55,26 @@ npm run lint         # ESLint（Next.js + TypeScript 設定）
 2. テナント/ボットの強制停止フラグを確認
 3. APIキー（`x-knotic-api-key`）、ウィジェットトークン（`x-knotic-widget-token`）、ログイン済みテナントメンバー、公開モードのいずれかで認証
 4. `assertTenantCanConsumeMessage()` で月間メッセージクォータを強制
-5. クエリをエンベッド → ベクトル検索 `match_chunks` RPC → コンテキスト構築 → OpenAI Responses API 呼び出し
+5. クエリをエンベッド → OpenAI File Search（vector store）→ コンテキスト構築 → OpenAI Responses API 呼び出し
 6. `chat_logs` に記録、`usage_daily` をインクリメント、上限近接通知を発火
 
 インデックスパイプライン（`lib/indexing/pipeline.ts`）:
-- URLソース: ページまたはサイトマップXMLを取得、raw/テキストを `source-artifacts` バケットにアップロード、テキストをチャンク化、64件単位でエンベッド、`chunks` + `embeddings` テーブルに保存
-- PDFソース: `source-files` バケットからダウンロード、`pdf-parse` でテキスト抽出、以降はURL同様のチャンク/エンベッドフロー
+- URLソース: ページまたはサイトマップXMLを取得、raw/テキストを `source-artifacts` バケットにアップロード、テキストをチャンク化 → OpenAI File Search 同期
+- PDFソース: `source-files` バケットからダウンロード、`pdf-parse` でテキスト抽出 → 同様の File Search 同期フロー
 - 手動実行: `runIndexingWorkerAction` または `POST /api/internal/indexing/run`（`Authorization: Bearer <INDEXER_RUNNER_SECRET>` 必須）
+
+### File Search（RAGバックエンド）
+
+`lib/filesearch/openai.ts` が OpenAI File Search 操作を集約:
+- `ensureOpenAiVectorStoreForBot()` — Bot の vector store を作成/取得（`bots.file_search_vector_store_id` に保存）
+- `syncSourceTextToOpenAiFileSearch()` — ソーステキストを OpenAI /files にアップロードし vector store にアタッチ、`sources.file_search_file_id` を更新
+- `answerWithOpenAiFileSearch()` — File Search tool を使って回答生成
 
 ### 課金 / プラン制限
 
 `lib/billing/limits.ts` がプラン制約の唯一の情報源。`subscriptions` + `plans` テーブル（Stripe経由）または `tenant_contract_overrides`（手動オーバーライド）から読み込む。サブスクリプションブロック・ボット上限・メッセージ上限・ストレージ上限で `QuotaError` をスロー。
 
-許可AIモデル: `5-nano`、`5-mini`、`5`（OpenAIモデルの短縮名 — `lib/llm/responses.ts` でAPIコール時にフルモデル名に正規化）。
+許可AIモデル: `gpt-5-mini`（Standard）、`gpt-5-nano`（Mini）、`gpt-4o-mini`（Nano）— `lib/llm/responses.ts` で正規化。
 
 ### DBスキーマ管理
 
