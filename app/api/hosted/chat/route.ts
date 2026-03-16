@@ -13,7 +13,7 @@ import { type ConversationTurn } from "@/lib/llm/responses"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { requireHostedMemberContext } from "@/lib/hosted/access"
 
-const ALLOWED_MODELS = new Set(["5-nano", "5-mini", "5"])
+const ALLOWED_MODELS = new Set(["gpt-4o-mini", "gpt-5-nano", "gpt-5-mini"])
 
 type ChatRequest = {
   botPublicId?: string
@@ -57,6 +57,7 @@ function normalizeModel(candidate: string | undefined, fallback: string) {
 function toErrorStatus(message: string) {
   if (message === "authentication_required") return 401
   if (message === "membership_required") return 403
+  if (message === "bot_access_denied") return 403
   if (message === "bot_not_found" || message === "room_not_found") return 404
   if (message === "bot_not_ready") return 409
   if (message === "internal_mode_required") return 400
@@ -155,7 +156,7 @@ export async function POST(request: NextRequest) {
       content: message,
     })
 
-    const defaultModel = normalizeModel(bot.ai_model ?? "5-mini", "5-mini")
+    const defaultModel = normalizeModel(bot.ai_model ?? "gpt-5-mini", "gpt-5-mini")
     const fallbackModel = bot.ai_fallback_model
       ? normalizeModel(bot.ai_fallback_model, defaultModel)
       : null

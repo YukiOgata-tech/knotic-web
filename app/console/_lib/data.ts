@@ -87,6 +87,24 @@ export type TenantInviteRow = {
   created_at: string
 }
 
+export type HostedAccessBotRow = {
+  id: string
+  public_id: string
+  name: string
+  status: string
+  access_mode: "public" | "internal" | null
+  require_auth_for_hosted: boolean | null
+}
+
+function isMissingRelationError(error: unknown) {
+  if (!error || typeof error !== "object") return false
+  const maybe = error as { code?: string | null; message?: string | null }
+  return (
+    maybe.code === "42P01" ||
+    String(maybe.message ?? "").toLowerCase().includes("does not exist")
+  )
+}
+
 export function toMonthStartISO() {
   const now = new Date()
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
@@ -471,7 +489,12 @@ export async function fetchTenantMembersAndInvites(tenantId: string) {
   const supabase = await createClient()
   const admin = createAdminClient()
 
-  const [{ data: membersRaw, error: membersError }, { data: invitesRaw, error: invitesError }, usersPage] =
+  const [
+    { data: membersRaw, error: membersError },
+    { data: invitesRaw, error: invitesError },
+    { data: botsRaw, error: botsError },
+    usersPage,
+  ] =
     await Promise.all([
       supabase
         .from("tenant_memberships")
@@ -484,6 +507,12 @@ export async function fetchTenantMembersAndInvites(tenantId: string) {
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false })
         .limit(50),
+      admin
+        .from("bots")
+        .select("id, public_id, name, status, access_mode, require_auth_for_hosted")
+        .eq("tenant_id", tenantId)
+        .neq("status", "archived")
+        .order("created_at", { ascending: true }),
       admin.auth.admin.listUsers({ page: 1, perPage: 500 }),
     ])
 
@@ -492,14 +521,43 @@ export async function fetchTenantMembersAndInvites(tenantId: string) {
     emailByUserId.set(user.id, user.email ?? "-")
   }
 
+  let hostedAccessControlReady = true
+  let hostedAccessControlError: unknown = null
+  let blockedRows: Array<{ user_id: string; bot_id: string }> = []
+  const { data: blockedRowsRaw, error: blockedRowsError } = await admin
+    .from("bot_hosted_access_blocks")
+    .select("user_id, bot_id")
+    .eq("tenant_id", tenantId)
+
+  if (blockedRowsError) {
+    if (isMissingRelationError(blockedRowsError)) {
+      hostedAccessControlReady = false
+    } else {
+      hostedAccessControlError = blockedRowsError
+    }
+  } else {
+    blockedRows = (blockedRowsRaw ?? []) as Array<{ user_id: string; bot_id: string }>
+  }
+
+  const blockedBotIdsByUser = new Map<string, Set<string>>()
+  for (const row of blockedRows) {
+    const set = blockedBotIdsByUser.get(row.user_id) ?? new Set<string>()
+    set.add(row.bot_id)
+    blockedBotIdsByUser.set(row.user_id, set)
+  }
+
   return {
     members: (membersRaw ?? []) as TenantMemberRow[],
     invites: (invitesRaw ?? []) as TenantInviteRow[],
+    hostedBots: (botsRaw ?? []) as HostedAccessBotRow[],
+    blockedBotIdsByUser,
+    hostedAccessControlReady,
+    hostedAccessControlError,
     emailByUserId,
     membersError,
     invitesError,
+    botsError,
   }
 }
-
 
 

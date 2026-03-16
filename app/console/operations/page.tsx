@@ -21,7 +21,7 @@ const ACTION_LABELS: Record<string, string> = {
   "bot.hosted_config.update": "Hosted設定更新",
   "source.url.add": "URLソース追加",
   "source.pdf.add": "PDFソース追加",
-  "indexing.queue": "インデックス登録",
+  "indexing.queue": "ナレッジ読み込み登録",
   "widget.token.rotate": "Widgetトークン再発行",
   "widget.allowed_origins.update": "Widget許可オリジン更新",
   "api_key.create": "APIキー発行",
@@ -157,7 +157,7 @@ export default async function ConsoleOperationsPage({ searchParams }: PageProps)
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Activity className="size-4" />
-              インデックスジョブ（過去7日）
+              ナレッジ読み込み状況（過去7日）
             </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-2 text-sm font-medium sm:text-lg">
@@ -229,18 +229,18 @@ export default async function ConsoleOperationsPage({ searchParams }: PageProps)
               {data.currentPlan?.max_storage_mb ? ` / 上限 ${data.currentPlan.max_storage_mb.toLocaleString()} MB` : ""}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              上限超過時は新規PDF追加・再インデックスが停止されます。不要ソースを整理して上限内へ戻してください。
+              上限超過時は新規PDF追加・ナレッジ更新が停止されます。不要ソースを整理して上限内へ戻してください。
             </p>
           </div>
 
           <form action={runIndexingWorkerAction} className="rounded-xl border border-black/20 p-4 dark:border-white/10">
             <input type="hidden" name="redirect_to" value="/console/operations" />
-            <h3 className="font-medium">インデックス手動実行</h3>
+            <h3 className="font-medium">ナレッジ手動読み込み</h3>
             <p className="mt-1 text-xs text-muted-foreground">
-              待機中のインデックスジョブを1件実行します。
+              待機中のURLソースを1件読み込みます。
             </p>
             <Button type="submit" className="mt-3 rounded-full" disabled={!isEditor}>
-              インデックスを実行
+              読み込みを実行
             </Button>
           </form>
 
@@ -266,7 +266,7 @@ export default async function ConsoleOperationsPage({ searchParams }: PageProps)
                     <TableCell>{source.type}</TableCell>
                     <TableCell>{formatMbFromBytes(source.file_size_bytes)}</TableCell>
                     <TableCell>{
-                      source.status === "indexed" ? "インデックス済み" :
+                      source.status === "indexed" ? "読み込み済み" :
                       source.status === "queued" ? "待機中" :
                       source.status === "running" ? "処理中" :
                       source.status === "failed" ? "失敗" :
@@ -279,7 +279,7 @@ export default async function ConsoleOperationsPage({ searchParams }: PageProps)
                         <input type="hidden" name="source_id" value={source.id} />
                         <input type="hidden" name="bot_id" value={source.bot_id ?? ""} />
                         <Button type="submit" size="sm" variant="outline" disabled={!isEditor}>
-                          インデックス実行
+                          ナレッジを更新
                         </Button>
                       </form>
                     </TableCell>
@@ -292,7 +292,7 @@ export default async function ConsoleOperationsPage({ searchParams }: PageProps)
 
           <div className="grid gap-2 rounded-lg border border-black/20 p-3 text-xs text-muted-foreground dark:border-white/10">
             <p>BotごとのURL/PDF追加は各Bot設定画面の「AI設定」タブで行ってください。</p>
-            <p>ここでは全ソース横断の監視と再インデックス実行を管理します。</p>
+            <p>ここでは全ソース横断の監視とナレッジ更新を管理します。</p>
           </div>
         </CardContent>
       </Card>

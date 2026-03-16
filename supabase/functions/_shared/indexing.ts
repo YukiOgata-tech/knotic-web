@@ -3,21 +3,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2"
 import crypto from "node:crypto"
 
-// ── Model Name Normalization ──────────────────────────────────────────────────
-
-const MODEL_NAME_MAP: Record<string, string> = {
-  "5-nano": "gpt-4.1-nano",
-  "5-mini": "gpt-4.1-mini",
-  "5":      "gpt-4.1",
-}
-
-export function toApiModelName(shortName: string): string {
-  return MODEL_NAME_MAP[shortName] ?? shortName
-}
-
 // ── Config ───────────────────────────────────────────────────────────────────
 
-export const MAX_CRAWL_PAGES_PER_JOB = 50
+export const MAX_CRAWL_PAGES_PER_JOB = 100
 export const STORAGE_BUCKET_ARTIFACTS = "source-artifacts"
 export const FETCH_CONCURRENCY = 3
 export const USER_AGENT = "Mozilla/5.0 (compatible; knotic-indexer/1.0; +https://knotic.make-it-tech.com)"
@@ -94,6 +82,100 @@ function stripHtmlToText(html: string) {
       .replace(/\n{3,}/g, "\n\n")
       .trim()
   )
+}
+
+// ── Readability-style Extraction ──────────────────────────────────────────────
+// Removes navigation/structural noise, extracts the main content area, and
+// converts to structured Markdown — without any LLM call.
+
+function removeNoiseTags(html: string): string {
+  let result = html
+  // Inline noise — straightforward single-pass removal
+  result = result.replace(/<script\b[\s\S]*?<\/script>/gi, "")
+  result = result.replace(/<style\b[\s\S]*?<\/style>/gi, "")
+  result = result.replace(/<noscript\b[\s\S]*?<\/noscript>/gi, "")
+  result = result.replace(/<svg\b[\s\S]*?<\/svg>/gi, "")
+  result = result.replace(/<iframe\b[\s\S]*?<\/iframe>/gi, "")
+  // Structural noise — 3 passes to handle shallow nesting of the same tag
+  for (const tag of ["nav", "header", "footer", "aside", "dialog"]) {
+    const re = new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?<\\/${tag}>`, "gi")
+    result = result.replace(re, "").replace(re, "").replace(re, "")
+  }
+  return result
+}
+
+function extractMainContent(html: string): string {
+  const candidates = [
+    html.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i),
+    html.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i),
+    html.match(/<[^>]+role=["']main["'][^>]*>([\s\S]*?)<\/[^>]+>/i),
+    html.match(/<div\b[^>]+id=["'](?:main|content|main-content|page-content)["'][^>]*>([\s\S]*?)<\/div>/i),
+    html.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i),
+  ]
+  for (const m of candidates) {
+    const inner = m?.[1] ?? ""
+    if (inner.replace(/<[^>]*>/g, "").trim().length > 80) return inner
+  }
+  return html
+}
+
+function stripAllTags(html: string): string {
+  return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
+}
+
+function htmlToMarkdown(html: string): string {
+  let md = html
+  // Headings → Markdown
+  md = md.replace(/<h1\b[^>]*>([\s\S]*?)<\/h1>/gi, (_, c) => `\n\n# ${stripAllTags(c).trim()}\n\n`)
+  md = md.replace(/<h2\b[^>]*>([\s\S]*?)<\/h2>/gi, (_, c) => `\n\n## ${stripAllTags(c).trim()}\n\n`)
+  md = md.replace(/<h3\b[^>]*>([\s\S]*?)<\/h3>/gi, (_, c) => `\n\n### ${stripAllTags(c).trim()}\n\n`)
+  md = md.replace(/<h4\b[^>]*>([\s\S]*?)<\/h4>/gi, (_, c) => `\n\n#### ${stripAllTags(c).trim()}\n\n`)
+  md = md.replace(/<h[56]\b[^>]*>([\s\S]*?)<\/h[56]>/gi, (_, c) => `\n\n##### ${stripAllTags(c).trim()}\n\n`)
+  // List items → bullet points
+  md = md.replace(/<li\b[^>]*>([\s\S]*?)<\/li>/gi, (_, c) => `\n- ${stripAllTags(c).trim()}`)
+  md = md.replace(/<\/(ul|ol)>/gi, "\n")
+  // Block elements → blank lines
+  md = md.replace(/<\/(p|div|section|article|blockquote|tr)>/gi, "\n\n")
+  md = md.replace(/<br\s*\/?>/gi, "\n")
+  // Strip remaining tags
+  md = md.replace(/<[^>]+>/g, " ")
+  // Decode entities and normalize whitespace
+  md = decodeHtmlEntities(md)
+  md = md.replace(/[ \t]+/g, " ")
+  md = md.replace(/\n[ \t]+/g, "\n")
+  md = md.replace(/[ \t]+\n/g, "\n")
+  md = md.replace(/\n{4,}/g, "\n\n\n")
+  return md.trim()
+}
+
+/** Extracts the main content of an HTML page as structured Markdown.
+ *  Removes nav/header/footer/aside noise, targets <main>/<article> areas,
+ *  and converts headings + lists to Markdown syntax — no LLM needed. */
+export function extractReadableMarkdown(html: string): string {
+  const noNoise = removeNoiseTags(html)
+  const main = extractMainContent(noNoise)
+  return htmlToMarkdown(main)
+}
+
+/** Removes duplicate paragraphs across pages (e.g. site-wide nav text that
+ *  slipped through, repeated footer disclaimers, etc.). Works at paragraph
+ *  level — short lines (<30 chars) such as headings are always kept. */
+export function deduplicateSections(sections: string[]): string[] {
+  const seenHashes = new Set<string>()
+  return sections
+    .map((section) => {
+      const paragraphs = section.split(/\n\n+/)
+      const kept = paragraphs.filter((para) => {
+        const normalized = para.replace(/\s+/g, " ").trim()
+        if (normalized.length < 30) return true
+        const hash = crypto.createHash("sha256").update(normalized).digest("hex")
+        if (seenHashes.has(hash)) return false
+        seenHashes.add(hash)
+        return true
+      })
+      return kept.join("\n\n").trim()
+    })
+    .filter(Boolean)
 }
 
 function extractTitle(html: string) {
@@ -297,7 +379,7 @@ export async function fetchWithRetry(url: string, init: RequestInit, maxAttempts
   throw lastError instanceof Error ? lastError : new Error("fetch failed")
 }
 
-export function parseSitemapUrls(xml: string, maxUrls: number): string[] {
+export function parseSitemapUrls(xml: string, maxUrls?: number): string[] {
   const urls = new Set<string>()
   const regex = /<loc>([\s\S]*?)<\/loc>/gi
   let match: RegExpExecArray | null
@@ -305,7 +387,7 @@ export function parseSitemapUrls(xml: string, maxUrls: number): string[] {
     const value = match[1]?.trim()
     if (!value) continue
     urls.add(normalizeUrl(value))
-    if (urls.size >= maxUrls) break
+    if (maxUrls !== undefined && urls.size >= maxUrls) break
   }
   return [...urls]
 }
@@ -512,6 +594,44 @@ export async function syncSourceText(admin: AdminClient, params: {
   }).eq("id", params.sourceId)
 }
 
+// ── Shared Page Processor ─────────────────────────────────────────────────────
+
+/** Fetches a page, applies Readability extraction, stores artifacts, and upserts
+ *  the source_pages record. Used by both standard and LLM indexing modes. */
+export async function fetchExtractAndStorePage(
+  admin: AdminClient,
+  params: { pageUrl: string; tenantId: string; sourceId: string; botId: string }
+): Promise<PageResult | null> {
+  const page = await fetchPage(params.pageUrl)
+
+  const readableText = extractReadableMarkdown(page.rawHtml)
+  if (!readableText) return null
+
+  const rawPath = artifactPath(params.tenantId, params.sourceId, "raw", "html")
+  const textPath = artifactPath(params.tenantId, params.sourceId, "text", "md")
+  await uploadArtifact(admin, rawPath, page.rawHtml, "text/html; charset=utf-8")
+  await uploadArtifact(admin, textPath, readableText, "text/plain; charset=utf-8")
+
+  await upsertSourcePage(admin, {
+    sourceId: params.sourceId,
+    tenantId: params.tenantId,
+    botId: params.botId,
+    canonicalUrl: page.url,
+    title: page.title,
+    statusCode: page.statusCode,
+    contentHash: page.contentHash,
+    rawPath,
+    textPath,
+    rawBytes: new TextEncoder().encode(page.rawHtml).byteLength,
+    textBytes: new TextEncoder().encode(readableText).byteLength,
+  })
+
+  return {
+    contentHash: page.contentHash,
+    section: [`## ${page.title ?? page.url}`, `URL: ${page.url}`, "", readableText].join("\n"),
+  }
+}
+
 // ── Pipeline Runner ───────────────────────────────────────────────────────────
 
 export type PageResult = { contentHash: string; section: string }
@@ -533,8 +653,16 @@ export async function runIndexingPipeline(params: {
   fileExtension: "txt" | "md"
   fetchAndProcessPage: FetchAndProcessFn
   onChunkDone: (done: number, total: number) => void
+  maxPages?: number
+  /** Optional post-processing of all collected sections before File Search upload.
+   *  Use this for cross-page deduplication, etc. */
+  postProcessSections?: (sections: string[]) => string[]
+  /** Optional async transformation of the fully-joined content string.
+   *  Called once after all pages are collected and deduped.
+   *  Use this for a single LLM pass over the entire site content. */
+  transformContent?: (combined: string, send: SendFn) => Promise<string>
 }) {
-  const { admin, jobId, send, lockDurationMs, indexMode, fileExtension, fetchAndProcessPage, onChunkDone } = params
+  const { admin, jobId, send, lockDurationMs, indexMode, fileExtension, fetchAndProcessPage, onChunkDone, maxPages, postProcessSections, transformContent } = params
   const workerId = `edge-${indexMode}-${crypto.randomUUID().slice(0, 8)}`
 
   const { data: job } = await admin
@@ -596,7 +724,7 @@ export async function runIndexingPipeline(params: {
       })
       const discovered = filterUrlsByHost(
         sourceAny.url,
-        parseSitemapUrls(await sitemapRes.text(), MAX_CRAWL_PAGES_PER_JOB)
+        parseSitemapUrls(await sitemapRes.text(), maxPages)
       )
       pageUrls = discovered.length ? discovered : [sourceAny.url]
       send({ type: "sitemap_ready", total: pageUrls.length })
@@ -656,12 +784,21 @@ export async function runIndexingPipeline(params: {
 
     const botAny = bot as any
 
+    const finalSections = postProcessSections
+      ? postProcessSections(aggregatedSections)
+      : aggregatedSections
+
+    const joined = finalSections.join("\n\n---\n\n")
+    const textToUpload = transformContent
+      ? await transformContent(joined, send)
+      : joined
+
     await syncSourceText(admin, {
       botId: String(sourceAny.bot_id),
       botPublicId: String(botAny.public_id),
       sourceId: String(sourceAny.id),
       sourceLabel: String(sourceAny.url ?? botAny.name ?? "URL source"),
-      text: aggregatedSections.join("\n\n---\n\n"),
+      text: textToUpload,
       fileExtension,
     })
 

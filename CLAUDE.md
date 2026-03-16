@@ -67,7 +67,7 @@ npm run lint         # ESLint（Next.js + TypeScript 設定）
 
 `lib/billing/limits.ts` がプラン制約の唯一の情報源。`subscriptions` + `plans` テーブル（Stripe経由）または `tenant_contract_overrides`（手動オーバーライド）から読み込む。サブスクリプションブロック・ボット上限・メッセージ上限・ストレージ上限で `QuotaError` をスロー。
 
-許可AIモデル: `5-nano`、`5-mini`、`5`、`4o-mini`、`4o`（OpenAIモデルの短縮名 — `lib/llm/responses.ts` でAPIコール時にフルモデル名に正規化）。
+許可AIモデル: `5-nano`、`5-mini`、`5`（OpenAIモデルの短縮名 — `lib/llm/responses.ts` でAPIコール時にフルモデル名に正規化）。
 
 ### DBスキーマ管理
 

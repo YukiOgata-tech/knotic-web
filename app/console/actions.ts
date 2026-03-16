@@ -18,9 +18,9 @@ import { ALLOWED_FILE_EXTENSIONS, SPREADSHEET_EXTENSIONS, cleanupSourceFromOpenA
 import { spreadsheetToMarkdown } from "@/lib/indexing/spreadsheet"
 
 const ALLOWED_MODELS = [
-  "5-nano",
-  "5-mini",
-  "5",
+  "gpt-4o-mini",
+  "gpt-5-nano",
+  "gpt-5-mini",
 ] as const
 const STORAGE_BUCKET = "source-files"
 const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024
@@ -436,11 +436,11 @@ export async function queueIndexAction(formData: FormData) {
       targetId: sourceId,
       after: { bot_id: botId || null, embedding_model: "text-embedding-3-small" },
     })
-    redirect(toAppUrl(redirectTo, { notice: "インデックス実行をキュー登録しました。" }))
+    redirect(toAppUrl(redirectTo, { notice: "ナレッジ更新をキュー登録しました。" }))
   } catch (error) {
     redirect(
       toAppUrl(String(formData.get("redirect_to") ?? ""), {
-        error: error instanceof Error ? error.message : "インデックス実行に失敗しました。",
+        error: error instanceof Error ? error.message : "ナレッジ更新に失敗しました。",
       })
     )
   }
@@ -618,11 +618,11 @@ export async function runIndexingWorkerAction(formData: FormData) {
       const err = results[0]?.error ?? "実行対象キューがないか、処理に失敗しました。"
       redirect(toAppUrl(redirectTo, { error: err }))
     }
-    redirect(toAppUrl(redirectTo, { notice: "インデックスジョブを1件実行しました。" }))
+    redirect(toAppUrl(redirectTo, { notice: "ナレッジ読み込みを1件実行しました。" }))
   } catch (error) {
     redirect(
       toAppUrl(String(formData.get("redirect_to") ?? ""), {
-        error: error instanceof Error ? error.message : "インデックス実行に失敗しました。",
+        error: error instanceof Error ? error.message : "ナレッジ読み込みに失敗しました。",
       })
     )
   }
@@ -826,9 +826,9 @@ export async function updateHostedConfigAction(formData: FormData) {
     const faqQuestions = [0, 1, 2, 3, 4]
       .map((i) => String(formData.get(`faq_question_${i}`) ?? "").trim())
       .filter(Boolean)
-    const aiModel = normalizeModel(String(formData.get("ai_model") ?? "5-mini"), "5-mini")
+    const aiModel = normalizeModel(String(formData.get("ai_model") ?? "gpt-5-mini"), "gpt-5-mini")
     const aiFallbackRaw = String(formData.get("ai_fallback_model") ?? "").trim()
-    const aiFallbackModel = aiFallbackRaw === "" ? null : normalizeModel(aiFallbackRaw, "5-mini")
+    const aiFallbackModel = aiFallbackRaw === "" ? null : normalizeModel(aiFallbackRaw, "gpt-5-mini")
     const aiMaxOutputTokensRaw = Number(formData.get("ai_max_output_tokens") ?? 1200)
     const aiMaxOutputTokens = Number.isFinite(aiMaxOutputTokensRaw)
       ? Math.max(200, Math.min(4000, Math.floor(aiMaxOutputTokensRaw)))
@@ -1325,6 +1325,104 @@ export async function revokeMemberInviteAction(formData: FormData) {
     redirect(
       toAppUrl(String(formData.get("redirect_to") ?? ""), {
         error: error instanceof Error ? error.message : "招待取り消しに失敗しました。",
+      })
+    )
+  }
+}
+
+function isMissingRelationError(error: unknown) {
+  if (!error || typeof error !== "object") return false
+  const maybe = error as { code?: string | null; message?: string | null }
+  return (
+    maybe.code === "42P01" ||
+    String(maybe.message ?? "").toLowerCase().includes("does not exist")
+  )
+}
+
+export async function updateMemberHostedAccessAction(formData: FormData) {
+  try {
+    const redirectTo = String(formData.get("redirect_to") ?? "")
+    const memberUserId = String(formData.get("member_user_id") ?? "").trim()
+    const { tenantId } = await getTenantContext(true)
+    const admin = createAdminClient()
+
+    if (!memberUserId) {
+      throw new Error("メンバーIDが指定されていません。")
+    }
+
+    const { data: memberRow, error: memberError } = await admin
+      .from("tenant_memberships")
+      .select("user_id, is_active")
+      .eq("tenant_id", tenantId)
+      .eq("user_id", memberUserId)
+      .maybeSingle()
+
+    if (memberError) throw memberError
+    if (!memberRow) {
+      throw new Error("対象メンバーが見つかりません。")
+    }
+
+    const { data: botsRaw, error: botsError } = await admin
+      .from("bots")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .neq("status", "archived")
+
+    if (botsError) throw botsError
+
+    const allBotIds = new Set((botsRaw ?? []).map((row) => String(row.id)))
+    const allowedBotIds = new Set(
+      formData
+        .getAll("allowed_bot_ids")
+        .map((value) => String(value))
+        .filter((botId) => allBotIds.has(botId))
+    )
+    const blockedBotIds = [...allBotIds].filter((botId) => !allowedBotIds.has(botId))
+
+    const { error: clearError } = await admin
+      .from("bot_hosted_access_blocks")
+      .delete()
+      .eq("tenant_id", tenantId)
+      .eq("user_id", memberUserId)
+
+    if (clearError) {
+      if (isMissingRelationError(clearError)) {
+        throw new Error("Bot単位アクセス制御テーブルが未適用です。DBパッチを適用してください。")
+      }
+      throw clearError
+    }
+
+    if (blockedBotIds.length > 0) {
+      const rows = blockedBotIds.map((botId) => ({
+        tenant_id: tenantId,
+        bot_id: botId,
+        user_id: memberUserId,
+      }))
+      const { error: insertError } = await admin.from("bot_hosted_access_blocks").insert(rows)
+      if (insertError) {
+        if (isMissingRelationError(insertError)) {
+          throw new Error("Bot単位アクセス制御テーブルが未適用です。DBパッチを適用してください。")
+        }
+        throw insertError
+      }
+    }
+
+    await writeAuditLog(admin, {
+      tenantId,
+      action: "tenant.member.bot_access.update",
+      targetType: "tenant_membership",
+      targetId: memberUserId,
+      after: {
+        allowed_bot_count: allowedBotIds.size,
+        blocked_bot_count: blockedBotIds.length,
+      },
+    })
+
+    redirect(toAppUrl(redirectTo, { notice: "メンバーのBotアクセス権を更新しました。" }))
+  } catch (error) {
+    redirect(
+      toAppUrl(String(formData.get("redirect_to") ?? ""), {
+        error: error instanceof Error ? error.message : "メンバーのBotアクセス権更新に失敗しました。",
       })
     )
   }

@@ -1244,23 +1244,21 @@ create index if not exists idx_bots_force_stopped on public.bots(force_stopped);
 
 -- E) bot-level AI model + hosted rooms/invites
 alter table public.bots
-  add column if not exists ai_model text not null default '5-mini',
+  add column if not exists ai_model text not null default 'gpt-5-mini',
   add column if not exists ai_fallback_model text,
   add column if not exists ai_max_output_tokens integer not null default 1200,
   add column if not exists faq_questions text[] not null default '{}';
 
 do $$
 begin
-  if not exists (select 1 from pg_constraint where conname = 'bots_ai_model_ck') then
+  if exists (select 1 from pg_constraint where conname = 'bots_ai_model_ck') then
     alter table public.bots
-      add constraint bots_ai_model_ck
-      check (ai_model in ('5-nano', '5-mini', '5'));
+      drop constraint bots_ai_model_ck;
   end if;
 
-  if not exists (select 1 from pg_constraint where conname = 'bots_ai_fallback_model_ck') then
+  if exists (select 1 from pg_constraint where conname = 'bots_ai_fallback_model_ck') then
     alter table public.bots
-      add constraint bots_ai_fallback_model_ck
-      check (ai_fallback_model is null or ai_fallback_model in ('5-nano', '5-mini', '5'));
+      drop constraint bots_ai_fallback_model_ck;
   end if;
 
   if not exists (select 1 from pg_constraint where conname = 'bots_ai_max_output_tokens_ck') then
@@ -1310,6 +1308,16 @@ create table if not exists public.tenant_member_invites (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.bot_hosted_access_blocks (
+  tenant_id uuid not null references public.tenants(id) on delete cascade,
+  bot_id uuid not null references public.bots(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  blocked_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (tenant_id, bot_id, user_id)
+);
+
 create unique index if not exists uq_tenant_member_invites_active
 on public.tenant_member_invites (tenant_id, email)
 where status = 'pending';
@@ -1318,6 +1326,8 @@ create index if not exists idx_hosted_chat_rooms_owner on public.hosted_chat_roo
 create index if not exists idx_hosted_chat_rooms_tenant_bot on public.hosted_chat_rooms(tenant_id, bot_id, updated_at desc);
 create index if not exists idx_hosted_chat_messages_room on public.hosted_chat_messages(room_id, created_at asc);
 create index if not exists idx_tenant_member_invites_tenant_created on public.tenant_member_invites(tenant_id, created_at desc);
+create index if not exists idx_bot_hosted_access_blocks_tenant_user on public.bot_hosted_access_blocks(tenant_id, user_id);
+create index if not exists idx_bot_hosted_access_blocks_bot_user on public.bot_hosted_access_blocks(bot_id, user_id);
 
 do $$
 begin
@@ -1340,12 +1350,23 @@ begin
     before update on public.tenant_member_invites
     for each row execute procedure app.set_updated_at();
   end if;
+
+  if not exists (
+    select 1 from pg_trigger
+    where tgname = 'set_bot_hosted_access_blocks_updated_at'
+      and tgrelid = 'public.bot_hosted_access_blocks'::regclass
+  ) then
+    create trigger set_bot_hosted_access_blocks_updated_at
+    before update on public.bot_hosted_access_blocks
+    for each row execute procedure app.set_updated_at();
+  end if;
 end
 $$;
 
 alter table public.hosted_chat_rooms enable row level security;
 alter table public.hosted_chat_messages enable row level security;
 alter table public.tenant_member_invites enable row level security;
+alter table public.bot_hosted_access_blocks enable row level security;
 
 do $$
 begin
@@ -1396,6 +1417,23 @@ begin
   ) then
     create policy "tenant_member_invites_write_editor"
     on public.tenant_member_invites for all
+    using (app.can_write_tenant(tenant_id))
+    with check (app.can_write_tenant(tenant_id));
+  end if;
+
+  if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'bot_hosted_access_blocks' and policyname = 'bot_hosted_access_blocks_select_member'
+  ) then
+    create policy "bot_hosted_access_blocks_select_member"
+    on public.bot_hosted_access_blocks for select
+    using (app.can_read_tenant(tenant_id));
+  end if;
+
+  if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'bot_hosted_access_blocks' and policyname = 'bot_hosted_access_blocks_write_editor'
+  ) then
+    create policy "bot_hosted_access_blocks_write_editor"
+    on public.bot_hosted_access_blocks for all
     using (app.can_write_tenant(tenant_id))
     with check (app.can_write_tenant(tenant_id));
   end if;

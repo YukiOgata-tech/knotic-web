@@ -8,6 +8,7 @@ import {
   requireConsoleContext,
 } from "@/app/console/_lib/data"
 import { firstParam, fmtDate } from "@/app/console/_lib/ui"
+import { MemberHostedAccessForm } from "@/app/console/members/member-hosted-access-form"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -135,6 +136,51 @@ export default async function ConsoleMembersPage({ searchParams }: PageProps) {
               ) : null}
             </div>
           ))}
+        </CardContent>
+      </Card>
+
+      <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
+        <CardHeader>
+          <CardTitle>Hosted URLアクセス制御（Bot単位）</CardTitle>
+          <CardDescription>
+            デフォルトは全Botへのアクセス許可です。トグルをOFFにしたBotのみ、そのメンバーのアクセスを除外します。
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          {!data.hostedAccessControlReady ? (
+            <p className="rounded-md border border-amber-300/70 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-200">
+              Bot単位アクセス制御テーブルが未適用です。DBパッチ適用後にこの機能が有効になります。
+            </p>
+          ) : null}
+          {data.hostedAccessControlError ? (
+            <p className="rounded-md border border-rose-300/70 bg-rose-50 px-3 py-2 text-xs text-rose-900 dark:border-rose-500/40 dark:bg-rose-950/30 dark:text-rose-200">
+              Bot単位アクセス制御のデータ取得に失敗しました。時間をおいて再読み込みしてください。
+            </p>
+          ) : null}
+          {data.hostedBots.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Botがまだ作成されていません。</p>
+          ) : (
+            data.members.map((member) => {
+              const blockedBotIds = data.blockedBotIdsByUser.get(member.user_id) ?? new Set<string>()
+              const initialAllowedBotIds = data.hostedBots
+                .map((bot) => bot.id)
+                .filter((botId) => !blockedBotIds.has(botId))
+              return (
+                <MemberHostedAccessForm
+                  key={`bot-access-${member.user_id}`}
+                  memberUserId={member.user_id}
+                  memberLabel={data.emailByUserId.get(member.user_id) ?? member.user_id}
+                  memberRole={member.role}
+                  memberIsActive={member.is_active}
+                  hostedBots={data.hostedBots}
+                  initialAllowedBotIds={initialAllowedBotIds}
+                  redirectTo="/console/members"
+                  isEditor={isEditor}
+                  hostedAccessControlReady={data.hostedAccessControlReady}
+                />
+              )
+            })
+          )}
         </CardContent>
       </Card>
     </div>

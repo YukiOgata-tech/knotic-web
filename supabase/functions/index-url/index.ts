@@ -1,20 +1,20 @@
 // Supabase Edge Function: index-url
-// Handles URL indexing (raw text extraction) with SSE progress streaming.
-// Invoked from the browser after /api/v1/index-url-init creates the source + job.
+// Standard indexing mode: Readability-style extraction + cross-page deduplication.
+// No LLM calls — fast enough for full-site crawls without timeout risk.
 //
-// To switch to Vercel Pro (inline SSE route), update handleUrlSubmit in
-// hosted-config-editor.tsx to call /api/v1/index-url directly instead of this function.
+// Pipeline:
+//   1. Discover pages via sitemap (max 100 pages)
+//   2. Fetch each page, remove noise, extract <main>/<article>, convert to Markdown
+//   3. Deduplicate identical paragraphs across pages (removes site-wide boilerplate)
+//   4. Upload combined Markdown to OpenAI File Search
 
 import {
   type AdminClient,
-  type PageResult,
   type SendFn,
-  artifactPath,
   createEdgeFunctionHandler,
-  fetchPage,
+  deduplicateSections,
+  fetchExtractAndStorePage,
   runIndexingPipeline,
-  uploadArtifact,
-  upsertSourcePage,
 } from "../_shared/indexing.ts"
 
 type SseEvent =
@@ -26,38 +26,6 @@ type SseEvent =
   | { type: "source_ready" }
   | { type: "error"; message: string }
 
-async function fetchAndStorePage(
-  admin: AdminClient,
-  params: { pageUrl: string; tenantId: string; sourceId: string; botId: string }
-): Promise<PageResult | null> {
-  const page = await fetchPage(params.pageUrl)
-  if (!page.text) return null
-
-  const rawPath = artifactPath(params.tenantId, params.sourceId, "raw", "html")
-  const textPath = artifactPath(params.tenantId, params.sourceId, "text", "txt")
-  await uploadArtifact(admin, rawPath, page.rawHtml, "text/html; charset=utf-8")
-  await uploadArtifact(admin, textPath, page.text, "text/plain; charset=utf-8")
-
-  await upsertSourcePage(admin, {
-    sourceId: params.sourceId,
-    tenantId: params.tenantId,
-    botId: params.botId,
-    canonicalUrl: page.url,
-    title: page.title,
-    statusCode: page.statusCode,
-    contentHash: page.contentHash,
-    rawPath,
-    textPath,
-    rawBytes: new TextEncoder().encode(page.rawHtml).byteLength,
-    textBytes: new TextEncoder().encode(page.text).byteLength,
-  })
-
-  return {
-    contentHash: page.contentHash,
-    section: [`## ${page.title ?? page.url}`, `URL: ${page.url}`, "", page.text].join("\n"),
-  }
-}
-
 async function processJob(admin: AdminClient, jobId: string, send: SendFn) {
   const typedSend = send as (event: SseEvent) => void
   await runIndexingPipeline({
@@ -66,9 +34,11 @@ async function processJob(admin: AdminClient, jobId: string, send: SendFn) {
     send,
     lockDurationMs: 10 * 60 * 1000,
     indexMode: "raw",
-    fileExtension: "txt",
-    fetchAndProcessPage: fetchAndStorePage,
+    fileExtension: "md",
+    fetchAndProcessPage: fetchExtractAndStorePage,
     onChunkDone: (done, total) => typedSend({ type: "page_progress", done, total }),
+    postProcessSections: deduplicateSections,
+    maxPages: 100,
   })
 }
 

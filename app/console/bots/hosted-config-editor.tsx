@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { createClient } from "@/lib/supabase/client"
 import { getSupabasePublicEnv } from "@/lib/env"
@@ -151,11 +152,22 @@ const DEFAULT_FOOTER_BG = "#f8fafc"
 const DEFAULT_FOOTER_TEXT = "#0f172a"
 const DEFAULT_WIDGET_POLICY =
   "チャット履歴はブラウザ上で24時間保持され、自動的に削除されます。"
-const MODEL_OPTIONS = ["5-nano", "5-mini", "5"] as const
+const MODEL_OPTIONS = ["gpt-5-mini", "gpt-5-nano", "gpt-4o-mini"] as const
 const MODEL_LABELS: Record<string, string> = {
-  "5-nano": "Knotic Nano",
-  "5-mini": "Knotic Mini",
-  "5": "Knotic Standard",
+  "gpt-5-mini": "Knotic Standard",
+  "gpt-5-nano": "Knotic Mini",
+  "gpt-4o-mini": "Knotic Nano",
+}
+const MODEL_OPTION_SET = new Set<string>(MODEL_OPTIONS)
+
+function normalizeUiModel(value: string | null | undefined, fallback: (typeof MODEL_OPTIONS)[number]) {
+  if (!value) return fallback
+  return MODEL_OPTION_SET.has(value) ? value : fallback
+}
+
+function normalizeUiFallbackModel(value: string | null | undefined) {
+  if (!value) return ""
+  return MODEL_OPTION_SET.has(value) ? value : ""
 }
 const SELECT_CLASS =
   "h-11 rounded-md border border-black/15 bg-white px-3 text-base text-slate-900 [color-scheme:light] sm:h-10 sm:text-sm dark:border-white/15 dark:bg-slate-950 dark:text-slate-100 dark:[color-scheme:dark]"
@@ -530,8 +542,8 @@ export function HostedConfigEditor({
   const [issuedToken, setIssuedToken] = React.useState<string | null>(null)
   const [tokenCopied, setTokenCopied] = React.useState(false)
   const [hasToken, setHasToken] = React.useState(Boolean(widgetTokenRow))
-  const [aiModel, setAiModel] = React.useState(bot.ai_model ?? "5-mini")
-  const [aiFallbackModel, setAiFallbackModel] = React.useState(bot.ai_fallback_model ?? "")
+  const [aiModel, setAiModel] = React.useState(normalizeUiModel(bot.ai_model, "gpt-5-mini"))
+  const [aiFallbackModel, setAiFallbackModel] = React.useState(normalizeUiFallbackModel(bot.ai_fallback_model))
   const [aiMaxOutputTokens, setAiMaxOutputTokens] = React.useState(String(bot.ai_max_output_tokens ?? 1200))
   const [addSourceTab, setAddSourceTab] = React.useState<"url" | "file">("url")
   const [indexMode, setIndexMode] = React.useState<"raw" | "llm">("raw")
@@ -608,6 +620,16 @@ export function HostedConfigEditor({
   const handleFormChange = React.useCallback((event: React.FormEvent<HTMLFormElement>) => {
     const target = event.target as HTMLElement | null
     if (target?.closest("[data-ignore-dirty='true']")) return
+    setIsDirty(true)
+  }, [])
+
+  const handleWidgetEnabledChange = React.useCallback((checked: boolean) => {
+    setWidgetEnabled(checked)
+    setIsDirty(true)
+  }, [])
+
+  const handleLauncherShowLabelChange = React.useCallback((checked: boolean) => {
+    setLauncherShowLabel(checked)
     setIsDirty(true)
   }, [])
 
@@ -809,18 +831,14 @@ export function HostedConfigEditor({
                 case "page_progress":
                   mark("fetch", "active", `ページ取得中 ${event.done as number} / ${event.total as number}`)
                   return { ...s, steps, pageProgress: { done: event.done as number, total: event.total as number } }
-                case "llm_structuring_page":
-                  mark("fetch", "done")
-                  mark("llm", "active", `AI構造化中...`)
-                  return { ...s, steps }
                 case "structuring_llm":
                   mark("fetch", "done")
-                  mark("llm", "active", `AI構造化中 ${event.done as number} / ${event.total as number}`)
-                  return { ...s, steps, pageProgress: { done: event.done as number, total: event.total as number } }
+                  mark("llm", "active", "AI要約中")
+                  return { ...s, steps, pageProgress: null }
                 case "syncing_openai":
                   mark("fetch", "done")
                   mark("llm", "done")
-                  mark("openai", "active", "ナレッジに登録中")
+                  mark("openai", "active", "登録中")
                   return { ...s, steps, pageProgress: null }
                 case "source_ready":
                   mark("fetch", "done")
@@ -832,7 +850,7 @@ export function HostedConfigEditor({
                     ...s,
                     warnings: [
                       ...s.warnings,
-                      `文字数超過のため先頭${(event.limit as number).toLocaleString()}文字を使用: ${event.pageUrl as string}`,
+                      `サイト全体のテキストが上限を超えたため、先頭${(event.limit as number).toLocaleString()}文字のみをAI要約に使用しました`,
                     ],
                   }
                 case "llm_output_truncated":
@@ -840,7 +858,7 @@ export function HostedConfigEditor({
                     ...s,
                     warnings: [
                       ...s.warnings,
-                      `AI出力が上限に達した可能性があります: ${event.pageUrl as string}`,
+                      "AI出力がトークン上限に達しました。内容が途中で切れている可能性があります",
                     ],
                   }
                 case "error":
@@ -944,7 +962,7 @@ export function HostedConfigEditor({
             } else if (event.type === "llm_input_truncated") {
               setReindexState((s) => ({
                 ...s,
-                warnings: [...s.warnings, `文字数超過のため先頭${(event.limit ?? 0).toLocaleString()}文字を使用`],
+                warnings: [...s.warnings, `サイト全体のテキストが上限を超えたため、先頭${(event.limit ?? 0).toLocaleString()}文字のみをAI要約に使用しました`],
               }))
             } else if (event.type === "llm_output_truncated") {
               setReindexState((s) => ({
@@ -1132,6 +1150,7 @@ export function HostedConfigEditor({
         <input type="hidden" name="bot_id" value={bot.id} />
         <input type="hidden" name="active_tab" value={activeTab} />
         <input type="hidden" name="bot_logo_url" value={logoUrl ?? ""} />
+        <input type="hidden" name="widget_enabled" value={widgetEnabled ? "on" : "off"} />
         <input type="hidden" name="launcher_show_label" value={String(launcherShowLabel)} />
 
         <Panel active={activeTab === "basic"}>
@@ -1495,10 +1514,21 @@ export function HostedConfigEditor({
             <p className="text-xs text-muted-foreground">既存サイト埋め込み用の表示・導線とトークン運用を設定します。</p>
           </div>
 
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="widget_enabled" checked={widgetEnabled} onChange={(e) => setWidgetEnabled(e.target.checked)} disabled={!isEditor} />
-            Widgetを有効にする
-          </label>
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-black/15 px-3 py-2 dark:border-white/10">
+            <div className="grid gap-0.5">
+              <Label htmlFor={`widget_enabled_${bot.id}`} className="cursor-pointer">
+                Widgetを有効にする
+              </Label>
+              <p className="text-[11px] text-muted-foreground">オフにするとサイト上のランチャーは表示されません。</p>
+            </div>
+            <Switch
+              id={`widget_enabled_${bot.id}`}
+              checked={widgetEnabled}
+              onCheckedChange={handleWidgetEnabledChange}
+              disabled={!isEditor}
+              className={cn(widgetEnabled && "data-[state=checked]:bg-emerald-500")}
+            />
+          </div>
           <div className="grid gap-3 md:grid-cols-2">
             <div className="grid gap-1.5">
               <Label htmlFor={`widget_mode_${bot.id}`}>起動モード</Label>
@@ -1550,15 +1580,18 @@ export function HostedConfigEditor({
               />
             </div>
             <div className="grid gap-1.5 md:col-span-2">
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-black/15 px-3 py-2 dark:border-white/10">
+                <Label htmlFor={`launcher_show_label_${bot.id}`} className="cursor-pointer text-sm">
+                  ラベルテキストをボタンに表示する
+                </Label>
+                <Switch
+                  id={`launcher_show_label_${bot.id}`}
                   checked={launcherShowLabel}
-                  onChange={(e) => setLauncherShowLabel(e.target.checked)}
+                  onCheckedChange={handleLauncherShowLabelChange}
                   disabled={!isEditor}
+                  className={cn(launcherShowLabel && "data-[state=checked]:bg-emerald-500")}
                 />
-                ラベルテキストをボタンに表示する
-              </label>
+              </div>
               <p className="text-[11px] text-muted-foreground">
                 オフにするとロゴ画像のみのアイコンボタンになります。ロゴ未設定時はデフォルトロゴが表示されます。
               </p>

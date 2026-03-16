@@ -25,11 +25,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(getAppUrl()),
   title: {
-    default: "knotic | URLとPDFでAIチャットボットを作成・公開",
+    default: "knotic | URLとファイルでAIチャットボットを作成・公開",
     template: "%s | knotic",
   },
   description:
-    "URLやPDFを登録するだけで、Webサイト埋め込み・共有URLで公開できるAIチャットボット作成サービス。問い合わせ自動化・マニュアル案内・社内ナレッジ検索に。",
+    "URLやファイルを登録するだけで、サイト埋め込み・共有URLで公開できるAIチャットボット作成サービス。問い合わせ自動化・マニュアル案内・社内ナレッジ検索に。",
   openGraph: {
     type: "website",
     locale: "ja_JP",

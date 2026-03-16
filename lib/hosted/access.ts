@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin"
 import { assertTenantCanUseHostedPage } from "@/lib/billing/limits"
 import { createClient } from "@/lib/supabase/server"
+import { isHostedBotAccessBlocked } from "@/lib/hosted/member-access"
 
 export type HostedBotContext = {
   id: string
@@ -72,6 +73,9 @@ export async function requireHostedMemberContext(botPublicId: string) {
     .maybeSingle()
 
   if (!membership) throw new Error("membership_required")
+
+  const blocked = await isHostedBotAccessBlocked(admin, bot.tenant_id, bot.id, user.id)
+  if (blocked) throw new Error("bot_access_denied")
 
   return {
     user,

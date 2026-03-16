@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { HostedChatClient } from "@/app/chat-by-knotic/[public_id]/hosted-chat-client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { assertTenantCanUseHostedPage } from "@/lib/billing/limits"
+import { isHostedBotAccessBlocked } from "@/lib/hosted/member-access"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 
@@ -124,6 +125,22 @@ export default async function HostedBotPage({ params, searchParams }: PageProps)
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
               このチャットは社内限定です。管理者にアクセス権をご確認ください。
+            </CardContent>
+          </Card>
+        </div>
+      )
+    }
+
+    const blocked = await isHostedBotAccessBlocked(admin, bot.tenant_id, bot.id, user.id)
+    if (blocked) {
+      return (
+        <div className="mx-auto w-full max-w-2xl px-4 py-16">
+          <Card>
+            <CardHeader>
+              <CardTitle>アクセス権限がありません</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              このBotへのアクセス権が付与されていません。管理者にアクセス設定をご確認ください。
             </CardContent>
           </Card>
         </div>

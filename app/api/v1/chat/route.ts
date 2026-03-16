@@ -11,11 +11,12 @@ import {
 } from "@/lib/billing/limits"
 import { incrementUsageDailySafe } from "@/lib/billing/usage"
 import { answerWithOpenAiFileSearch, getBotOpenAiVectorStoreId } from "@/lib/filesearch/openai"
+import { isHostedBotAccessBlocked } from "@/lib/hosted/member-access"
 import { type ConversationTurn } from "@/lib/llm/responses"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 
-const ALLOWED_MODELS = new Set(["5-nano", "5-mini", "5"])
+const ALLOWED_MODELS = new Set(["gpt-4o-mini", "gpt-5-nano", "gpt-5-mini"])
 
 type ChatRequest = {
   botPublicId?: string
@@ -304,6 +305,16 @@ async function handleChat(request: NextRequest) {
     authMode = "public"
   }
 
+  if (authMode === "internal_user" && requiresInternalAuth && user) {
+    const blocked = await isHostedBotAccessBlocked(admin, bot.tenant_id, bot.id, user.id)
+    if (blocked) {
+      return NextResponse.json(
+        { error: "access denied for this bot" },
+        { status: 403 }
+      )
+    }
+  }
+
   // internal_user（テナントメンバー自身）はプレビュー用途のためHostedページ制限を適用しない
   if (authMode === "public") {
     try {
@@ -325,7 +336,7 @@ async function handleChat(request: NextRequest) {
     )
   }
 
-  const defaultModel = normalizeModel(bot.ai_model ?? "5-mini", "5-mini")
+  const defaultModel = normalizeModel(bot.ai_model ?? "gpt-5-mini", "gpt-5-mini")
   const fallbackModel = bot.ai_fallback_model
     ? normalizeModel(bot.ai_fallback_model, defaultModel)
     : null

@@ -64,8 +64,8 @@ alter table public.sources
 comment on column public.sources.index_mode is
   'Indexing mode last applied: raw or llm';
 
--- ── 04: Remove 4o/4o-mini from allowed AI model values ────────────────────────
--- 5-series is cheaper and more capable; 4o series is no longer offered.
+-- ── 04: Remove AI model CHECK constraints (model-id agility) ──────────────────
+-- Model names change over time; enforce allowlist in app layer instead of DB CHECK.
 
 do $$
 begin
@@ -75,15 +75,10 @@ begin
   if exists (select 1 from pg_constraint where conname = 'bots_ai_fallback_model_ck') then
     alter table bots drop constraint bots_ai_fallback_model_ck;
   end if;
-
-  alter table bots
-    add constraint bots_ai_model_ck
-    check (ai_model in ('5-nano', '5-mini', '5'));
-
-  alter table bots
-    add constraint bots_ai_fallback_model_ck
-    check (ai_fallback_model is null or ai_fallback_model in ('5-nano', '5-mini', '5'));
 end $$;
+
+alter table public.bots
+  alter column ai_model set default 'gpt-5-mini';
 
 -- ── 05: FAQ preset questions for hosted chat UI ──────────────────────────────
 -- Stores up to 5 preset quick-tap question strings.

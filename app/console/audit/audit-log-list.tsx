@@ -24,8 +24,8 @@ const ACTION_LABELS: Record<string, string> = {
   // ソース
   "source.url.add":                    "URLソース追加",
   "source.pdf.add":                    "PDFソース追加",
-  // インデックス
-  "indexing.queue":                    "インデックス登録",
+  // ナレッジ読み込み
+  "indexing.queue":                    "ナレッジ読み込み登録",
   // Widget
   "widget.token.rotate":               "Widgetトークン再発行",
   "widget.allowed_origins.update":     "Widget許可オリジン更新",

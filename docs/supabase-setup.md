@@ -79,17 +79,13 @@ Supabase Storageで次のバケットを作成してください。
 
 
 ## 追加パッチ（監査ログ/運用ダッシュボード）
-- `supabase/patch-20260226-audit-and-ops.sql`
 
 
 ## 追加パッチ（Platform Admin Console）
-- `supabase/patch-20260226-platform-admin-console.sql`
 
-最初の管理者ユーザー登録（SQL例）:
+最初の管理者ユーザー登録:
 ```sql
 insert into public.platform_admin_users (user_id, role, is_active)
 values ('<auth.users.id>', 'owner', true)
 on conflict (user_id) do update set role = excluded.role, is_active = excluded.is_active;
 ```
-
-

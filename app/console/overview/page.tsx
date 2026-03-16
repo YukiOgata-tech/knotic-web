@@ -104,7 +104,7 @@ export default async function ConsoleOverviewPage({ searchParams }: PageProps) {
           <CardContent className="grid gap-2 text-sm">
             {[
               { href: "/console/bots", label: "Bot管理 — Botの作成・設定変更" },
-              { href: "/console/operations", label: "運用 — インデックス実行・ソース確認" },
+              { href: "/console/operations", label: "運用 — ナレッジ更新・ソース確認" },
               { href: "/console/api-keys", label: "APIキー — キーの発行・失効" },
               { href: "/console/members", label: "メンバー — 招待リンク発行" },
               { href: "/console/billing", label: "請求・プラン — プラン変更・請求履歴" },

@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 function toErrorStatus(message: string) {
   if (message === "authentication_required") return 401
   if (message === "membership_required") return 403
+  if (message === "bot_access_denied") return 403
   if (message === "bot_not_found") return 404
   if (message === "bot_not_ready") return 409
   if (message === "internal_mode_required") return 400
