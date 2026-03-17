@@ -9,8 +9,6 @@ import { createAdminClient } from "@/lib/supabase/admin"
 // Lightweight route that handles auth, billing, and job creation for URL indexing.
 // Returns { jobId } which the client then passes to the Supabase Edge Function
 // to run the actual crawl+index pipeline with SSE streaming.
-//
-// To switch to Vercel Pro (inline SSE), remove this route and use /api/v1/index-url directly.
 
 export async function POST(request: NextRequest) {
   // Auth must be resolved outside any async streams

@@ -14,6 +14,29 @@ function hasValidRunnerAuth(request: NextRequest) {
   return auth.slice("Bearer ".length).trim() === secret
 }
 
+// Vercel Cron からの GET リクエストを受け付ける（毎日 03:00 UTC）
+export async function GET(request: NextRequest) {
+  if (request.headers.get("x-vercel-cron") !== "1") {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
+  try {
+    const results = await enforceAllTenantPlanLimits()
+    const summary = {
+      totalTenants: results.length,
+      apiKeysRevoked: results.reduce((s, r) => s + r.apiKeysRevoked, 0),
+      botOverLimit: results.filter((r) => r.botOverLimit > 0).length,
+      storageOver: results.filter((r) => r.storageOverBytes > 0).length,
+      hostedOverLimit: results.filter((r) => r.hostedOverLimit > 0).length,
+    }
+    console.log("[billing/enforce] cron completed", summary)
+    return NextResponse.json({ ok: true, mode: "batch", ...summary })
+  } catch (err) {
+    console.error("[billing/enforce] cron failed", err)
+    return NextResponse.json({ error: "internal error" }, { status: 500 })
+  }
+}
+
 type EnforceRequest = {
   tenantId?: string
   limit?: number

@@ -113,6 +113,12 @@ export function LoginForm() {
           />
         </div>
 
+        <div className="flex justify-end">
+          <Link href="/forgot-password" className="text-xs text-muted-foreground underline-offset-2 hover:underline">
+            パスワードをお忘れの方
+          </Link>
+        </div>
+
         {error && <p className="text-sm text-destructive">{error}</p>}
 
         <Button className="rounded-full" disabled={loading}>

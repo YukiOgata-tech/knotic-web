@@ -92,8 +92,3 @@ npx supabase secrets set OPENAI_API_KEY=<your-key> --project-ref wbsrawibepsvcvk
 2. `supabase/functions/index-url/index.ts` の内容を貼り付けてデプロイ
 3. Settings → Edge Function Secrets → `OPENAI_API_KEY` を追加
 
-### Vercel Pro に移行する場合（インライン SSE に切り替え）
-
-`hosted-config-editor.tsx` の `handleUrlSubmit` で呼び出し先を変更するだけ:
-- **Supabase Functions（現在）**: Step1 `/api/v1/index-url-init` → Step2 Edge Function SSE
-- **Vercel Pro（切替後）**: `/api/v1/index-url` に直接 POST（既存ルート、変更なし）

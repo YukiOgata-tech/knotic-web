@@ -7,7 +7,7 @@ export type CommercialLawSection = {
 
 export const commercialLawMeta = {
   effectiveDate: "2026-02-10",
-  revisedAt: "2026-03-01",
+  revisedAt: "2026-03-17",
 }
 
 /**
@@ -22,16 +22,16 @@ export const commercialLawSections: CommercialLawSection[] = [
     title: "1. 販売事業者",
     paragraphs: [
       "販売事業者：make-it-tech.com（knotic 運営）",
-      "運営統括責任者：【後程記入】（請求があった場合、遅滞なく開示します。）",
-      "所在地：【後程記入】（請求があった場合、遅滞なく開示します。）",
-      "電話番号：【後程記入】（請求があった場合、遅滞なく開示します。）",
+      "運営統括責任者：尾形友輝",
+      "所在地：〒150-0043 東京都渋谷区道玄坂1丁目10番地8号 渋谷道玄坂東急ビル2F-C",
+      "電話番号：お問い合わせはメールにて承ります。",
     ],
   },
   {
     id: "contact",
     title: "2. お問い合わせ窓口",
     paragraphs: [
-      "本サービス内のお問い合わせフォーム（/contact）またはメール（【後程記入】）にてご連絡ください。",
+      "本サービス内のお問い合わせフォーム（/contact）またはメール（info@make-it-tech.com）にてご連絡ください。",
       "対応時間：平日 10:00〜18:00（日本時間）。土日・祝日・年末年始（12/29〜1/3）を除きます。受信確認のご返信は翌営業日以降となる場合があります。",
     ],
   },
