@@ -16,8 +16,10 @@ export function LoginForm() {
   const searchParams = useSearchParams()
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
+  const [honeypot, setHoneypot] = React.useState("")
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const startedAtRef = React.useRef(Date.now())
 
   const next = searchParams.get("next") ?? "/console"
 
@@ -27,6 +29,30 @@ export function LoginForm() {
     setError(null)
 
     try {
+      // Bot check: honeypot / timing / rate limit
+      try {
+        const checkRes = await fetch("/api/auth/bot-check", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "login", honeypot, startedAt: startedAtRef.current, email }),
+        })
+        const checkData = await checkRes.json().catch(() => ({}))
+
+        if (checkData.blocked) {
+          // Silent: bot detected — reset form without error message
+          setEmail("")
+          setPassword("")
+          return
+        }
+        if (checkRes.status === 429) {
+          const sec: number = checkData.retryAfterSec ?? 60
+          setError(`リクエストが多すぎます。${sec}秒後にもう一度お試しください。`)
+          return
+        }
+      } catch {
+        // Network error during bot check — proceed to avoid blocking legitimate users
+      }
+
       const supabase = createClient()
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email,
@@ -48,6 +74,18 @@ export function LoginForm() {
   return (
     <>
       <form className="grid gap-4" onSubmit={onSubmit}>
+        {/* Honeypot: hidden from humans, bots will fill this */}
+        <input
+          type="text"
+          name="website"
+          value={honeypot}
+          onChange={(e) => setHoneypot(e.target.value)}
+          tabIndex={-1}
+          aria-hidden="true"
+          autoComplete="off"
+          style={{ position: "absolute", left: "-9999px", width: 1, height: 1, opacity: 0, overflow: "hidden" }}
+        />
+
         <div className="grid gap-2">
           <Label htmlFor="email">メールアドレス</Label>
           <Input

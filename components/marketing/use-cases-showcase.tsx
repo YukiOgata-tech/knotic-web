@@ -38,7 +38,7 @@ const useCases = [
   },
   {
     icon: Building2,
-    tag: "社内ナレッジ共有",
+    tag: "社内ガイドライン共有",
     tagClass: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200",
     iconClass: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
     title: "社内の知識を、誰でも引き出せる形に",
@@ -105,15 +105,15 @@ const gettingStartedSteps = [
   },
   {
     num: "2",
-    title: "使うURL・PDFを用意する",
+    title: "使うURL・ファイルを用意する",
     description:
-      "登録するWebページやPDFを事前に整理しておくと、スムーズにBotを作成できます。",
+      "登録するWebページやファイル(PDF等)を事前に整理しておくと、スムーズにBotを作成できます。",
   },
   {
     num: "3",
     title: "公開方法を選んで公開する",
     description:
-      "既存サイトへのWidget埋め込みか、専用URLでの共有かを選んで、すぐに公開できます。",
+      "既存サイトへのWidget埋め込みか、専用の共有URLでの共有かを選んで、すぐに公開できます。",
   },
 ]
 
@@ -127,7 +127,7 @@ function UseCasesShowcase() {
         </p>
         <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">4つの代表的な活用用途</h2>
         <p className="mt-2 text-sm leading-7 text-zinc-600 sm:text-base sm:leading-8 dark:text-zinc-300">
-          まずは1用途に絞ってスタートし、運用が安定したら段階的に広げていけます。
+          まずは絞ってスタートし、運用が安定したら段階的に広げていけます。
         </p>
 
         <div className="mt-5 grid gap-3 sm:gap-4 lg:grid-cols-2">

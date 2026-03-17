@@ -779,6 +779,17 @@ export function HostedChatClient({
               <SendHorizontal className="size-4.5" />
             </Button>
           </div>
+          <p className="mt-1.5 pb-0.5 text-center text-[10px] opacity-50">
+            会話内容はサービス改善等のためサーバーに保存されます。
+            {" "}
+            <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+              プライバシーポリシー
+            </a>
+            {" "}・{" "}
+            <a href="/contact" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+              個人情報に関するお問い合わせ
+            </a>
+          </p>
         </div>
       </section>
     </div>

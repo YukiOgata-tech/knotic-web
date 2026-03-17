@@ -30,7 +30,10 @@ export function SignupForm({ mode = "owner" }: { mode?: SignupMode }) {
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
   const [loading, setLoading] = React.useState(false)
+  const [consent, setConsent] = React.useState(false)
+  const [honeypot, setHoneypot] = React.useState("")
   const [error, setError] = React.useState<string | null>(null)
+  const startedAtRef = React.useRef(Date.now())
   const [message, setMessage] = React.useState<string | null>(null)
   const [showVerifyModal, setShowVerifyModal] = React.useState(false)
 
@@ -43,6 +46,32 @@ export function SignupForm({ mode = "owner" }: { mode?: SignupMode }) {
     setMessage(null)
 
     try {
+      // Bot check: honeypot / timing / rate limit
+      try {
+        const checkRes = await fetch("/api/auth/bot-check", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "signup", honeypot, startedAt: startedAtRef.current, email }),
+        })
+        const checkData = await checkRes.json().catch(() => ({}))
+
+        if (checkData.blocked) {
+          // Silent: bot detected — reset form without error message
+          setFullName("")
+          setCompanyName("")
+          setEmail("")
+          setPassword("")
+          return
+        }
+        if (checkRes.status === 429) {
+          const sec: number = checkData.retryAfterSec ?? 60
+          setError(`リクエストが多すぎます。${sec}秒後にもう一度お試しください。`)
+          return
+        }
+      } catch {
+        // Network error during bot check — proceed to avoid blocking legitimate users
+      }
+
       const supabase = createClient()
       const origin =
         process.env.NEXT_PUBLIC_APP_URL ??
@@ -87,6 +116,18 @@ export function SignupForm({ mode = "owner" }: { mode?: SignupMode }) {
   return (
     <>
       <form className="grid gap-4" onSubmit={onSubmit}>
+        {/* Honeypot: hidden from humans, bots will fill this */}
+        <input
+          type="text"
+          name="website"
+          value={honeypot}
+          onChange={(e) => setHoneypot(e.target.value)}
+          tabIndex={-1}
+          aria-hidden="true"
+          autoComplete="off"
+          style={{ position: "absolute", left: "-9999px", width: 1, height: 1, opacity: 0, overflow: "hidden" }}
+        />
+
         <div className="grid gap-2">
           <Label htmlFor="full-name">担当者名</Label>
           <Input
@@ -139,10 +180,28 @@ export function SignupForm({ mode = "owner" }: { mode?: SignupMode }) {
           />
         </div>
 
+        <div className="flex items-start gap-2.5">
+          <input
+            id="consent"
+            type="checkbox"
+            required
+            checked={consent}
+            onChange={(e) => setConsent(e.target.checked)}
+            disabled={loading}
+            className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-cyan-600"
+          />
+          <label htmlFor="consent" className="text-sm leading-5 text-muted-foreground">
+            <Link href="/terms" target="_blank" className="underline underline-offset-2 hover:text-foreground">利用規約</Link>
+            および
+            <Link href="/privacy" target="_blank" className="underline underline-offset-2 hover:text-foreground">プライバシーポリシー</Link>
+            に同意します
+          </label>
+        </div>
+
         {error && <p className="text-sm text-destructive">{error}</p>}
         {message && <p className="text-sm text-emerald-600 dark:text-emerald-400">{message}</p>}
 
-        <Button className="rounded-full" disabled={loading}>
+        <Button className="rounded-full" disabled={loading || !consent}>
           {loading ? (
             <span className="inline-flex items-center gap-2">
               <Loader2 className="size-4 animate-spin" />

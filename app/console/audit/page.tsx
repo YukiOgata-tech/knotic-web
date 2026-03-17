@@ -2,8 +2,10 @@ import { testAuditLogAction } from "@/app/console/actions"
 import { firstParam } from "@/app/console/_lib/ui"
 import { ConsoleAlerts } from "@/app/console/_components/console-alerts"
 import { fetchAuditLogs, requireConsoleContext } from "@/app/console/_lib/data"
+import { getTenantPlanSnapshot } from "@/lib/billing/limits"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { AuditLogList } from "@/app/console/audit/audit-log-list"
+import { AuditExportButton } from "@/app/console/audit/audit-export-button"
 
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
@@ -38,6 +40,9 @@ export default async function ConsoleAuditPage({ searchParams }: PageProps) {
   const { membership } = await requireConsoleContext()
   if (!membership) return null
 
+  const plan = await getTenantPlanSnapshot(membership.tenant_id).catch(() => null)
+  const retentionDays = plan?.planCode === "lite" ? 7 : 30
+
   const { rows, error: auditError } = await fetchAuditLogs(membership.tenant_id, {
     action: action || undefined,
     targetType: targetType || undefined,
@@ -50,8 +55,13 @@ export default async function ConsoleAuditPage({ searchParams }: PageProps) {
 
       <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
         <CardHeader>
-          <CardTitle>監査ログ</CardTitle>
-          <CardDescription>運用操作の証跡を時系列で確認できます。</CardDescription>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <CardTitle>監査ログ</CardTitle>
+              <CardDescription>運用操作の証跡を時系列で確認できます。</CardDescription>
+            </div>
+            <AuditExportButton action={action || undefined} targetType={targetType || undefined} />
+          </div>
         </CardHeader>
         <CardContent className="grid gap-3">
           <form action={testAuditLogAction} className="rounded-lg border border-black/20 p-3 text-sm dark:border-white/10">
@@ -111,6 +121,10 @@ export default async function ConsoleAuditPage({ searchParams }: PageProps) {
               監査ログの読み込みに失敗しました。しばらく時間をおいて再試行するか、サポートにお問い合わせください。
             </p>
           ) : null}
+
+          <p className="text-right text-[11px] text-muted-foreground">
+            現在のプランでは過去 <span className="font-medium">{retentionDays}日間</span> のログを保持します。
+          </p>
 
           <AuditLogList rows={rows} />
         </CardContent>

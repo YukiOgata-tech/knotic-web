@@ -370,6 +370,14 @@ export type FileSearchAnswer = {
   citationFileIds: string[]
 }
 
+function getReasoningEffortByModel(model: string): "minimal" | null {
+  const normalized = model.trim().toLowerCase()
+  if (normalized.startsWith("gpt-5-mini") || normalized.startsWith("gpt-5-nano")) {
+    return "minimal"
+  }
+  return null
+}
+
 export async function answerWithOpenAiFileSearch(params: {
   vectorStoreId: string
   model: string
@@ -380,6 +388,7 @@ export async function answerWithOpenAiFileSearch(params: {
   maxOutputTokens?: number
 }) {
   const tryCall = async (model: string): Promise<FileSearchAnswer> => {
+    const reasoningEffort = getReasoningEffortByModel(model)
     // instructions は input[] の外で渡す（ユーザー入力と明確に分離）
     const input = [
       ...(params.conversation ?? []).map((turn) => ({
@@ -408,6 +417,7 @@ export async function answerWithOpenAiFileSearch(params: {
         ],
         tool_choice: "auto",
         max_output_tokens: params.maxOutputTokens ?? 900,
+        ...(reasoningEffort ? { reasoning: { effort: reasoningEffort } } : {}),
       }),
     })
 

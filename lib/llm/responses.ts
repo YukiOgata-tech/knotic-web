@@ -36,6 +36,14 @@ function normalizeTurns(conversation: ConversationTurn[] | undefined) {
   return turns
 }
 
+function getReasoningEffortByModel(model: string): "minimal" | null {
+  const normalized = model.trim().toLowerCase()
+  if (normalized.startsWith("gpt-5-mini") || normalized.startsWith("gpt-5-nano")) {
+    return "minimal"
+  }
+  return null
+}
+
 async function callResponsesApi(params: {
   model: string
   systemPrompt: string
@@ -55,6 +63,7 @@ async function callResponsesApi(params: {
       content: [{ type: "input_text", text: params.userPrompt }],
     },
   ]
+  const reasoningEffort = getReasoningEffortByModel(params.model)
 
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -66,6 +75,7 @@ async function callResponsesApi(params: {
       model: params.model,
       input,
       max_output_tokens: params.maxOutputTokens ?? 900,
+      ...(reasoningEffort ? { reasoning: { effort: reasoningEffort } } : {}),
     }),
   })
 
