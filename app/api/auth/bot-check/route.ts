@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
-import { applyLoginRateLimit, applySignupRateLimit } from "@/lib/auth/auth-rate-limit"
+import { applyLoginRateLimit, applySignupRateLimit, checkLoginLockout } from "@/lib/auth/auth-rate-limit"
+import { isDisposableEmail } from "@/lib/auth/disposable-email-domains"
 
 const SCHEMA = z.object({
   action: z.enum(["login", "signup"]),
@@ -43,10 +44,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, blocked: true })
   }
 
+  // Disposable email check (signup only)
+  if (action === "signup" && email && isDisposableEmail(email)) {
+    return NextResponse.json({ ok: true, blocked: true })
+  }
+
   const ip = getClientIp(request)
 
   if (action === "login") {
-    const rate = applyLoginRateLimit({ ip })
+    // Lockout check (per email)
+    if (email) {
+      const lockout = await checkLoginLockout(email)
+      if (!lockout.allowed) {
+        return NextResponse.json(
+          { error: "rate_limited", retryAfterSec: lockout.retryAfterSec },
+          { status: 429, headers: { "Retry-After": String(lockout.retryAfterSec) } }
+        )
+      }
+    }
+
+    const rate = await applyLoginRateLimit({ ip })
     if (!rate.allowed) {
       return NextResponse.json(
         { error: "rate_limited", retryAfterSec: rate.retryAfterSec },
@@ -54,7 +71,7 @@ export async function POST(request: NextRequest) {
       )
     }
   } else {
-    const rate = applySignupRateLimit({ ip, email })
+    const rate = await applySignupRateLimit({ ip, email })
     if (!rate.allowed) {
       return NextResponse.json(
         { error: "rate_limited", retryAfterSec: rate.retryAfterSec },

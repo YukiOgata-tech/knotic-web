@@ -1,75 +1,70 @@
 import crypto from "node:crypto"
 
-type Bucket = {
-  timestamps: number[]
-}
+import { createAdminClient } from "@/lib/supabase/admin"
+import { dbCheckAndIncrement, type RateLimitResult } from "@/lib/rate-limit/db"
 
-type RateLimitResult = {
-  allowed: boolean
-  retryAfterSec: number
-}
+export type { RateLimitResult }
 
-const WINDOW_MINUTE_MS = 60 * 1000
-const WINDOW_HOUR_MS = 60 * 60 * 1000
+function hashEmail(email: string): string {
+  return crypto.createHash("sha256").update(email.toLowerCase().trim()).digest("hex")
+}
 
 // Login: 10 attempts/min per IP, 40 attempts/hour per IP
-const LOGIN_PER_MINUTE_IP = 10
-const LOGIN_PER_HOUR_IP = 40
+export async function applyLoginRateLimit(input: { ip: string }): Promise<RateLimitResult> {
+  const perMin = await dbCheckAndIncrement(`login:ip:min:${input.ip}`, 10, 60)
+  if (!perMin.allowed) return perMin
+  return dbCheckAndIncrement(`login:ip:hr:${input.ip}`, 40, 3600)
+}
 
 // Signup: 5 attempts/hour per IP, 3 attempts/hour per email
-const SIGNUP_PER_HOUR_IP = 5
-const SIGNUP_PER_HOUR_EMAIL = 3
-
-const store = globalThis as typeof globalThis & {
-  __knoticAuthRateLimit?: Map<string, Bucket>
-}
-
-const rateLimitMap = store.__knoticAuthRateLimit ?? new Map<string, Bucket>()
-store.__knoticAuthRateLimit = rateLimitMap
-
-function cleanupBucket(bucket: Bucket, now: number) {
-  bucket.timestamps = bucket.timestamps.filter((ts) => now - ts <= WINDOW_HOUR_MS)
-}
-
-function fingerprint(value: string) {
-  return crypto.createHash("sha256").update(value).digest("hex")
-}
-
-function checkAndConsume(key: string, max: number, windowMs: number, now: number): RateLimitResult {
-  const bucket = rateLimitMap.get(key) ?? { timestamps: [] }
-  cleanupBucket(bucket, now)
-
-  const within = bucket.timestamps.filter((ts) => now - ts <= windowMs)
-  if (within.length >= max) {
-    const oldest = within[0] ?? now
-    const retryAfterMs = windowMs - (now - oldest)
-    return { allowed: false, retryAfterSec: Math.max(1, Math.ceil(retryAfterMs / 1000)) }
-  }
-
-  bucket.timestamps.push(now)
-  rateLimitMap.set(key, bucket)
-  return { allowed: true, retryAfterSec: 0 }
-}
-
-export function applyLoginRateLimit(input: { ip: string }): RateLimitResult {
-  const now = Date.now()
-
-  const perMinResult = checkAndConsume(`login:ip:min:${input.ip}`, LOGIN_PER_MINUTE_IP, WINDOW_MINUTE_MS, now)
-  if (!perMinResult.allowed) return perMinResult
-
-  return checkAndConsume(`login:ip:hr:${input.ip}`, LOGIN_PER_HOUR_IP, WINDOW_HOUR_MS, now)
-}
-
-export function applySignupRateLimit(input: { ip: string; email: string }): RateLimitResult {
-  const now = Date.now()
-
-  const ipResult = checkAndConsume(`signup:ip:hr:${input.ip}`, SIGNUP_PER_HOUR_IP, WINDOW_HOUR_MS, now)
+export async function applySignupRateLimit(input: { ip: string; email: string }): Promise<RateLimitResult> {
+  const ipResult = await dbCheckAndIncrement(`signup:ip:hr:${input.ip}`, 5, 3600)
   if (!ipResult.allowed) return ipResult
-
   if (input.email) {
-    const emailKey = `signup:email:hr:${fingerprint(input.email.toLowerCase())}`
-    return checkAndConsume(emailKey, SIGNUP_PER_HOUR_EMAIL, WINDOW_HOUR_MS, now)
+    return dbCheckAndIncrement(`signup:email:hr:${hashEmail(input.email)}`, 3, 3600)
   }
-
   return { allowed: true, retryAfterSec: 0 }
+}
+
+// Check whether an email is currently locked out
+export async function checkLoginLockout(email: string): Promise<RateLimitResult> {
+  try {
+    const admin = createAdminClient()
+    const { data, error } = await admin
+      .from("auth_lockouts")
+      .select("locked_until")
+      .eq("email_hash", hashEmail(email))
+      .maybeSingle()
+
+    if (error || !data?.locked_until) return { allowed: true, retryAfterSec: 0 }
+
+    const lockedUntil = new Date(data.locked_until).getTime()
+    const now = Date.now()
+    if (lockedUntil > now) {
+      return { allowed: false, retryAfterSec: Math.ceil((lockedUntil - now) / 1000) }
+    }
+    return { allowed: true, retryAfterSec: 0 }
+  } catch {
+    return { allowed: true, retryAfterSec: 0 }
+  }
+}
+
+// Record a failed login attempt; applies lockout thresholds via DB function
+export async function recordLoginFailure(email: string): Promise<void> {
+  try {
+    const admin = createAdminClient()
+    await admin.rpc("auth_record_login_failure", { p_email_hash: hashEmail(email) })
+  } catch (err) {
+    console.error("[auth-rate-limit] failed to record login failure", err)
+  }
+}
+
+// Clear lockout on successful login
+export async function clearLoginLockout(email: string): Promise<void> {
+  try {
+    const admin = createAdminClient()
+    await admin.from("auth_lockouts").delete().eq("email_hash", hashEmail(email))
+  } catch {
+    // Non-critical: ignore errors
+  }
 }

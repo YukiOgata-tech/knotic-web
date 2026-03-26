@@ -60,6 +60,12 @@ export function LoginForm() {
       })
 
       if (signInError) {
+        // Record failure for lockout tracking (fire-and-forget)
+        fetch("/api/auth/login-failure", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        }).catch(() => {})
         setError(signInError.message)
         return
       }

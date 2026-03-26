@@ -50,6 +50,11 @@ export function AdminLoginForm() {
       const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
 
       if (signInError) {
+        fetch("/api/auth/login-failure", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        }).catch(() => {})
         setError("メールアドレスまたはパスワードが正しくありません。")
         return
       }

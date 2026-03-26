@@ -1,6 +1,8 @@
 import crypto from "node:crypto"
 import { NextRequest, NextResponse } from "next/server"
 
+import { dbCheckAndIncrement } from "@/lib/rate-limit/db"
+
 import {
   assertTenantCanConsumeMessage,
   assertTenantCanUseHostedPage,
@@ -323,6 +325,21 @@ async function handleChat(request: NextRequest) {
       return NextResponse.json(
         { error: error instanceof Error ? error.message : "hosted url unavailable" },
         { status: 403 }
+      )
+    }
+  }
+
+  // IP rate limiting for unauthenticated / widget access
+  // api_key and internal_user are trusted — no IP limit applied
+  if (authMode === "public" || authMode === "widget") {
+    const fwd = request.headers.get("x-forwarded-for")
+    const ip = (fwd ? fwd.split(",")[0]?.trim() : request.headers.get("x-real-ip")) ?? "unknown"
+    const maxPerMin = authMode === "widget" ? 40 : 20
+    const rateResult = await dbCheckAndIncrement(`chat:ip:min:${ip}`, maxPerMin, 60)
+    if (!rateResult.allowed) {
+      return NextResponse.json(
+        { error: "リクエストが多すぎます。しばらく待ってから再度お試しください。" },
+        { status: 429, headers: { "Retry-After": String(rateResult.retryAfterSec) } }
       )
     }
   }
