@@ -146,7 +146,7 @@ export async function requireConsoleContext() {
     supabase.from("profiles").select("default_tenant_id").eq("user_id", user.id).maybeSingle(),
   ])
 
-  const allMemberships = (membershipsRaw ?? []) as TenantMembership[]
+  const allMemberships = (membershipsRaw ?? []) as unknown as TenantMembership[]
   const defaultTenantId = profile?.default_tenant_id ?? null
 
   // Pick the membership for the default tenant, or fall back to the first one
