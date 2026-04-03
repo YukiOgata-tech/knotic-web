@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { ArrowRight, BookOpenText, Clock3, LifeBuoy, Search } from "lucide-react"
+import { Fragment, type ReactNode } from "react"
 
 import { helpDocCategories, type HelpDocArticle, type HelpDocCategory } from "@/content/help-docs"
 import { CTASection, PageFrame } from "@/components/marketing/page-frame"
@@ -60,6 +61,27 @@ function filterCategories(query: string): HelpDocCategoryView[] {
 
 function articleAnchor(categoryId: string, articleId: string) {
   return `${categoryId}-${articleId}`
+}
+
+function renderInlineEmphasis(text: string): ReactNode {
+  const parts = text.split(/(`[^`]+`)/g)
+
+  return parts.map((part, index) => {
+    const isInlineCode = part.startsWith("`") && part.endsWith("`") && part.length >= 2
+    if (!isInlineCode) {
+      return <Fragment key={`${part}-${index}`}>{part}</Fragment>
+    }
+
+    const content = part.slice(1, -1)
+    return (
+      <code
+        key={`${content}-${index}`}
+        className="rounded-md bg-cyan-100 px-1.5 py-0.5 font-semibold text-cyan-900 ring-1 ring-cyan-500/20 dark:bg-cyan-500/15 dark:text-cyan-100 dark:ring-cyan-300/20"
+      >
+        {content}
+      </code>
+    )
+  })
 }
 
 export default async function HelpPage({ searchParams }: PageProps) {
@@ -179,13 +201,15 @@ export default async function HelpPage({ searchParams }: PageProps) {
                 className="min-w-0 overflow-hidden rounded-none border-0 bg-transparent p-0 sm:rounded-3xl sm:border sm:border-black/20 sm:bg-white/90 sm:p-6 dark:sm:border-white/10 dark:sm:bg-slate-900/75"
               >
                 <div className="flex flex-wrap items-center gap-3">
-                  <h2 className="wrap-break-word text-xl font-semibold tracking-tight sm:text-2xl">{category.title}</h2>
+                  <h2 className="wrap-break-word text-xl font-semibold tracking-tight sm:text-2xl">
+                    {renderInlineEmphasis(category.title)}
+                  </h2>
                   <Badge variant="secondary" className="rounded-full px-2.5 py-1 text-[11px]">
                     {category.articles.length} 記事
                   </Badge>
                 </div>
                 <p className="mt-2 wrap-break-word text-[13px] text-zinc-600 dark:text-zinc-300 sm:text-sm">
-                  {category.description}
+                  {renderInlineEmphasis(category.description)}
                 </p>
 
                 <div className="mt-4 space-y-4">
@@ -199,12 +223,12 @@ export default async function HelpPage({ searchParams }: PageProps) {
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="wrap-break-word text-base font-semibold tracking-tight sm:text-lg">
-                              {article.title}
+                              {renderInlineEmphasis(article.title)}
                             </h3>
                             {article.id === "faq-spreadsheet-guide" && <FaqCsvExampleModal />}
                           </div>
                           <p className="mt-1 wrap-break-word text-[13px] text-zinc-600 dark:text-zinc-300 sm:text-sm">
-                            {article.summary}
+                            {renderInlineEmphasis(article.summary)}
                           </p>
                         </div>
                         <div className="inline-flex shrink-0 items-center gap-1 self-start rounded-full border border-black/15 px-2.5 py-1 text-[11px] text-zinc-600 dark:border-white/15 dark:text-zinc-300">
@@ -220,10 +244,10 @@ export default async function HelpPage({ searchParams }: PageProps) {
                             className="min-w-0 overflow-hidden rounded-none border-0 bg-transparent px-0 py-2 dark:bg-transparent sm:rounded-xl sm:border sm:border-black/10 sm:bg-zinc-50 sm:p-3 dark:sm:border-white/10 dark:sm:bg-slate-900/70"
                           >
                             <h4 className="wrap-break-word text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                              {section.heading}
+                              {renderInlineEmphasis(section.heading)}
                             </h4>
                             <p className="mt-1 wrap-break-word text-[13px] leading-6 text-zinc-600 dark:text-zinc-300 sm:text-sm">
-                              {section.body}
+                              {renderInlineEmphasis(section.body)}
                             </p>
                             {section.bullets?.length ? (
                               <ul className="mt-2 min-w-0 space-y-1.5 text-zinc-700 dark:text-zinc-200">
@@ -231,7 +255,7 @@ export default async function HelpPage({ searchParams }: PageProps) {
                                   <li key={bullet} className="flex min-w-0 items-start gap-2">
                                     <span className="mt-2 size-1.5 shrink-0 rounded-full bg-cyan-600 dark:bg-cyan-300" />
                                     <span className="min-w-0 break-words text-[13px] leading-6 [overflow-wrap:anywhere] sm:text-sm">
-                                      {bullet}
+                                      {renderInlineEmphasis(bullet)}
                                     </span>
                                   </li>
                                 ))}
@@ -262,7 +286,7 @@ export default async function HelpPage({ searchParams }: PageProps) {
 
       <section className="-mx-4 mt-5 grid gap-3 px-4 sm:mx-0 sm:mt-6 sm:gap-4 sm:px-0 sm:grid-cols-2">
         <div className="rounded-none border-0 bg-transparent p-0 sm:rounded-2xl sm:border sm:border-black/20 sm:bg-white/90 sm:p-5 dark:sm:border-white/10 dark:sm:bg-slate-900/70">
-          <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-700 dark:text-cyan-300">
+          <p className="inline-flex items-center gap-2 text-xs sm:text-lg font-semibold uppercase tracking-[0.14em] text-cyan-700 dark:text-cyan-300">
             <BookOpenText className="size-4" />
             関連ページ
           </p>
@@ -287,7 +311,7 @@ export default async function HelpPage({ searchParams }: PageProps) {
         </div>
 
         <div className="rounded-none border-0 bg-transparent p-0 sm:rounded-2xl sm:border sm:border-black/20 sm:bg-white/90 sm:p-5 dark:sm:border-white/10 dark:sm:bg-slate-900/70">
-          <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-700 dark:text-cyan-300">
+          <p className="inline-flex items-center gap-2 text-xs sm:text-lg font-semibold uppercase tracking-[0.14em] text-cyan-700 dark:text-cyan-300">
             <LifeBuoy className="size-4" />
             サポート
           </p>

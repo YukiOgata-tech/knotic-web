@@ -1,92 +1,70 @@
 # knotic-web
 
-Knotic のマーケティングサイト + 管理コンソール + RAG基盤のリポジトリです。  
-既存事業 `make-it-tech.com` と運営者は同一ですが、開発リポジトリは分離しています。
+Knotic のマーケティングサイト、契約者コンソール、Hosted Chat、Widget 配布、Platform Admin をまとめたリポジトリです。
 
 ## 概要
 - Framework: Next.js App Router
-- Backend: Supabase（Auth / Postgres / Storage）
-- AI: OpenAI Responses + Embeddings
+- Backend: Supabase（Auth / Postgres / Storage / RLS）
+- AI: OpenAI Responses API + OpenAI File Search
+- Billing: Stripe
+- Mail: Resend
 - Console: `/console`
 - Hosted Chat URL: `/chat-by-knotic/[public_id]`
-- Platform Admin Console: `operations.knotic.<your-domain>` -> `/sub-domain` (proxy rewrite)
+- Platform Admin: `operations.knotic.<your-domain>` から `/sub-domain` へリライト
 
-## 実装済み（2026-02-27時点）
-- マーケティングページ群（トップ/機能/価格/FAQ等）
-- ダーク/ライトモード切替
-- 認証導線（signup/login/callback）
-- コンソール画面
-  - `/console/overview`
-  - `/console/operations`（運用ダッシュボード）
-  - `/console/bots`
-  - `/console/sources`
-  - `/console/api-keys`
-  - `/console/audit`（監査ログ）
-  - `/console/settings`
-- Bot管理
+## 現在の主要機能
+- マーケティングサイト
+  - トップ / 機能 / 価格 / FAQ / ヘルプ / セキュリティ / お問い合わせ
+- 認証
+  - サインアップ / ログイン / パスワード再設定 / 招待参加
+- 契約者コンソール
+  - Overview
+  - Billing
+  - Bots
+  - Sources
+  - API Keys
+  - Audit
+  - Settings
+  - Members
+  - Operations
+- Bot 管理
   - Bot作成
-  - 公開ON/OFF切替
-  - Hosted設定（用途、表示名、初期文、入力文言、免責、引用表示、アクセスモード）
-  - Hostedヘッダー/フッター配色設定
-  - リアルタイムプレビュー + テストチャット
-- Hostedチャット
-  - ChatGPT風UI
-  - 24時間のローカル履歴保持（公開モード）
-  - 参照根拠（URL/PDFリンク）表示
-  - 初期メッセージ内URLの自動リンク化
-- API/認証
-  - `POST /api/v1/chat`
-  - 契約者APIキー認証
-  - Widgetトークン認証（origin制限）
-  - 公開/社内モード制御
-- ソース投入とインデックス
+  - 公開ON/OFF
+  - Hosted設定
+  - Widget設定
+  - AIモデル設定
+  - リアルタイムプレビュー
+- 公開チャネル
+  - Hosted Chat
+  - Widget 埋め込み
+  - Chat API
+- ナレッジ投入
   - URL登録
-  - PDFアップロード
-  - キュー投入
-  - 手動ワーカー実行（1件）
-  - OpenAI File Search 同期（URL/PDF）
-- 制限/運用
-  - プラン制約（Bot数、月間メッセージ、ストレージ）
-  - 通知（上限近接）
-  - 監査ログ（操作証跡）
-- お問い合わせ機能
-  - `/contact` フォーム + `POST /api/contact`
-  - Resend連携（HTMLメールテンプレート/ロゴ表示）
-  - スパム対策（ハニーポット/送信時間トラップ/Originチェック/入力検証/レート制限）
-- DB
-  - 基本構成: `supabase/schema.sql`
-  - パッチ（ファイル名順に適用）:
-    - `supabase/patch-202603.sql`
-    - `supabase/patch-202603-hosted-access.sql`
-    - `supabase/patch-202603-model-id-normalize.sql`
+  - PDF / 文書 / コード / 表形式ファイル登録
+  - 非同期インデックスジョブ
+  - OpenAI File Search 同期
+- メンバー運用
+  - 招待URL / トークン参加
+  - Bot単位アクセス制御
+- 課金/制限
+  - Stripe Webhook 連携
+  - Platform Admin からの手動契約オーバーライド
+  - Bot数 / Hosted件数 / API利用 / 月間メッセージ / ストレージ上限
+- 運用
+  - 監査ログ
+  - 通知
+  - force stop
+  - DB-backed rate limiting
 
-## プラン（現在実装値）
-- Lite: `¥10,000` / Bot `1` / 月間 `1,000` メッセージ
-- Standard: `¥24,800` / Bot `2` / 月間 `5,000` メッセージ
-- Pro: `¥100,000` / Bot表示無制限（内部上限あり） / 月間 `20,000` メッセージ
+## 現行プラン値
+- Lite: `¥10,000` / Bot `1` / 月間 `1,000` メッセージ / `100MB`
+- Standard: `¥24,800` / Bot `2` / 月間 `5,000` メッセージ / `1,024MB`
+- Pro: `¥100,000` / Bot表示無制限（内部上限 `50`） / 月間 `20,000` メッセージ / `10,240MB`
 
-## 未実装 / 次フェーズ
-- 課金運用の最終強化
-  - Stripe webhookイベントの監視範囲拡張（将来イベント含む）
-  - 失敗イベントの再処理運用（自動再試行 + アラート + 管理UI）
-  - 契約状態遷移（active/past_due/canceled）の厳密な表示ルール統一
-- 課金UI/契約導線の仕上げ
-  - プラン変更時の適用タイミング文言と法務文言の最終化
-  - キャンセル/再開/失効時のユーザー体験整備
-- スパム/セキュリティの本番強化
-  - CAPTCHA導入（Cloudflare Turnstile or reCAPTCHA）
-  - WAF/レート制限のインフラ側設定（Vercel/Cloudflare）
-  - 監査ログの保持期間・エクスポート運用
-- インデックス/ワーカー運用の本番化
-  - 常時ワーカー実行（cron）
-  - 失敗ジョブのDead Letter運用と再実行UI
-  - 大規模クロール時の並列数/タイムアウト/リソース制御
-- 通知センター拡張
-  - `tenant_notifications` の既読化・履歴閲覧UI
-  - 管理者向け通知ルール設定（しきい値/通知先/通知種別）
-- アクセス制御の詳細化（必要時）
-  - 社内用途向けの追加権限（機能単位）
-  - テナント/ボットの停止ポリシーと運用手順の明文化
+追加制御:
+- Lite: APIキー `0` / Hosted `0`
+- Standard: APIキー `2` / Hosted `2`
+- Pro: APIキー `10` / Hosted `50`
 
 ## セットアップ
 
@@ -96,35 +74,47 @@ npm install
 ```
 
 ### 2. 環境変数
-`.env.example` を `.env.local` にコピーし、値を設定してください。
+`.env.example` を `.env.local` にコピーして設定してください。
 
 最低限必要:
 - `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`（または `NEXT_PUBLIC_SUPABASE_ANON_KEY`）
-- `SUPABASE_SECRET_KEY`（または `SUPABASE_SERVICE_ROLE_KEY`）
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` または `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SECRET_KEY` または `SUPABASE_SERVICE_ROLE_KEY`
+- `NEXT_PUBLIC_APP_URL`
 - `OPENAI_API_KEY`
 - `INDEXER_RUNNER_SECRET`
-- `BILLING_RUNNER_SECRET`（課金enforcement内部API用。未設定時は `INDEXER_RUNNER_SECRET` をフォールバック）
+- `BILLING_RUNNER_SECRET`（未設定時は `INDEXER_RUNNER_SECRET` をフォールバック）
 - `RESEND_API_KEY`
 - `RESEND_FROM_EMAIL`
 - `RESEND_CONTACT_TO_EMAIL`
 
+Stripe を使う場合は追加で以下が必要です。
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_PRICE_LITE_MONTHLY`
+- `STRIPE_PRICE_STANDARD_MONTHLY`
+- `STRIPE_PRICE_PRO_MONTHLY`
+
 ### 3. DB作成
-`supabase/schema.sql` を Supabase SQL Editor で実行します。
-続いてパッチをファイル名順に適用します。
-- `supabase/patch-202603.sql`
-- `supabase/patch-202603-hosted-access.sql`
-- `supabase/patch-202603-model-id-normalize.sql`
+`supabase/schema-02.sql` を Supabase SQL Editor で実行してください。  
+現在は **schema-02.sql 1ファイルに統合済み** で、追加パッチ適用は不要です。
 
-### 4. Storageバケット作成
-- `source-files`（PDF原本）
-- `source-artifacts`（クロール/抽出成果物）
+### 4. Storage バケット
+手動作成が必要なバケット:
+- `source-files`（private）
+- `source-artifacts`（private）
 
-いずれも private で運用してください。
+補足:
+- `bot-logos` は `schema-02.sql` 内で作成される前提です
 
-## 開発実行
+## 開発
 ```bash
 npm run dev
+```
+
+Lint:
+```bash
+npm run lint
 ```
 
 本番ビルド確認:
@@ -133,38 +123,46 @@ npm run build
 ```
 
 ## 主要エンドポイント
-- `GET /api/supabase/ping` 接続確認
-- `POST /api/contact` お問い合わせ送信（Resend）
-- `POST /api/internal/indexing/run` インデックスジョブ実行（内部用）
+外部/公開系:
+- `POST /api/v1/chat`
+- `GET /api/widget/config`
+- `POST /api/contact`
+
+Hosted系:
+- `POST /api/hosted/chat`
+- `POST /api/hosted/rooms`
+- `POST /api/hosted/messages`
+
+内部系:
+- `POST /api/internal/indexing/run`
   - Header: `Authorization: Bearer <INDEXER_RUNNER_SECRET>`
-- `POST /api/internal/billing/enforce` 契約上限enforcement実行（内部用）
-  - Header: `Authorization: Bearer <BILLING_RUNNER_SECRET>`（未設定時は `INDEXER_RUNNER_SECRET`）
-  - Body(任意): `{ "tenantId": "<uuid>" }` で単一テナント、未指定で全体バッチ
-- `POST /api/v1/chat` RAG回答API
+- `POST /api/internal/billing/enforce`
+  - Header: `Authorization: Bearer <BILLING_RUNNER_SECRET>`
+  - Body任意: `{ "tenantId": "<uuid>" }`
 
-## 運用メモ（将来のVercel Cron）
-- 目的: Webhook取りこぼし時でも、契約上限の状態（API利用可否 / Hosted上限 / Bot上限 / 容量超過通知）を日次で再整合する。
-- 実行対象: `POST /api/internal/billing/enforce`
-- 推奨頻度: 1日1回（深夜帯）
-- 認証: `Authorization: Bearer <BILLING_RUNNER_SECRET>`
-- 注意: このCronはWebhookの代替ではなく、補助的な安全網。
+Stripe系:
+- `POST /api/stripe/webhook`
+- `POST /api/stripe/checkout`
+- `POST /api/stripe/portal`
+- `POST /api/stripe/subscription/cancel`
+- `POST /api/stripe/subscription/resume`
 
-## 補足
-- Embeddingは `text-embedding-3-small` を標準採用
-- 回答モデルはコンソール設定で `gpt-5-mini`（Standard）/ `gpt-5-nano`（Mini）/ `gpt-4o-mini`（Nano）を選択可能
-- docsは更新中のものを含みます。最新運用は本READMEと `docs/supabase-setup.md` を優先してください。
+## 実装メモ
+- ナレッジ検索は OpenAI File Search を採用
+- URL投入は sitemap ベースの複数ページ取得に対応
+- `csv`, `xlsx`, `xls` は Markdown 化して同期
+- 回答モデルは `gpt-5-mini` / `gpt-5-nano` / `gpt-4o-mini`
+- `response_cache` テーブルは存在するが、現行コードでは中核利用していない
+- Platform Admin では `tenant_contract_overrides` による契約上書きが可能
+
+## 運用メモ
+- Webhook取りこぼし対策として `POST /api/internal/billing/enforce` を日次実行する前提
+- インデックスジョブは `POST /api/internal/indexing/run` を定期実行できる構成
+- 監査ログ保持、レートリミット清掃、認証ロックアウト清掃は `schema-02.sql` の cron 定義を参照
 
 ## 関連ドキュメント
-- `docs/supabase-setup.md`
+- `docs/AI-bot-service.md`
 - `docs/plan-feature-matrix.md`
-- `docs/data-model-and-billing.md`
-- `docs/運用マニュアル.md`
+- `docs/supabase-setup.md`
 - `docs/stripe-setup.md`
-
-
-
-
-
-
-
-
+- `docs/運用マニュアル.md`

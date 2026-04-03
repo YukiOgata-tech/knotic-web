@@ -1,3 +1,6 @@
+import Link from "next/link"
+import { BookOpenText } from "lucide-react"
+
 import {
   createMemberInviteAction,
   resendMemberInviteAction,
@@ -53,6 +56,21 @@ export default async function ConsoleMembersPage({ searchParams }: PageProps) {
   return (
     <div className="grid gap-4">
       <ConsoleAlerts notice={notice} error={error} />
+
+      {/* ヘルプ導線バナー */}
+      <Link
+        href="/help#operations-member-management"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-2.5 rounded-xl border border-cyan-200/70 bg-cyan-50/80 px-4 py-3 text-sm text-cyan-800 transition-colors hover:border-cyan-400/60 hover:bg-cyan-100/70 dark:border-cyan-800/40 dark:bg-cyan-950/30 dark:text-cyan-300 dark:hover:border-cyan-600/50"
+      >
+        <BookOpenText className="size-4 shrink-0" />
+        <span>
+          <span className="font-medium">メンバー招待・参加・テナント切り替えガイド</span>
+          <span className="ml-1.5 text-cyan-600/80 dark:text-cyan-400/70">— 招待メール・トークン共有・テナント参加の手順を確認</span>
+        </span>
+        <span className="ml-auto shrink-0 text-xs text-cyan-500 dark:text-cyan-400">ヘルプを開く →</span>
+      </Link>
 
       {/* 招待フォーム */}
       <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">

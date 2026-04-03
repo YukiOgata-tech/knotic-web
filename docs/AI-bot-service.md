@@ -1,365 +1,540 @@
-# URL/PDFナレッジ投入型 AIチャットボットSaaS — 初期仕様書（v0.1）
-作成日: 2026-02-23 
-作成者: yuki
-ステータス: Draft（初期たたき台）
+# knotic AI Bot Service 現行仕様書
+更新日: 2026-04-04  
+ステータス: Current
 
 ---
 
-## 0. 背景・目的
-本プロダクトは、**URL と PDF（将来的に他形式も）を投入するだけで、その内容に基づいて回答する“専用AIチャットボット”を作成・提供できる**SaaSである。 
-顧客は「新入社員向けFAQ」「製品マニュアルFAQ」「社内規程照会」「サービス説明の自動応答」など、**与えられた情報に基づくQ&A**を実現したい。
+## 0. この文書の位置づけ
+この文書は、`knotic-web` リポジトリにおける **現行のAIチャットボットSaaS実装** をまとめたものです。  
+初期構想や検討メモではなく、現在のコードと `supabase/schema-02.sql` を基準に整理しています。
 
-### 0.1 主要コンセプト
-- 「調べるAI」ではなく **“投入した情報から答えるAI（RAG）”**
-- 顧客は **アカウント登録**し、**プラン契約**により利用制限・機能（API/LINE等）が変わる
-- Webサイト（サービス紹介サイト）配下に、顧客ごとの利用URL（ページ）を用意し、**埋め込み型で提供**
-- **API化**により、LINEなど外部チャネル連携は上位プランで解放
-
----
-
-## 1. 用語定義
-- **Tenant（テナント）**: 1契約主体（会社/個人）。課金・権限の単位。
-- **Bot（ボット）**: ナレッジ集合と設定を持つAIチャットの単位。
-- **Source**: Botに取り込む入力（URL / PDF / 将来はDoc等）
-- **Document（スナップショット）**: Sourceの取得・抽出結果（特にURLは更新されるためバージョン概念あり）
-- **Chunk（チャンク）**: Documentから抽出した本文を検索しやすく分割した断片
-- **Embedding**: Chunk（および質問）をベクトル化したもの。類似検索に用いる。
-- **RAG**: Embedding検索で関連Chunkを取り出し、LLMに根拠として渡して回答を生成する方式。
-- **Widget**: Webサイトに埋め込むチャットUI（scriptタグ等）
+### 0.1 Source of Truth
+- DB構造: `supabase/schema-02.sql`
+- アプリ実装: `app/`, `lib/`, `components/`
+- 運用補助資料: `README.md`, `docs/運用マニュアル.md`, `docs/stripe-setup.md`, `docs/supabase-setup.md`
 
 ---
 
-## 2. 目標（Goals）
-1. URL/PDFを投入 → 自動でナレッジ化 → Botを生成し、チャットで回答できる
-2. 顧客ごとにBot・データを論理分離（マルチテナント）
-3. Web埋め込み（Widget）で顧客サイト/指定ページにチャットUIを設置できる
-4. 管理画面（Admin UI）で、データ追加/削除/再インデックス等の運用ができる
-5. 料金プランに応じて、ボット数・データ量・チャット回数・API/LINE連携可否が変わる
-6. 安価モデルを基本とし、**利用制限 + キャッシュ**で原価を制御しつつ黒字化しやすい設計にする
+## 1. サービス概要
+knotic は、URL やファイルを登録するだけで、専用AIチャットボットを作成し、以下の3つの形で公開できるマルチテナントSaaSです。
+
+1. Hosted Chat
+2. Widget 埋め込み
+3. API 呼び出し
+
+主な用途:
+- 問い合わせ自動化
+- マニュアル案内
+- FAQ検索
+- 社内ナレッジ検索
+- オンボーディング支援
 
 ---
 
-## 3. 非目標（Non-Goals / v0ではやらない）
-- 外部Web検索による最新情報の回答（原則禁止）
-- ファインチューニング（学習）による専用モデル生成（基本はRAG）
-- 高度なワークフロー自動化（RPA、チケット発行等）は後回し
-- 大規模エンタープライズ要件（SSO/SAML、BYOK等）は段階的に
+## 2. 現行アーキテクチャ
+### 2.1 アプリケーション構成
+- フロント/サーバー: Next.js App Router
+- 認証/DB/Storage: Supabase
+- AI応答: OpenAI Responses API
+- ナレッジ検索: OpenAI File Search
+- 課金: Stripe
+- メール: Resend
+
+### 2.2 主要な公開導線
+- サービスサイト: `/`
+- 契約者コンソール: `/console`
+- Hosted Chat: `/chat-by-knotic/{bot_public_id}`
+- Widget配布スクリプト: `/widget.js`
+- Platform Admin: `operations.<domain>` から `/sub-domain` にリライト
+
+### 2.3 マルチテナント前提
+- すべての契約主体は `tenants` に属する
+- Bot、Source、Usage、APIキー、監査ログ、通知は `tenant_id` を基準に分離
+- RLS によって契約者コンソールの参照/更新範囲を制御
 
 ---
 
-## 4. 想定ユースケース
-- Webサイト訪問者向けFAQ（問い合わせ削減）
-- 製品/サービス資料（PDF）に基づくサポートチャット
-- 社内規程やマニュアルの照会（社内ナレッジボット）
-- 新人オンボーディング（業務手順、申請手順のQ&A）
+## 3. 提供チャネル
+### 3.1 Hosted Chat
+- 共有URLで公開できるチャットページ
+- URL形式: `/chat-by-knotic/{bot_public_id}`
+- 公開モードと社内限定モードの両方をサポート
+- Widget埋め込み時は `?embed=1&widgetToken=...` 形式で iframe として利用
+
+### 3.2 Widget
+- 顧客サイトに `<script>` タグを貼るだけで利用可能
+- WidgetトークンによりBotを認証
+- `allowed_origins` による埋め込み元ドメイン制限あり
+- 表示モード:
+  - `overlay`
+  - `redirect`
+  - `both` を想定した設定値を保持
+- 表示位置:
+  - `right-bottom`
+  - `right-top`
+
+### 3.3 API
+- エンドポイント: `POST /api/v1/chat`
+- 認証:
+  - `x-knotic-api-key`
+  - または `Authorization: Bearer knotic_api_...`
+- 上位プランでのみ利用可能
 
 ---
 
-## 5. ユーザー/権限（最小）
-### 5.1 ロール
-- **Owner（テナント管理者）**: 契約・プラン管理、ボット作成、キー管理、課金、ログ閲覧
-- **Member（共同管理者）**: Botの編集/運用（将来）
-- **Viewer（閲覧者）**: チャット利用のみ（Web埋め込み経由）
+## 4. ユーザー・権限モデル
+### 4.1 契約者側
+- `editor`
+  - テナント設定、Bot作成、Source追加、Widget設定、APIキー発行、メンバー招待などを実行可能
+- `reader`
+  - 閲覧中心
+  - 将来的な権限制御拡張を見越した役割
 
-※ v0では Ownerのみで開始してもよい。
+### 4.2 テナントオーナー
+- `tenants.owner_user_id` で表現
+- 初回サインアップ時はテナント作成 + `editor` membership 付与
 
-### 5.2 アカウント必須
-- すべての顧客はアカウント作成し、テナントに紐付く
-- Botの作成・管理はログイン必須
-- Web埋め込みでの利用者はログイン不要（公開トークンで識別）
+### 4.3 Platform Admin
+- `platform_admin_users`
+- ロール:
+  - `owner`
+  - `staff`
+- `/sub-domain` 配下でテナント横断の運用管理を実施
 
----
-
-## 6. 提供形態
-### 6.1 Webサイト（サービス紹介サイト）
-- ランディング（機能・料金・導入・FAQ・問い合わせ）
-- 管理画面（ログイン/ダッシュボード）
-- 顧客向けの利用ページを配下に作る（例: `/chat-by-knotic/{bot_public_id}`）
-
-### 6.2 顧客ごとのURL発行（提供ページ）
-- サービスドメイン配下に、**顧客ごとのチャットページ**を発行して利用可能にする
-- 例: `https://example.com/chat-by-knotic/bot_xxxx`
-- 追加で、顧客自身のWebサイトへの埋め込み（Widget）も提供
+### 4.4 Hosted利用者
+- 公開Bot利用者はログイン不要
+- 社内限定Botは `tenant_memberships` のアクティブメンバーのみ利用可能
+- さらに `bot_hosted_access_blocks` による Bot 単位制限あり
 
 ---
 
-## 7. 機能要件（MVP）
-### 7.1 Bot作成
-- Bot名、説明、カテゴリ（任意）
-- ナレッジ投入（URL / PDFアップロード）
-- 作成後、インデックス完了までステータス表示（queued/running/ready/failed）
+## 5. Bot とナレッジ管理
+### 5.1 Bot
+1つの Bot は以下を持ちます。
+- 公開ID (`public_id`)
+- 表示名、説明、用途
+- 公開/非公開
+- アクセスモード
+  - `public`
+  - `internal`
+- Hosted UI設定
+  - welcome message
+  - placeholder
+  - disclaimer
+  - citation 表示可否
+  - 履歴ターン数
+  - ヘッダー/フッター配色
+  - FAQ候補
+  - ロゴ
+- Widget設定
+  - 有効/無効
+  - モード
+  - 表示位置
+  - ラベル
+  - 保持ポリシー文言
+  - 新規タブ遷移可否
+- AI設定
+  - `gpt-5-mini`
+  - `gpt-5-nano`
+  - `gpt-4o-mini`
+  - fallback model
+  - max output tokens
 
-### 7.2 ナレッジ投入（URL/PDF）
-#### URL投入
-- 1 URL単位で取り込み（v0）
-- 取得方法
-  - 静的HTML: HTTP fetch
-  - 動的ページ: Headless（将来 or 条件付き）
-- 本文抽出（nav/footer等の除去）
-- 更新検知（将来）
-  - ETag / Last-Modified / content_hash
+### 5.2 Source
+Bot に投入できる Source は以下です。
+- `url`
+- `pdf`
+- `file`
 
-#### PDF投入
-- Storageへアップロード
-- テキスト抽出（ページ情報の保持が望ましい）
-- 表・図の扱いはv0は最小（テキスト中心）
+対応ファイル形式:
+- 文書: `pdf`, `doc`, `docx`, `pptx`, `tex`, `txt`, `md`
+- Web/テキスト: `html`, `css`, `json`
+- コード: `c`, `cpp`, `cs`, `go`, `java`, `js`, `ts`, `py`, `rb`, `rs`, `sh`, `php`
+- 表形式: `csv`, `xlsx`, `xls`
 
-### 7.3 チャンク化（chunking）
-- 目的: 検索精度とコスト最適のために本文を分割
-- ルール（初期案）
-  - 見出し単位（h1/h2/章節）を優先
-  - 上限トークン（例: 500〜1,000 tokens）で分割
-  - オーバーラップ（例: 50〜150 tokens）を付与
-- チャンクには以下メタデータを付与
-  - `source_type`（url/pdf）
-  - `source_url` / `file_name`
-  - `title`（ページタイトル/文書タイトル）
-  - `section_path`（見出し階層）
-  - `page_number`（PDFの場合）
-  - `retrieved_at`
-
-### 7.4 Embedding（ベクトル化）と保存
-- チャンクごとにembedding生成
-- ベクトル検索可能な形で保存（例: pgvector / ベクトルDB）
-- Bot単位で検索空間を分離（bot_idフィルタ）
-
-### 7.5 チャット（回答生成）
-- 入力: 質問
-- 処理:
-  1. 質問embedding
-  2. top-k類似検索（権限フィルタ/ bot_id 필터）
-  3. 関連チャンクをコンテキストにLLMで回答生成
-- 出力:
-  - 回答文
-  - 参照元（出典）表示（URL/ファイル名/ページなど、プランでON/OFF可）
-
-### 7.6 キャッシュ（原価削減）
-- 目的: FAQ的に似た質問が反復されるため、LLMコール削減
-- 方式（段階的）
-  - 完全一致キャッシュ（質問テキストhash）
-  - セマンティックキャッシュ（質問embedding類似度が閾値以上で再利用）
-  - 検索結果キャッシュ（top-k結果）
-- キャッシュの無効化条件
-  - ナレッジ更新（再インデックス）時に対象Botのキャッシュを無効化
-  - TTL（例: 7日）
+### 5.3 ステータス
+- Bot: `draft`, `queued`, `running`, `ready`, `failed`, `archived`
+- Source: `queued`, `running`, `ready`, `failed`, `deleted`
 
 ---
 
-## 8. プラン設計（初期案）
-> 目的: 5,000円/月モデルでも黒字になりやすいよう、**利用制限・原価制御**を必須とする。
+## 6. ナレッジ投入とインデックス方式
+### 6.1 現行方式
+現行実装は、初期案にあった独自 `chunks` / `embeddings` テーブル中心の方式ではなく、**OpenAI File Search 同期** を中心にしています。
 
-### 8.1 プラン例
-#### Plan A: Lite（安価・制限厳しめ）
-- 月額: 5,000円（目標）
-- Bot数: 1
-- 月間メッセージ上限: 例 300〜500
-- データ容量上限: 例 100MB or チャンク数上限
-- 出力上限: max_tokens制限（短め）
-- API: 不可
-- LINE連携: 不可
+### 6.2 URL投入
+- URLを `sources` に登録
+- `indexing_jobs` にキュー登録
+- ワーカーが URL を取得
+- XML sitemap の場合は配下URLを抽出して複数ページを巡回
+- 各ページの抽出テキストとHTMLを `source_pages` / Storage artifact に保存
+- 集約テキストを OpenAI File Search に同期
 
-#### Plan B: Standard（制限緩め・Bot 1）
-- 月額: 1〜2万円想定（後で調整）
-- Bot数: 1
-- メッセージ上限: 例 3,000
-- データ容量: 例 1GB
-- 出力上限: 緩め
-- API: 条件付き/可（要検討）
-- LINE連携: オプション or 上位のみ
+### 6.3 ファイル投入
+- `source-files` バケットへアップロード
+- PDFや文書ファイルを OpenAI File Search に同期
+- `csv`, `xlsx`, `xls` は Markdown 化して同期
 
-#### Plan C: Pro（複数Bot・幅広い）
-- 月額: 3〜10万円想定（後で調整）
-- Bot数: 複数（例 3〜10）
-- メッセージ上限: 例 10,000〜
-- データ容量: 例 10GB〜
-- API: 可
-- LINE連携: 可（追加料金/含む）
+### 6.4 使用する Storage
+- `source-files`
+  - 原本ファイル保存
+- `source-artifacts`
+  - URL取得結果や抽出テキスト
+- `bot-logos`
+  - Botロゴ画像
 
-### 8.2 課金・制限の基本思想
-- 変動費を制御するため、**メッセージ回数**と**出力上限（トークン）**を必ず設定
-- 文書量（チャンク数/容量）の上限も設定
-- 高負荷ユーザーは上位プランへ誘導
+### 6.5 インデックス処理の特徴
+- 非同期キュー型
+- `indexing_jobs` で状態管理
+- `source_pages` にURL取得結果を保持
+- OpenAI vector store / file ID を `bots` と `sources` に保持
 
 ---
 
-## 9. API化・外部連携
-### 9.1 API提供（上位プラン）
-- 目的: LINE/Slack/自社アプリへの組み込み
-- 形式: REST（例: `POST /v1/chat`）
-- 認証: API Key（スコープ付き）
-- レート制限: プランに応じて
+## 7. チャット応答の動作
+### 7.1 回答生成
+`POST /api/v1/chat` では以下を実施します。
 
-### 9.2 LINE連携（上位プラン）
-- LINE Messaging APIのWebhookを受信
-- 署名検証必須
-- userId→botの紐付け（招待コード/管理者承認など）を設計
-- 返信はReply/Push方式（遅延がある場合は非同期）
+1. Bot特定
+2. テナント停止/Bot停止の確認
+3. 認証方式の判定
+4. プラン制限チェック
+5. OpenAI File Search でナレッジ検索
+6. OpenAI Responses API で回答生成
+7. citation 整形
+8. `chat_logs` / `usage_daily` 更新
+9. 上限接近時は `tenant_notifications` 作成
 
----
+### 7.2 認証モード
+- APIキー認証
+- Widgetトークン認証
+- テナントメンバー認証
+- 公開アクセス
 
-## 10. セキュリティ要件（MVP）
-### 10.1 テナント分離
-- DBで `tenant_id` / `bot_id` を常にフィルタ
-- 公開ページ（Widget）は公開トークンでbotを特定し、サーバ側で検証
+### 7.3 セキュリティ制御
+- Widget は `allowed_origins` を検証
+- 公開/Widget アクセスは IP ベースのレート制限あり
+- 契約状態・メッセージ上限・Hosted上限を毎回判定
+- 内部技術情報が応答に混ざる場合はガードで差し替え
 
-### 10.2 トークン/キー管理
-- 公開トークン（Widget用）
-  - 流出前提。権限はチャットのみ
-  - 可能なら allowed_origins を設定（埋め込み元ドメイン制限）
-- 管理APIキー
-  - ローテーション/失効
-  - 秘密情報は環境変数 + Secret Manager
-
-### 10.3 プロンプトインジェクション耐性（最低限）
-- 「文書は命令ではなく情報」として扱うガード
-- システムプロンプト・ポリシーを優先
-- 出典外の推測禁止（原則）
-
-### 10.4 ログ・データ保持
-- チャットログは最小限（PII/機密の可能性）
-- 保存期間（例: 30日/90日）を設定
-- マスキング（メール/電話/住所など）
+### 7.4 citation
+- URLソースはページURLを返す
+- PDF / file ソースは署名付きURLで返す
+- テキスト本文中の引用マーカーは除去し、別配列で返す
 
 ---
 
-## 11. 運用要件
-### 11.1 ステータス管理
-- 取り込み/再インデックスの状態（queued/running/ready/failed）
-- 失敗理由の表示（ユーザー向けに簡易、管理者向けに詳細）
+## 8. Hosted Chat の公開モード
+### 8.1 公開モード
+- `is_public = true`
+- 一般公開利用可能
+- プラン上の Hosted URL 利用可否・件数制限を受ける
 
-### 11.2 モニタリング
-- エラー率、レイテンシ、LLMコール数、原価推定
-- Botごとの使用量可視化（プラン上限に近い通知）
+### 8.2 社内限定モード
+- `access_mode = internal`
+- または `require_auth_for_hosted = true`
+- テナントメンバーのみ利用可能
+- 必要に応じて Bot 単位で追加制限
 
-### 11.3 原価制御
-- モデルは基本安価系を標準
-- 出力トークン制限
-- キャッシュ活用
-- 高負荷時のフォールバック（将来）
-
-### 11.4 サポート
-- v0ではサポート範囲を明確化（平日対応など）
-- 免責・利用規約を整備
+### 8.3 プレビュー
+- テナントメンバーは非公開状態でもプレビュー表示可能
+- 一般ユーザー向け公開可否とは別扱い
 
 ---
 
-## 12. 非機能要件（初期）
-- 可用性: MVPはベストエフォート
-- スケーラビリティ: Bot単位で水平拡張可能な構成（キュー/ワーカー）
-- パフォーマンス:
-  - WebチャットはUX良好（初回応答の目標）
-  - 取り込みは非同期
-- セキュリティ: 上記10章の最低限を満たす
-
----
-
-## 13. 画面/ユーザーフロー（MVP）
-### 13.1 新規登録〜利用開始
-1. サービスLP → サインアップ
-2. ダッシュボード → Bot作成
-3. URL/PDF投入 → インデックス開始
-4. 完了 → テストチャット
-5. 公開ページURL or 埋め込みコード取得
-6. 顧客サイトに設置（もしくは共有URLを配布）
-
-### 13.2 Bot運用
-- ソース追加/削除
-- 再インデックス
-- 使用量確認（メッセージ数、容量）
-- APIキー管理（上位プラン）
-
----
-
-## 14. データモデル（概略・確定ではない）
-- `tenants(id, owner_user_id, plan, trial_ends_at, created_at)`
-- `bots(id, tenant_id, name, status, public_id, created_at)`
-- `bot_tokens(id, bot_id, public_token_hash, allowed_origins, revoked_at)`
-- `sources(id, bot_id, type, url, file_path, status, created_at)`
-- `documents(id, source_id, version, content_hash, raw_path, text_path, retrieved_at)`
-- `chunks(id, document_id, chunk_index, text, meta_jsonb)`
-- `embeddings(chunk_id, embedding_vector, model, created_at)`
-- `chat_logs(id, bot_id, user_anon_id, question, answer, token_usage, created_at)`
-- `usage_daily(id, tenant_id, bot_id, date, messages_count, tokens_in, tokens_out)`
-- `cache(id, bot_id, key_hash, answer, retrieved_chunks, expires_at)`
-
----
-
-## 15. 重要な設計方針（確定事項）
-1. Bot単位の論理分離（URL階層ではなくbot_idが本体）
-2. RAG前提（embedding検索 + LLM生成）、外部検索はしない
-3. 安価モデルを標準、上位機能はプランで解放
-4. 原価制御（上限・キャッシュ）を最初から設計に入れる
-5. URL/PDF投入→非同期インデックスで運用可能にする
-6. Web埋め込みと共有URLの両方を提供（導入ハードルを下げる）
-
----
-
-## 16. 未決事項（今後決める）
-- ベクトル保存方式（pgvector vs 専用ベクトルDB）
-- URLクロール範囲（単一ページのみ/サイトマップ対応）
-- Headlessレンダリングの採用タイミング
-- 料金・上限の具体値（利益が出るラインに合わせて）
-- どのモデルを標準にするか（コスト/品質のバランス）
-- 出典表示の標準ON/OFF（プラン差別化）
-- API/LINE連携の正式仕様（認証・紐付け・運用）
-
----
-
-## 17. ロードマップ（提案）
-### Phase 0（MVP）
-- Bot作成、URL1件、PDF1件、Webチャット、共有URL、基本プラン、利用制限、最低限のログ
-
-### Phase 1
-- 埋め込みWidget、セマンティックキャッシュ、使用量ダッシュボード、再インデックス改善
-
-### Phase 2
-- API提供、LINE連携（上位プラン）、権限/チーム機能、URL複数登録
-
-### Phase 3
-- サイトマップ/ドメインクロール、SSO、監査ログ強化、エンタープライズ要件
-
----
-
-## 18. 期待される差別化の方向（検討）
-- ローカル/業界特化の導入支援（SaaS単体＋支援のハイブリッドも可能）
-- 原価を抑えた低価格プラン（ただし制限設計は必須）
-- API/LINE連携を“簡単に”提供（設定・テンプレ・ガイド含む）
-- 管理画面UX（ナレッジ管理が簡単、改善が回る）
-
----
-
-## 19. 付録：前提整理（本プロダクトの立ち位置）
-- 「誰でも作れる」時代において、差は
-  - 運用設計（壊れない）
-  - 原価設計（赤字にならない）
-  - セキュリティ（信頼できる）
-  - 導入の簡単さ（オンボーディング）
-  にある。
-- 本プロダクトは、**“作れる”を超えて“安全に回る”**を主戦場とする。
-
----
-
-# 20. Widget / Embed 仕様も提供
-
-## 20.1 概要
-顧客Webサイトにタグを埋め込むだけでチャットUIを表示する。
-Helpnavi というサービスを参考にする。
-
-## 20.2 埋め込みコード例
-
+## 9. Widget 仕様
+### 9.1 埋め込みコード
 ```html
 <script
-  src="https://your-service.com/widget.js"
-  data-bot-id="bot_public_id"
-  data-public-token="public_token"
+  src="https://your-domain.com/widget.js"
+  data-bot-id="bot_xxxxxxxxxxxx"
+  data-widget-token="knotic_wgt_xxxxxxxxx"
+  data-mode="overlay"
+  data-position="right-bottom"
 ></script>
 ```
 
-## オプション属性(柔軟に設計していく)
-| 属性            | 必須 | 説明           |
-| ------------- | -- | ------------ |
-| data-position | 任意 | right / left |
-| data-theme    | 任意 | light / dark |
-| data-welcome  | 任意 | 初期メッセージ      |
+### 9.2 必須属性
+- `data-bot-id`
+- `data-widget-token`
 
+### 9.3 任意属性
+- `data-mode`
+  - `overlay`
+  - `redirect`
+- `data-position`
+  - `right-bottom`
+  - `right-top`
 
+### 9.4 現行仕様上の注意
+- 旧文書の `data-public-token` は現行実装では使用しない
+- 実際の属性名は `data-widget-token`
+- Widget は `public/widget.js` から配布される
+- 事前に Bot を `ready` かつ `is_public` にしておく必要がある
+
+---
+
+## 10. 課金・プラン制御
+### 10.1 課金基盤
+- Stripe を標準採用
+- `subscriptions` と `billing_events` で契約状態を保持
+- Webhook で契約同期
+
+### 10.2 手動契約オーバーライド
+- `tenant_contract_overrides` により Stripe を無視して制御可能
+- 主な用途:
+  - 請求書払い
+  - 銀行振込
+  - 特別契約
+  - 運営による暫定制御
+
+### 10.3 現行プラン値
+`schema-02.sql` 時点の主要値:
+
+| Plan | 月額 | Bot上限表示 | 内部Bot上限 | 月間メッセージ | ストレージ | API | Hosted | Widget | APIキー上限 | Hosted上限 |
+|---|---:|---:|---:|---:|---:|---|---|---|---:|---:|
+| Lite | ¥10,000 | 1 | 50 | 1,000 | 100MB | 不可 | 不可 | 可 | 0 | 0 |
+| Standard | ¥24,800 | 2 | 50 | 5,000 | 1,024MB | 可 | 可 | 可 | 2 | 2 |
+| Pro | ¥100,000 | 無制限表示 | 50 | 20,000 | 10,240MB | 可 | 可 | 可 | 10 | 50 |
+
+補足:
+- Pro の Bot 無制限は表示上の扱いで、内部上限は 50
+- 許可オリジン数はプラン上 `null` でも、内部CAPは 200
+
+### 10.4 実際に制御している上限
+- Bot作成数
+- 月間メッセージ数
+- ストレージ使用量
+- Hosted URL 利用可否と件数
+- API利用可否
+- APIキー発行数
+
+### 10.5 契約状態
+運用上の主要状態:
+- `trialing`
+- `active`
+- `past_due`
+- `unpaid`
+- `canceled`
+- `paused`
+- `incomplete`
+
+`trialing`, `active`, `past_due` は継続利用側。  
+`unpaid`, `canceled`, `paused`, `incomplete` は制限停止側として扱います。
+
+---
+
+## 11. Console 機能
+### 11.1 契約者コンソール
+主な画面:
+- Overview
+- Billing
+- Bots
+- Sources
+- API Keys
+- Audit
+- Settings
+- Members
+- Operations
+
+主な操作:
+- Bot作成
+- Hosted / Widget 設定
+- URL追加
+- ファイル追加
+- 手動インデックス
+- Widgetトークン再発行
+- APIキー発行/失効
+- メンバー招待
+- Bot単位アクセス制御
+- プラン変更
+
+### 11.2 Platform Admin
+主な機能:
+- テナント一覧
+- テナント作成
+- 契約オーバーライド設定
+- Platform監査ログ閲覧
+- インデックスジョブ監視
+- プラン上限編集
+- 契約者コンソールへの代理閲覧
+
+---
+
+## 12. 招待・チーム利用
+### 12.1 メンバー招待
+- `tenant_member_invites`
+- 招待URLまたはトークンで参加
+- 招待メールは Resend で送信
+- 再送信制限あり
+
+### 12.2 アカウント種別
+サインアップトリガーは `account_type` を考慮します。
+
+- `owner`
+  - テナントを自動作成
+  - `profiles.default_tenant_id` を設定
+  - `editor` membership を付与
+- `member`
+  - テナントは自動作成しない
+  - 招待参加を前提に `profiles` のみ作成
+
+### 12.3 Bot単位アクセス制御
+- 社内向けBotに対して、特定メンバーだけアクセスをブロック可能
+- `bot_hosted_access_blocks` を使用
+
+---
+
+## 13. 監査・通知・運用
+### 13.1 監査ログ
+- `audit_logs`
+- Bot、Source、APIキー、Widget、メンバー、契約関連の操作を記録
+
+### 13.2 通知
+- `tenant_notifications`
+- 上限接近や上限超過を通知
+
+### 13.3 強制停止
+- `tenants.force_stopped`
+- `bots.force_stopped`
+- 運営判断で個別停止可能
+
+### 13.4 運用ジョブ
+`schema-02.sql` では以下も含みます。
+- 監査ログ保持期間の自動削除
+- レートリミットテーブル清掃
+- 認証ロックアウト清掃
+
+---
+
+## 14. レート制限・安全対策
+### 14.1 チャット
+- 公開/Widget アクセスに IP ベースの制限
+- DB-backed rate limit を利用
+
+### 14.2 認証保護
+- `rate_limit_buckets`
+- `auth_lockouts`
+- 連続失敗時のロックアウト
+
+### 14.3 問い合わせフォーム
+- honeypot
+- 送信開始からの経過時間チェック
+- Origin / Referer チェック
+- 入力検証
+- レート制限
+
+### 14.4 データ分離
+- Supabase RLS
+- `tenant_id` / `bot_id` による境界管理
+
+---
+
+## 15. 主要API
+### 15.1 外部/公開系
+- `POST /api/v1/chat`
+  - Botへの質問送信
+- `GET /api/widget/config`
+  - Widget設定取得
+- `POST /api/contact`
+  - 問い合わせ送信
+
+### 15.2 Hosted系
+- `POST /api/hosted/chat`
+- `POST /api/hosted/rooms`
+- `POST /api/hosted/messages`
+
+### 15.3 内部系
+- `POST /api/internal/indexing/run`
+- `POST /api/internal/billing/enforce`
+
+### 15.4 Stripe系
+- `POST /api/stripe/webhook`
+- `POST /api/stripe/checkout`
+- `POST /api/stripe/portal`
+- `POST /api/stripe/subscription/cancel`
+- `POST /api/stripe/subscription/resume`
+
+---
+
+## 16. データモデル概要
+### 16.1 契約・権限
+- `profiles`
+- `tenants`
+- `tenant_memberships`
+- `platform_admin_users`
+
+### 16.2 課金
+- `plans`
+- `billing_customers`
+- `subscriptions`
+- `billing_events`
+- `tenant_contract_overrides`
+
+### 16.3 Bot / ナレッジ
+- `bots`
+- `bot_public_tokens`
+- `sources`
+- `indexing_jobs`
+- `source_pages`
+
+### 16.4 チャット / 使用量
+- `chat_logs`
+- `usage_daily`
+- `hosted_chat_rooms`
+- `hosted_chat_messages`
+
+### 16.5 招待 / 制御 / 運用
+- `tenant_api_keys`
+- `tenant_notifications`
+- `audit_logs`
+- `tenant_member_invites`
+- `bot_hosted_access_blocks`
+- `rate_limit_buckets`
+- `auth_lockouts`
+
+### 16.6 予約的・未活用寄りの構造
+- `response_cache`
+  - テーブルはあるが、現行コードでは中核機能としては未使用
+
+---
+
+## 17. 旧仕様書からの主な変更点
+以下は旧文書から見て重要な更新点です。
+
+1. 提供形態は Hosted / Widget / API の3本柱で整理されている
+2. 権限は `editor` / `reader` + Platform Admin の構成になっている
+3. RAG 基盤は独自 chunk / pgvector 前提ではなく OpenAI File Search 中心
+4. URL 取り込みは sitemap 由来の複数ページ処理に対応している
+5. Stripe と手動オーバーライドの二重管理が実装されている
+6. Bot単位アクセス制御、メンバー招待、代理閲覧が実装されている
+7. Widget の属性名は `data-widget-token` が正しい
+8. Platform Admin コンソールが実装済み
+9. `schema-02.sql` が現行のDB状態を表す
+
+---
+
+## 18. 現時点で未実装または限定的な項目
+- LINE 連携
+- 外部Web検索による最新情報回答
+- SSO / SAML
+- 高度な権限分離
+- 独自セマンティックキャッシュ本実装
+- Headless ブラウザを前提にした動的サイト取得
+- エンタープライズ向け監査・法務要件の拡張
+
+---
+
+## 19. 今後の更新方針
+この文書は、以下の変更が入るたびに更新対象とします。
+
+- `schema-02.sql` のテーブル/カラム変更
+- プラン上限やStripe運用の変更
+- Hosted / Widget / API の認証仕様変更
+- RAG実装方式の変更
+- Platform Admin の運用フロー変更
+
+必要に応じて、詳細手順は以下へ分離します。
+- 導入/環境構築: `docs/supabase-setup.md`
+- 課金/運用: `docs/stripe-setup.md`, `docs/運用マニュアル.md`
+- Widget利用手順: `app/help/widget/page.tsx` 相当のヘルプ内容
