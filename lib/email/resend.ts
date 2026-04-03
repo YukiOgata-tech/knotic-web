@@ -1,5 +1,145 @@
 import { getAppUrl } from "@/lib/env"
 
+type MemberInviteMailInput = {
+  toEmail: string
+  inviteUrl: string
+  tenantName: string
+  invitedByEmail: string
+  expiresAt: string // ISO string
+}
+
+export async function sendMemberInviteEmail(input: MemberInviteMailInput) {
+  const apiKey = getRequiredEnv("RESEND_API_KEY")
+  const from = getRequiredEnv("RESEND_FROM_EMAIL")
+
+  const baseUrl = getAppUrl().replace(/\/$/, "")
+  const logoUrl = `${baseUrl}/images/knotic-title-whitetext.png`
+
+  const safeEmail = escapeHtml(input.toEmail)
+  const safeTenant = escapeHtml(input.tenantName)
+  const safeInviter = escapeHtml(input.invitedByEmail)
+  const safeUrl = escapeHtml(input.inviteUrl)
+  const expiryDate = new Date(input.expiresAt).toLocaleDateString("ja-JP", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+
+  const subject = `【knotic】${safeTenant} からチームへの招待`
+
+  const html = `
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>${escapeHtml(subject)}</title>
+    <style>
+      @media only screen and (max-width: 600px) {
+        .outer { padding: 14px 8px !important; }
+        .shell { border-radius: 12px !important; }
+        .hero { padding: 20px 16px !important; }
+        .section { padding: 16px !important; }
+        .btn { font-size: 15px !important; padding: 14px 24px !important; }
+      }
+    </style>
+  </head>
+  <body style="margin:0;padding:0;background:#f3f6fb;color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Hiragino Kaku Gothic ProN','Yu Gothic',Meiryo,sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="outer" style="background:#f3f6fb;padding:24px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0" class="shell" style="width:100%;max-width:640px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;">
+
+            <tr>
+              <td class="hero" style="padding:28px 32px;background:linear-gradient(120deg,#0f172a 0%,#1e293b 65%,#334155 100%);">
+                <img src="${logoUrl}" alt="knotic" width="180" style="display:block;max-width:180px;width:100%;height:auto;margin:0 0 14px;" />
+                <h1 style="margin:0;color:#ffffff;font-size:22px;line-height:1.4;font-weight:700;">${safeTenant} へのチーム招待</h1>
+                <p style="margin:8px 0 0;color:#94a3b8;font-size:13px;">${safeInviter} さんからの招待です</p>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="section" style="padding:28px 32px 8px;">
+                <p style="margin:0 0 16px;font-size:15px;line-height:1.8;color:#334155;">
+                  ${safeEmail} 宛に knotic チームへの招待が届いています。<br />
+                  下のボタンから招待を承諾してチームに参加できます。
+                </p>
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td style="border-radius:9999px;background:#0891b2;">
+                      <a href="${safeUrl}" class="btn" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;border-radius:9999px;background:#0891b2;">
+                        招待を承諾する
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="section" style="padding:20px 32px;">
+                <div style="border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;padding:14px 16px;">
+                  <p style="margin:0 0 6px;font-size:12px;color:#64748b;font-weight:600;">招待リンク（ボタンが機能しない場合）</p>
+                  <p style="margin:0;font-size:11px;color:#0891b2;word-break:break-all;">${safeUrl}</p>
+                </div>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="section" style="padding:0 32px 28px;">
+                <div style="border-top:1px solid #e2e8f0;padding-top:16px;">
+                  <p style="margin:0 0 6px;font-size:12px;color:#94a3b8;">⏰ この招待の有効期限は <strong style="color:#64748b;">${expiryDate}</strong> です</p>
+                  <p style="margin:0 0 6px;font-size:12px;color:#94a3b8;">📧 このメールに心当たりがない場合は、そのまま無視してください</p>
+                  <p style="margin:0;font-size:12px;color:#94a3b8;">🔒 招待を承諾するには、<strong style="color:#64748b;">${safeEmail}</strong> でログインが必要です</p>
+                </div>
+              </td>
+            </tr>
+
+          </table>
+          <p style="margin:14px 0 0;font-size:11px;color:#94a3b8;">© knotic — このメールは自動送信されています</p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+  `
+
+  const text = [
+    `${input.tenantName} へのチーム招待`,
+    `${input.invitedByEmail} さんからの招待です`,
+    "",
+    `${input.toEmail} 宛に knotic チームへの招待が届いています。`,
+    "以下のURLから招待を承諾してチームに参加できます。",
+    "",
+    input.inviteUrl,
+    "",
+    `有効期限: ${expiryDate}`,
+    `このメールに心当たりがない場合は無視してください。`,
+  ].join("\n")
+
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from,
+      to: [input.toEmail],
+      subject,
+      html,
+      text,
+    }),
+  })
+
+  if (!res.ok) {
+    const payload = await res.text().catch(() => "")
+    throw new Error(`Resend send failed: ${res.status} ${payload}`)
+  }
+}
+
 type ContactMailInput = {
   fromName: string
   fromEmail: string

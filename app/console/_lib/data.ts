@@ -85,6 +85,8 @@ export type TenantInviteRow = {
   status: "pending" | "accepted" | "revoked" | "expired"
   expires_at: string
   created_at: string
+  email_sent_at: string | null
+  email_send_count: number
 }
 
 export type HostedAccessBotRow = {
@@ -503,7 +505,7 @@ export async function fetchTenantMembersAndInvites(tenantId: string) {
         .order("created_at", { ascending: true }),
       supabase
         .from("tenant_member_invites")
-        .select("id, email, role, status, expires_at, created_at")
+        .select("id, email, role, status, expires_at, created_at, email_sent_at, email_send_count")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false })
         .limit(50),

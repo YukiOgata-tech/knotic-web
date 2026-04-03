@@ -14,6 +14,7 @@ import { createClient } from "@/lib/supabase/server"
 import { writeAuditLog } from "@/app/console/_lib/audit"
 import { requireConsoleContext } from "@/app/console/_lib/data"
 import { getAppUrl } from "@/lib/env"
+import { sendMemberInviteEmail } from "@/lib/email/resend"
 import { ALLOWED_FILE_EXTENSIONS, SPREADSHEET_EXTENSIONS, cleanupSourceFromOpenAiFileSearch, syncBinaryFileToOpenAiFileSearch, syncSourceTextToOpenAiFileSearch } from "@/lib/filesearch/openai"
 import { spreadsheetToMarkdown } from "@/lib/indexing/spreadsheet"
 
@@ -1279,10 +1280,34 @@ export async function createMemberInviteAction(formData: FormData) {
     const appUrl = getAppUrl().replace(/\/$/, "")
     const inviteUrl = `${appUrl}/invite?token=${encodeURIComponent(token)}`
 
+    // Send invite email (non-blocking: failure doesn't abort the invite)
+    let emailSent = false
+    try {
+      const [{ data: tenant }, inviterData] = await Promise.all([
+        admin.from("tenants").select("display_name").eq("id", tenantId).maybeSingle(),
+        admin.auth.admin.getUserById(user.id),
+      ])
+      await sendMemberInviteEmail({
+        toEmail: email,
+        inviteUrl,
+        tenantName: tenant?.display_name ?? "knotic",
+        invitedByEmail: inviterData.data.user?.email ?? "",
+        expiresAt,
+      })
+      await admin
+        .from("tenant_member_invites")
+        .update({ email_sent_at: new Date().toISOString(), email_send_count: 1 })
+        .eq("token_hash", tokenHash)
+      emailSent = true
+    } catch (emailErr) {
+      console.error("[invite] email send failed", emailErr)
+    }
+
     redirect(
       toAppUrl(redirectTo, {
-        notice: "招待リンクを発行しました。共有してください。",
-        invite_link: inviteUrl,
+        notice: emailSent
+          ? "招待メールを送信しました。"
+          : "招待を作成しましたが、メール送信に失敗しました。招待履歴の「再送信」ボタンをお試しください。",
       })
     )
   } catch (error) {
@@ -1325,6 +1350,102 @@ export async function revokeMemberInviteAction(formData: FormData) {
     redirect(
       toAppUrl(String(formData.get("redirect_to") ?? ""), {
         error: error instanceof Error ? error.message : "招待取り消しに失敗しました。",
+      })
+    )
+  }
+}
+
+export async function resendMemberInviteAction(formData: FormData) {
+  try {
+    const redirectTo = String(formData.get("redirect_to") ?? "")
+    const { tenantId, user } = await getTenantContext(true)
+    const inviteId = String(formData.get("invite_id") ?? "")
+    const admin = createAdminClient()
+
+    const { data: invite, error: fetchError } = await admin
+      .from("tenant_member_invites")
+      .select("id, email, status, expires_at, email_sent_at, email_send_count")
+      .eq("id", inviteId)
+      .eq("tenant_id", tenantId)
+      .eq("status", "pending")
+      .maybeSingle()
+
+    if (fetchError || !invite) {
+      throw new Error("招待が見つかりません。")
+    }
+
+    // Rate limit: max 5 sends total
+    const sendCount = (invite.email_send_count as number) ?? 0
+    if (sendCount >= 5) {
+      throw new Error("この招待の再送信回数の上限（5回）に達しています。招待を取り消して新たに発行してください。")
+    }
+
+    // Rate limit: min 10 minutes between sends
+    if (invite.email_sent_at) {
+      const lastSentMs = new Date(invite.email_sent_at as string).getTime()
+      const cooldownMs = 10 * 60 * 1000
+      const remainingSec = Math.ceil((lastSentMs + cooldownMs - Date.now()) / 1000)
+      if (remainingSec > 0) {
+        const remainingMin = Math.ceil(remainingSec / 60)
+        throw new Error(`再送信は${remainingMin}分後に実行できます。`)
+      }
+    }
+
+    // Generate a new token (refreshes the link and expiry)
+    const token = `inv_${crypto.randomBytes(24).toString("base64url")}`
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex")
+    const expiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
+
+    await admin
+      .from("tenant_member_invites")
+      .update({
+        token_hash: tokenHash,
+        expires_at: expiresAt,
+        invited_by: user.id,
+        accepted_at: null,
+        accepted_by: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", inviteId)
+      .eq("tenant_id", tenantId)
+
+    const appUrl = getAppUrl().replace(/\/$/, "")
+    const inviteUrl = `${appUrl}/invite?token=${encodeURIComponent(token)}`
+
+    const [{ data: tenant }, inviterData] = await Promise.all([
+      admin.from("tenants").select("display_name").eq("id", tenantId).maybeSingle(),
+      admin.auth.admin.getUserById(user.id),
+    ])
+
+    await sendMemberInviteEmail({
+      toEmail: invite.email as string,
+      inviteUrl,
+      tenantName: tenant?.display_name ?? "knotic",
+      invitedByEmail: inviterData.data.user?.email ?? "",
+      expiresAt,
+    })
+
+    await admin
+      .from("tenant_member_invites")
+      .update({
+        email_sent_at: new Date().toISOString(),
+        email_send_count: sendCount + 1,
+      })
+      .eq("id", inviteId)
+
+    await writeAuditLog(admin, {
+      tenantId,
+      action: "tenant.member.invite.resend",
+      targetType: "tenant_member_invite",
+      targetId: inviteId,
+      after: { email: invite.email, send_count: sendCount + 1 },
+    })
+
+    redirect(toAppUrl(redirectTo, { notice: "招待メールを再送信しました。" }))
+  } catch (error) {
+    redirect(
+      toAppUrl(String(formData.get("redirect_to") ?? ""), {
+        error: error instanceof Error ? error.message : "再送信に失敗しました。",
       })
     )
   }

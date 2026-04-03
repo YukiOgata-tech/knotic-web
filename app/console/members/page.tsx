@@ -1,5 +1,6 @@
 import {
   createMemberInviteAction,
+  resendMemberInviteAction,
   revokeMemberInviteAction,
 } from "@/app/console/actions"
 import { ConsoleAlerts } from "@/app/console/_components/console-alerts"
@@ -18,11 +19,30 @@ type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
+function statusLabel(status: string) {
+  if (status === "pending") return "承認待ち"
+  if (status === "accepted") return "参加済み"
+  return "失効"
+}
+
+function statusColor(status: string) {
+  if (status === "pending") return "text-amber-600 dark:text-amber-400"
+  if (status === "accepted") return "text-emerald-600 dark:text-emerald-400"
+  return "text-slate-400"
+}
+
+function resendCooldownLabel(emailSentAt: string | null): string | null {
+  if (!emailSentAt) return null
+  const remaining = new Date(emailSentAt).getTime() + 10 * 60 * 1000 - Date.now()
+  if (remaining <= 0) return null
+  const min = Math.ceil(remaining / 60000)
+  return `${min}分後に再送可`
+}
+
 export default async function ConsoleMembersPage({ searchParams }: PageProps) {
   const params = (await searchParams) ?? {}
   const notice = firstParam(params.notice)
   const error = firstParam(params.error)
-  const inviteLink = firstParam(params.invite_link)
 
   const { membership } = await requireConsoleContext()
   if (!membership) return null
@@ -33,43 +53,37 @@ export default async function ConsoleMembersPage({ searchParams }: PageProps) {
     <div className="grid gap-4">
       <ConsoleAlerts notice={notice} error={error} />
 
-      {inviteLink ? (
-        <Card className="border-cyan-200/60 bg-cyan-50/80 dark:border-cyan-900/50 dark:bg-cyan-950/30">
-          <CardHeader>
-            <CardTitle className="text-base">招待リンク（この表示時に共有してください）</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <pre className="overflow-x-auto rounded-lg border border-cyan-200/70 bg-white/80 p-3 text-xs dark:border-cyan-800/60 dark:bg-slate-900/70">
-              <code>{inviteLink}</code>
-            </pre>
-          </CardContent>
-        </Card>
-      ) : null}
-
+      {/* 招待フォーム */}
       <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
         <CardHeader>
           <CardTitle>メンバー招待</CardTitle>
           <CardDescription>
-            Editorロールのメンバーが招待リンクを発行できます。招待参加時のロールはReaderになります。
+            Editorロールのメンバーが招待メールを送信できます。招待参加時のロールはReaderになります。
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="grid gap-4">
           <form action={createMemberInviteAction} className="grid gap-3 md:grid-cols-[1fr_auto]">
             <input type="hidden" name="redirect_to" value="/console/members" />
             <Input name="email" type="email" placeholder="member@example.com" required disabled={!isEditor} />
             <Button type="submit" className="rounded-full" disabled={!isEditor}>
-              招待リンク発行
+              招待メールを送信
             </Button>
           </form>
+          <div className="rounded-md border border-sky-200/70 bg-sky-50/80 px-3 py-2 dark:border-sky-800/40 dark:bg-sky-950/30">
+            <p className="text-xs text-sky-800 dark:text-sky-300">
+              📨 招待メールが届かない場合は、迷惑メールフォルダをご確認ください。それでも届かない場合は招待履歴の「再送信」ボタンをお使いください。
+            </p>
+          </div>
         </CardContent>
       </Card>
 
+      {/* 所属メンバー */}
       <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
         <CardHeader>
           <CardTitle>所属メンバー</CardTitle>
         </CardHeader>
         <CardContent>
-          {/* モバイル: カードリスト */}
+          {/* モバイル */}
           <div className="grid gap-2 sm:hidden">
             {data.members.map((member) => (
               <div key={member.user_id} className="rounded-lg border border-black/20 p-3 dark:border-white/10">
@@ -80,65 +94,111 @@ export default async function ConsoleMembersPage({ searchParams }: PageProps) {
               </div>
             ))}
           </div>
-
-          {/* デスクトップ: テーブル */}
+          {/* デスクトップ */}
           <div className="hidden overflow-x-auto sm:block">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>メール</TableHead>
-                <TableHead>ロール</TableHead>
-                <TableHead>状態</TableHead>
-                <TableHead>参加日</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.members.map((member) => (
-                <TableRow key={member.user_id}>
-                  <TableCell className="max-w-[220px] truncate">{data.emailByUserId.get(member.user_id) ?? member.user_id}</TableCell>
-                  <TableCell>{member.role}</TableCell>
-                  <TableCell>{member.is_active ? "有効" : "無効"}</TableCell>
-                  <TableCell>{fmtDate(member.created_at)}</TableCell>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>メール</TableHead>
+                  <TableHead>ロール</TableHead>
+                  <TableHead>状態</TableHead>
+                  <TableHead>参加日</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {data.members.map((member) => (
+                  <TableRow key={member.user_id}>
+                    <TableCell className="max-w-[220px] truncate">{data.emailByUserId.get(member.user_id) ?? member.user_id}</TableCell>
+                    <TableCell>{member.role}</TableCell>
+                    <TableCell>{member.is_active ? "有効" : "無効"}</TableCell>
+                    <TableCell>{fmtDate(member.created_at)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         </CardContent>
       </Card>
 
+      {/* 招待履歴 */}
       <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
         <CardHeader>
           <CardTitle>招待履歴</CardTitle>
+          <CardDescription>直近50件を表示。有効期限は招待発行・再送信から3日間です。</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3">
-          {data.invites.map((invite) => (
-            <div
-              key={invite.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-black/20 p-3 dark:border-white/10"
-            >
-              <div className="text-sm">
-                <p className="font-medium">{invite.email}</p>
-                <p className="text-muted-foreground">
-                  ロール: {invite.role === "editor" ? "Editor" : "Reader"} ／
-                  状態: {invite.status === "pending" ? "承認待ち" : invite.status === "accepted" ? "参加済み" : "失効"} ／
-                  期限: {fmtDate(invite.expires_at)}
-                </p>
+          {data.invites.length === 0 && (
+            <p className="text-sm text-muted-foreground">招待履歴がありません。</p>
+          )}
+          {data.invites.map((invite) => {
+            const cooldown = invite.status === "pending" ? resendCooldownLabel(invite.email_sent_at) : null
+            const sendCount = invite.email_send_count ?? 0
+            const canResend = isEditor && invite.status === "pending" && sendCount < 5 && !cooldown
+
+            return (
+              <div
+                key={invite.id}
+                className="rounded-lg border border-black/20 p-3 dark:border-white/10"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="grid gap-1 text-sm">
+                    <p className="font-medium">{invite.email}</p>
+                    <p className="text-xs text-muted-foreground">
+                      ロール: {invite.role === "editor" ? "Editor" : "Reader"}
+                      {" ／ "}
+                      状態:{" "}
+                      <span className={statusColor(invite.status)}>
+                        {statusLabel(invite.status)}
+                      </span>
+                      {" ／ "}
+                      期限: {fmtDate(invite.expires_at)}
+                    </p>
+                    {invite.status === "pending" && (
+                      <p className="text-xs text-muted-foreground">
+                        メール送信: {invite.email_sent_at ? fmtDate(invite.email_sent_at) : "未送信"}
+                        {sendCount > 0 && ` (計${sendCount}回)`}
+                        {sendCount >= 5 && (
+                          <span className="ml-1 text-amber-600 dark:text-amber-400">・送信上限に達しました</span>
+                        )}
+                      </p>
+                    )}
+                  </div>
+
+                  {invite.status === "pending" && (
+                    <div className="flex shrink-0 flex-wrap gap-2">
+                      {/* 再送信 */}
+                      <form action={resendMemberInviteAction}>
+                        <input type="hidden" name="redirect_to" value="/console/members" />
+                        <input type="hidden" name="invite_id" value={invite.id} />
+                        <Button
+                          type="submit"
+                          size="sm"
+                          variant="outline"
+                          className="rounded-full"
+                          disabled={!canResend}
+                          title={cooldown ?? (sendCount >= 5 ? "送信上限に達しました" : undefined)}
+                        >
+                          {cooldown ? cooldown : "再送信"}
+                        </Button>
+                      </form>
+                      {/* 取り消し */}
+                      <form action={revokeMemberInviteAction}>
+                        <input type="hidden" name="redirect_to" value="/console/members" />
+                        <input type="hidden" name="invite_id" value={invite.id} />
+                        <Button type="submit" size="sm" variant="outline" className="rounded-full" disabled={!isEditor}>
+                          取り消し
+                        </Button>
+                      </form>
+                    </div>
+                  )}
+                </div>
               </div>
-              {invite.status === "pending" ? (
-                <form action={revokeMemberInviteAction}>
-                  <input type="hidden" name="redirect_to" value="/console/members" />
-                  <input type="hidden" name="invite_id" value={invite.id} />
-                  <Button type="submit" size="sm" variant="outline" disabled={!isEditor}>
-                    取り消し
-                  </Button>
-                </form>
-              ) : null}
-            </div>
-          ))}
+            )
+          })}
         </CardContent>
       </Card>
 
+      {/* Hosted URLアクセス制御 */}
       <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
         <CardHeader>
           <CardTitle>Hosted URLアクセス制御（Bot単位）</CardTitle>
