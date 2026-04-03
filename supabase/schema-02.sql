@@ -66,6 +66,10 @@ create table if not exists public.tenants (
   display_name text not null,
   owner_user_id uuid not null references auth.users(id),
   active boolean not null default true,
+  force_stopped boolean not null default false,
+  force_stop_reason text,
+  force_stopped_at timestamptz,
+  force_stopped_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -213,6 +217,10 @@ create table if not exists public.billing_events (
   event_type text not null,
   payload jsonb not null,
   processed_at timestamptz,
+  processing_error text,
+  attempt_count integer not null default 0,
+  last_attempt_at timestamptz,
+  next_retry_at timestamptz,
   created_at timestamptz not null default now()
 );
 
@@ -224,6 +232,35 @@ create table if not exists public.bots (
   description text,
   status bot_status not null default 'draft',
   is_public boolean not null default true,
+  chat_purpose text not null default 'customer_support',
+  access_mode text not null default 'public',
+  display_name text,
+  welcome_message text,
+  placeholder_text text,
+  disclaimer_text text,
+  show_citations boolean not null default true,
+  history_turn_limit integer not null default 8,
+  file_search_provider text,
+  file_search_vector_store_id text,
+  require_auth_for_hosted boolean not null default false,
+  ui_header_bg_color text not null default '#0f172a',
+  ui_header_text_color text not null default '#f8fafc',
+  ui_footer_bg_color text not null default '#f8fafc',
+  ui_footer_text_color text not null default '#0f172a',
+  widget_enabled boolean not null default true,
+  widget_mode text not null default 'overlay',
+  widget_position text not null default 'right-bottom',
+  widget_launcher_label text not null default 'チャット',
+  widget_policy_text text not null default 'このチャット履歴はブラウザ上で24時間保持され、自動的に削除されます。',
+  widget_redirect_new_tab boolean not null default false,
+  force_stopped boolean not null default false,
+  force_stop_reason text,
+  force_stopped_at timestamptz,
+  force_stopped_by uuid references auth.users(id) on delete set null,
+  ai_model text not null default 'gpt-5-mini',
+  ai_fallback_model text,
+  ai_max_output_tokens integer not null default 1200,
+  faq_questions text[] not null default '{}',
   bot_logo_url text,
   launcher_show_label boolean not null default true,
   created_by uuid references auth.users(id),
@@ -248,6 +285,12 @@ create table if not exists public.sources (
   url text,
   file_path text,
   file_name text,
+  file_size_bytes bigint not null default 0,
+  file_search_provider text,
+  file_search_file_id text,
+  file_search_last_synced_at timestamptz,
+  file_search_error text,
+  index_mode text not null default 'raw',
   content_hash text,
   created_by uuid references auth.users(id),
   created_at timestamptz not null default now(),
@@ -607,6 +650,13 @@ create table if not exists public.indexing_jobs (
   source_id uuid references public.sources(id) on delete set null,
   status text not null default 'queued',
   job_type text not null default 'manual',
+  options jsonb not null default '{}'::jsonb,
+  embedding_model text not null default 'text-embedding-3-small',
+  chunks_created integer not null default 0,
+  tokens_embedded integer not null default 0,
+  lock_expires_at timestamptz,
+  worker_id text,
+  index_mode text not null default 'raw',
   requested_by uuid references auth.users(id),
   requested_at timestamptz not null default now(),
   started_at timestamptz,
@@ -615,15 +665,6 @@ create table if not exists public.indexing_jobs (
   pages_indexed integer not null default 0,
   error_message text
 );
-
-alter table public.indexing_jobs
-  add column if not exists options jsonb not null default '{}'::jsonb,
-  add column if not exists embedding_model text not null default 'text-embedding-3-small',
-  add column if not exists chunks_created integer not null default 0,
-  add column if not exists tokens_embedded integer not null default 0,
-  add column if not exists lock_expires_at timestamptz,
-  add column if not exists worker_id text,
-  add column if not exists index_mode text not null default 'raw';
 
 create table if not exists public.source_pages (
   id uuid primary key default gen_random_uuid(),
@@ -635,7 +676,9 @@ create table if not exists public.source_pages (
   status_code integer,
   content_hash text,
   raw_path text,
+  raw_bytes bigint not null default 0,
   text_path text,
+  text_bytes bigint not null default 0,
   fetched_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -661,35 +704,6 @@ alter table public.tenants
   drop column if exists ai_fallback_model,
   drop column if exists ai_allow_model_override,
   drop column if exists ai_max_output_tokens;
-
-alter table public.bots
-  add column if not exists chat_purpose text not null default 'customer_support',
-  add column if not exists access_mode text not null default 'public',
-  add column if not exists display_name text,
-  add column if not exists welcome_message text,
-  add column if not exists placeholder_text text,
-  add column if not exists disclaimer_text text,
-  add column if not exists show_citations boolean not null default true,
-  add column if not exists history_turn_limit integer not null default 8,
-  add column if not exists file_search_provider text,
-  add column if not exists file_search_vector_store_id text,
-  add column if not exists require_auth_for_hosted boolean not null default false,
-  add column if not exists ui_header_bg_color text not null default '#0f172a',
-  add column if not exists ui_header_text_color text not null default '#f8fafc',
-  add column if not exists ui_footer_bg_color text not null default '#f8fafc',
-  add column if not exists ui_footer_text_color text not null default '#0f172a';
-
-alter table public.sources
-  add column if not exists file_size_bytes bigint not null default 0,
-  add column if not exists file_search_provider text,
-  add column if not exists file_search_file_id text,
-  add column if not exists file_search_last_synced_at timestamptz,
-  add column if not exists file_search_error text,
-  add column if not exists index_mode text not null default 'raw';
-
-alter table public.source_pages
-  add column if not exists raw_bytes bigint not null default 0,
-  add column if not exists text_bytes bigint not null default 0;
 
 do $$
 begin
@@ -914,14 +928,6 @@ $$;
 -- ============================================================
 
 -- A) Widget distribution settings
-alter table public.bots
-  add column if not exists widget_enabled boolean not null default true,
-  add column if not exists widget_mode text not null default 'overlay',
-  add column if not exists widget_position text not null default 'right-bottom',
-  add column if not exists widget_launcher_label text not null default 'チャット',
-  add column if not exists widget_policy_text text not null default 'このチャット履歴はブラウザ上で24時間保持され、自動的に削除されます。',
-  add column if not exists widget_redirect_new_tab boolean not null default false;
-
 do $$
 begin
   if not exists (
@@ -1214,13 +1220,6 @@ as $$
 $$;
 
 grant execute on function app.get_tenant_ops_snapshot(uuid) to authenticated;
-
-alter table public.billing_events
-  add column if not exists processing_error text,
-  add column if not exists attempt_count integer not null default 0,
-  add column if not exists last_attempt_at timestamptz,
-  add column if not exists next_retry_at timestamptz;
-
 create index if not exists idx_billing_events_retry_queue
   on public.billing_events (provider, processed_at, next_retry_at, created_at)
   where processed_at is null;
@@ -1229,28 +1228,10 @@ create index if not exists idx_billing_events_tenant_processed
   on public.billing_events (tenant_id, processed_at, created_at desc);
 
 -- D) kill switch
-alter table public.tenants
-  add column if not exists force_stopped boolean not null default false,
-  add column if not exists force_stop_reason text,
-  add column if not exists force_stopped_at timestamptz,
-  add column if not exists force_stopped_by uuid references auth.users(id) on delete set null;
-
-alter table public.bots
-  add column if not exists force_stopped boolean not null default false,
-  add column if not exists force_stop_reason text,
-  add column if not exists force_stopped_at timestamptz,
-  add column if not exists force_stopped_by uuid references auth.users(id) on delete set null;
-
 create index if not exists idx_tenants_force_stopped on public.tenants(force_stopped);
 create index if not exists idx_bots_force_stopped on public.bots(force_stopped);
 
 -- E) bot-level AI model + hosted rooms/invites
-alter table public.bots
-  add column if not exists ai_model text not null default 'gpt-5-mini',
-  add column if not exists ai_fallback_model text,
-  add column if not exists ai_max_output_tokens integer not null default 1200,
-  add column if not exists faq_questions text[] not null default '{}';
-
 do $$
 begin
   if exists (select 1 from pg_constraint where conname = 'bots_ai_model_ck') then

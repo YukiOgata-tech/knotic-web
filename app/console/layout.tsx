@@ -10,8 +10,10 @@ import { boolBadge } from "@/app/console/_lib/ui"
 import { ConsoleNav } from "@/app/console/_components/console-nav"
 import { ConsoleMobileNav } from "@/app/console/_components/console-mobile-nav"
 import { MobileDesktopRecommendModal } from "@/app/console/_components/mobile-desktop-recommend-modal"
+import { TenantSwitcherButton } from "@/app/console/_components/tenant-switcher-button"
 import { stopImpersonationAction } from "@/app/sub-domain/actions"
 import { createTenantWorkspaceAction } from "@/app/console/actions"
+import { InviteJoinForm } from "@/app/console/_components/invite-join-form"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
@@ -31,7 +33,7 @@ export const metadata: Metadata = {
 }
 
 export default async function ConsoleLayout({ children }: { children: React.ReactNode }) {
-  const { user, membership, membershipError, impersonation } = await requireConsoleContext()
+  const { user, membership, allMemberships, membershipError, impersonation } = await requireConsoleContext()
 
   if (!membership || membershipError) {
     return (
@@ -64,17 +66,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
               </div>
               <div className="grid gap-2 rounded-lg border border-amber-300/60 bg-white/70 p-3 dark:border-amber-500/35 dark:bg-slate-900/40">
                 <p className="font-medium">2) 招待リンクで参加</p>
-                <form method="get" action="/invite" className="flex flex-wrap items-center gap-2">
-                  <Input
-                    name="token"
-                    required
-                    placeholder="招待トークンを入力"
-                    className="max-w-sm bg-white dark:bg-slate-900"
-                  />
-                  <Button type="submit" variant="outline" className="rounded-full">
-                    参加する
-                  </Button>
-                </form>
+                <InviteJoinForm />
                 <p className="text-xs text-amber-800 dark:text-amber-300">
                   受け取った招待URLがある場合は、そのまま開いても参加できます。
                 </p>
@@ -109,6 +101,14 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
             <p className="text-xs text-muted-foreground">プラン: {planLabel}</p>
           </div>
           <ConsoleNav />
+          {!impersonation?.active && (
+            <div className="border-t border-black/20 pt-3 dark:border-white/10">
+              <TenantSwitcherButton
+                currentTenantId={membership.tenant_id}
+                memberships={allMemberships}
+              />
+            </div>
+          )}
         </aside>
 
         <main className="grid gap-4 pb-24 lg:pb-0">

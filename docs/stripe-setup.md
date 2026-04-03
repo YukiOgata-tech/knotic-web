@@ -140,7 +140,7 @@ stripe listen --forward-to localhost:3000/api/stripe/webhook
 ## 9. Webhook再試行運用（推奨）
 
 1. SQLを適用
-- `supabase/patch-20260226-billing-events-retry.sql`
+- 新規環境は `supabase/schema-02.sql` を適用（再試行用カラム/インデックスを含む）
 
 2. 実行シークレットを設定
 - `BILLING_RUNNER_SECRET`

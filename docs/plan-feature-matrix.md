@@ -13,7 +13,7 @@
 - ドキュメントは全プラン配布
 
 ## 2. プラン仕様（現在の実装反映）
-`supabase/schema.sql` の `public.plans` / `public.plan_entitlements` に反映済み。
+`supabase/schema-02.sql` の `public.plans` / `public.plan_entitlements` に反映済み。
 
 | Plan | 月額(円) | Bot上限(表示) | Bot内部上限 | 月間メッセージ | データ量上限(MB) | Widget | Hosted Page | API | モデル選択 |
 |---|---:|---:|---:|---:|---:|---|---|---|---|

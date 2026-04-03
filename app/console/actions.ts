@@ -1290,6 +1290,7 @@ export async function createMemberInviteAction(formData: FormData) {
       await sendMemberInviteEmail({
         toEmail: email,
         inviteUrl,
+        token,
         tenantName: tenant?.display_name ?? "knotic",
         invitedByEmail: inviterData.data.user?.email ?? "",
         expiresAt,
@@ -1420,6 +1421,7 @@ export async function resendMemberInviteAction(formData: FormData) {
     await sendMemberInviteEmail({
       toEmail: invite.email as string,
       inviteUrl,
+      token,
       tenantName: tenant?.display_name ?? "knotic",
       invitedByEmail: inviterData.data.user?.email ?? "",
       expiresAt,
@@ -1547,4 +1549,111 @@ export async function updateMemberHostedAccessAction(formData: FormData) {
       })
     )
   }
+}
+
+// ── テナント切り替え ─────────────────────────────────────────
+export async function switchTenantAction(formData: FormData) {
+  const tenantId = String(formData.get("tenant_id") ?? "").trim()
+  if (!tenantId) redirect("/console/overview")
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect("/login?next=/console")
+
+  // Verify the user actually has an active membership in the target tenant
+  const { data: membership } = await supabase
+    .from("tenant_memberships")
+    .select("tenant_id")
+    .eq("user_id", user.id)
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true)
+    .maybeSingle()
+
+  if (!membership) {
+    redirect("/console/overview?error=対象テナントへのアクセス権がありません。")
+  }
+
+  const admin = createAdminClient()
+  await admin
+    .from("profiles")
+    .update({ default_tenant_id: tenantId })
+    .eq("user_id", user.id)
+
+  redirect("/console/overview?notice=テナントを切り替えました。")
+}
+
+// ── トークンでテナントに参加（既テナント所属ユーザー向け）──────────────
+export async function joinTenantByTokenAction(formData: FormData) {
+  const rawInput = String(formData.get("token") ?? "").trim()
+
+  // Accept full invite URL or raw token
+  let token = rawInput
+  try {
+    const url = new URL(rawInput)
+    token = url.searchParams.get("token") ?? rawInput
+  } catch {}
+
+  if (!token) {
+    redirect("/console/overview?error=招待URLまたはトークンを入力してください。")
+  }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect("/login?next=/console")
+
+  const userEmail = user.email?.trim().toLowerCase()
+  if (!userEmail) {
+    redirect("/console/overview?error=アカウントのメールアドレスを取得できませんでした。")
+  }
+
+  const admin = createAdminClient()
+  const tokenHash = crypto.createHash("sha256").update(token).digest("hex")
+
+  const { data: invite } = await admin
+    .from("tenant_member_invites")
+    .select("id, tenant_id, email, role, status, expires_at")
+    .eq("token_hash", tokenHash)
+    .maybeSingle()
+
+  if (!invite) {
+    redirect("/console/overview?error=招待トークンが見つかりません。無効または期限切れの可能性があります。")
+  }
+  if (invite.status !== "pending") {
+    redirect("/console/overview?error=この招待は既に使用済みまたは取り消されています。")
+  }
+  if (new Date(invite.expires_at) < new Date()) {
+    redirect("/console/overview?error=招待の有効期限が切れています。管理者に再発行を依頼してください。")
+  }
+  if (invite.email.trim().toLowerCase() !== userEmail) {
+    redirect(`/console/overview?error=招待先メールアドレスが一致しません（招待先: ${invite.email}）。`)
+  }
+
+  await admin.from("tenant_memberships").upsert(
+    { tenant_id: invite.tenant_id, user_id: user.id, role: invite.role, is_active: true },
+    { onConflict: "tenant_id,user_id" }
+  )
+
+  await admin
+    .from("tenant_member_invites")
+    .update({
+      status: "accepted",
+      accepted_by: user.id,
+      accepted_at: new Date().toISOString(),
+    })
+    .eq("id", invite.id)
+
+  // Switch to the new tenant
+  await admin
+    .from("profiles")
+    .update({ default_tenant_id: invite.tenant_id })
+    .eq("user_id", user.id)
+
+  const { data: tenant } = await admin
+    .from("tenants")
+    .select("display_name")
+    .eq("id", invite.tenant_id)
+    .maybeSingle()
+
+  const name = tenant?.display_name ?? "テナント"
+  redirect(`/console/overview?notice=${encodeURIComponent(`${name} に参加しました。`)}`)
 }

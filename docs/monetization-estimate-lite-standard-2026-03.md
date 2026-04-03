@@ -9,7 +9,7 @@
 
 ## 2. 実装ベース前提（このリポジトリ）
 
-- 料金・上限（`supabase/schema.sql`）
+- 料金・上限（`supabase/schema-02.sql`）
   - Lite: `10,000円/月`、`1,000 messages/月`、`100MB`
   - Standard: `24,800円/月`、`5,000 messages/月`、`1,024MB`
 - メッセージ課金管理
@@ -138,11 +138,10 @@ C_jpy = C_month * 150
 
 ## 10. 参照
 
-- `supabase/schema.sql`
+- `supabase/schema-02.sql`
 - `lib/billing/limits.ts`
 - `app/api/v1/chat/route.ts`
 - `app/api/hosted/chat/route.ts`
 - `lib/filesearch/openai.ts`
 - OpenAI Pricing: https://openai.com/api/pricing/
 - Assistants / File Search FAQ: https://help.openai.com/en/articles/8550641-assistants-api-v2-faq
-

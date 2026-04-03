@@ -11,10 +11,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ProcessingOverlay } from "@/components/ui/processing-overlay"
 
-export function LoginForm() {
+export function LoginForm({ defaultEmail = "" }: { defaultEmail?: string }) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [email, setEmail] = React.useState("")
+  const [email, setEmail] = React.useState(defaultEmail)
   const [password, setPassword] = React.useState("")
   const [honeypot, setHoneypot] = React.useState("")
   const [loading, setLoading] = React.useState(false)
@@ -42,11 +42,13 @@ export function LoginForm() {
           // Silent: bot detected — reset form without error message
           setEmail("")
           setPassword("")
+          setLoading(false)
           return
         }
         if (checkRes.status === 429) {
           const sec: number = checkData.retryAfterSec ?? 60
           setError(`リクエストが多すぎます。${sec}秒後にもう一度お試しください。`)
+          setLoading(false)
           return
         }
       } catch {
@@ -67,12 +69,15 @@ export function LoginForm() {
           body: JSON.stringify({ email }),
         }).catch(() => {})
         setError(signInError.message)
+        setLoading(false)
         return
       }
 
+      // Success: keep loading=true so overlay stays visible during page transition
       router.push(next)
       router.refresh()
-    } finally {
+    } catch {
+      setError("エラーが発生しました。再度お試しください。")
       setLoading(false)
     }
   }

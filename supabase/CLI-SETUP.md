@@ -48,22 +48,19 @@ npx supabase db diff --project-ref wbsrawibepsvcvkyzwtm
 npx supabase migration list --project-ref wbsrawibepsvcvkyzwtm
 ```
 
-## SQLパッチの手動適用（CLI未ログインの場合）
+## SQLスキーマの手動適用（CLI未ログインの場合）
 
 現状はダッシュボードの SQL Editor から手動実行する。
 
 1. [Supabase Dashboard](https://supabase.com/dashboard/project/wbsrawibepsvcvkyzwtm) を開く
 2. 左メニュー「SQL Editor」
-3. `supabase/patch-*.sql` の内容をファイル名順に貼り付けて実行
+3. `supabase/schema-02.sql` の内容を貼り付けて実行
 
-## 適用済みパッチ
+## 適用対象ファイル
 
 | ファイル | 内容 |
 |---|---|
-| `schema.sql` | ベーススキーマ（最初に1回のみ実行） |
-| `patch-20260228-hosted-rooms-and-invites.sql` | Hosted招待・ルーム機能 |
-
-> 新しいパッチを追加した場合はこの表を更新すること
+| `schema-02.sql` | 現行の統合スキーマ（新規環境はこれ1本で再現） |
 
 ## Edge Functions デプロイ
 
@@ -91,4 +88,3 @@ npx supabase secrets set OPENAI_API_KEY=<your-key> --project-ref wbsrawibepsvcvk
 1. [Supabase Dashboard](https://supabase.com/dashboard/project/wbsrawibepsvcvkyzwtm) → Edge Functions
 2. `supabase/functions/index-url/index.ts` の内容を貼り付けてデプロイ
 3. Settings → Edge Function Secrets → `OPENAI_API_KEY` を追加
-

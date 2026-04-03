@@ -9,6 +9,7 @@ import {
   requireConsoleContext,
 } from "@/app/console/_lib/data"
 import { firstParam, fmtDate } from "@/app/console/_lib/ui"
+import { InviteLinkCopyButton } from "@/app/console/members/invite-link-copy-button"
 import { MemberHostedAccessForm } from "@/app/console/members/member-hosted-access-form"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -26,9 +27,9 @@ function statusLabel(status: string) {
 }
 
 function statusColor(status: string) {
-  if (status === "pending") return "text-amber-600 dark:text-amber-400"
-  if (status === "accepted") return "text-emerald-600 dark:text-emerald-400"
-  return "text-slate-400"
+  if (status === "pending") return "text-amber-700 dark:text-amber-400"
+  if (status === "accepted") return "text-emerald-700 dark:text-emerald-400"
+  return "text-red-500"
 }
 
 function resendCooldownLabel(emailSentAt: string | null): string | null {
@@ -108,7 +109,7 @@ export default async function ConsoleMembersPage({ searchParams }: PageProps) {
               <TableBody>
                 {data.members.map((member) => (
                   <TableRow key={member.user_id}>
-                    <TableCell className="max-w-[220px] truncate">{data.emailByUserId.get(member.user_id) ?? member.user_id}</TableCell>
+                    <TableCell className="max-w-55 truncate">{data.emailByUserId.get(member.user_id) ?? member.user_id}</TableCell>
                     <TableCell>{member.role}</TableCell>
                     <TableCell>{member.is_active ? "有効" : "無効"}</TableCell>
                     <TableCell>{fmtDate(member.created_at)}</TableCell>
@@ -166,6 +167,8 @@ export default async function ConsoleMembersPage({ searchParams }: PageProps) {
 
                   {invite.status === "pending" && (
                     <div className="flex shrink-0 flex-wrap gap-2">
+                      {/* リンク表示・コピー */}
+                      {isEditor && <InviteLinkCopyButton inviteId={invite.id} />}
                       {/* 再送信 */}
                       <form action={resendMemberInviteAction}>
                         <input type="hidden" name="redirect_to" value="/console/members" />

@@ -9,7 +9,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 
 export const metadata: Metadata = buildMarketingMetadata({
-  title: "テナント招待",
+  title: "テナントメンバー招待",
   description: "knoticテナント招待の受諾ページです。",
   path: "/invite",
   noIndex: true,
@@ -53,7 +53,24 @@ export default async function InvitePage({ searchParams }: PageProps) {
   } = await supabase.auth.getUser()
 
   if (!user) {
-    redirect(`/login?next=${encodeURIComponent(`/invite?token=${token}`)}`)
+    // Look up invite email to pre-fill the login form
+    let inviteEmail = ""
+    try {
+      const adminForEmail = createAdminClient()
+      const { data: invitePreview } = await adminForEmail
+        .from("tenant_member_invites")
+        .select("email")
+        .eq("token_hash", hashToken(token))
+        .eq("status", "pending")
+        .maybeSingle()
+      inviteEmail = invitePreview?.email ?? ""
+    } catch {}
+
+    const nextUrl = `/invite?token=${token}`
+    const loginUrl = inviteEmail
+      ? `/login?next=${encodeURIComponent(nextUrl)}&email=${encodeURIComponent(inviteEmail)}`
+      : `/login?next=${encodeURIComponent(nextUrl)}`
+    redirect(loginUrl)
   }
 
   const userEmail = user.email?.trim().toLowerCase()
@@ -122,7 +139,7 @@ export default async function InvitePage({ searchParams }: PageProps) {
       <PageFrame eyebrow="Invite" title="招待メールアドレスが一致しません" description="招待先メールアドレスでログインしてください。">
         <Card>
           <CardHeader>
-            <CardTitle>メール不一致</CardTitle>
+            <CardTitle>メールアドレスの不一致</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
             招待先: {invite.email}

@@ -136,14 +136,26 @@ export async function requireConsoleContext() {
     redirect("/login?next=/console")
   }
 
-  const { data: memberships, error: membershipError } = await supabase
-    .from("tenant_memberships")
-    .select("tenant_id, role, tenants(id, slug, display_name)")
-    .eq("user_id", user.id)
-    .eq("is_active", true)
-    .limit(1)
+  const [{ data: membershipsRaw, error: membershipError }, { data: profile }] = await Promise.all([
+    supabase
+      .from("tenant_memberships")
+      .select("tenant_id, role, tenants(id, slug, display_name)")
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .order("created_at", { ascending: true }),
+    supabase.from("profiles").select("default_tenant_id").eq("user_id", user.id).maybeSingle(),
+  ])
 
-  let membership = (memberships?.[0] as TenantMembership | undefined) ?? null
+  const allMemberships = (membershipsRaw ?? []) as TenantMembership[]
+  const defaultTenantId = profile?.default_tenant_id ?? null
+
+  // Pick the membership for the default tenant, or fall back to the first one
+  const activeMembership =
+    (defaultTenantId
+      ? allMemberships.find((m) => m.tenant_id === defaultTenantId)
+      : undefined) ?? allMemberships[0] ?? null
+
+  let membership: TenantMembership | null = activeMembership
   let impersonation: {
     active: boolean
     tenantId: string
@@ -192,6 +204,7 @@ export async function requireConsoleContext() {
     supabase,
     user,
     membership,
+    allMemberships: impersonation?.active ? [] : allMemberships,
     membershipError,
     impersonation,
   }

@@ -3,6 +3,7 @@ import { getAppUrl } from "@/lib/env"
 type MemberInviteMailInput = {
   toEmail: string
   inviteUrl: string
+  token: string
   tenantName: string
   invitedByEmail: string
   expiresAt: string // ISO string
@@ -19,6 +20,7 @@ export async function sendMemberInviteEmail(input: MemberInviteMailInput) {
   const safeTenant = escapeHtml(input.tenantName)
   const safeInviter = escapeHtml(input.invitedByEmail)
   const safeUrl = escapeHtml(input.inviteUrl)
+  const safeToken = escapeHtml(input.token)
   const expiryDate = new Date(input.expiresAt).toLocaleDateString("ja-JP", {
     year: "numeric",
     month: "long",
@@ -84,6 +86,23 @@ export async function sendMemberInviteEmail(input: MemberInviteMailInput) {
                   <p style="margin:0 0 6px;font-size:12px;color:#64748b;font-weight:600;">招待リンク（ボタンが機能しない場合）</p>
                   <p style="margin:0;font-size:11px;color:#0891b2;word-break:break-all;">${safeUrl}</p>
                 </div>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="section" style="padding:0 32px 16px;">
+                <details style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
+                  <summary style="cursor:pointer;padding:12px 16px;background:#f8fafc;font-size:13px;color:#0891b2;font-weight:600;list-style:none;user-select:none;-webkit-user-select:none;">
+                    🔑 トークンを表示（LINEなどで直接共有する場合）
+                  </summary>
+                  <div style="padding:12px 16px;background:#ffffff;">
+                    <p style="margin:0 0 8px;font-size:12px;color:#64748b;">コンソール画面の「招待リンクで参加」欄にこのトークンを貼り付けると参加できます。</p>
+                    <div style="background:#f1f5f9;border-radius:6px;padding:10px 12px;border:1px solid #e2e8f0;">
+                      <code style="font-family:'Courier New',Courier,monospace;font-size:12px;color:#0f172a;word-break:break-all;display:block;">${safeToken}</code>
+                    </div>
+                    <p style="margin:8px 0 0;font-size:11px;color:#94a3b8;">テキストを長押し・選択してコピーしてください</p>
+                  </div>
+                </details>
               </td>
             </tr>
 

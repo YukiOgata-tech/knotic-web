@@ -39,8 +39,8 @@ INDEXER_RUNNER_SECRET=change-this-long-random-secret
    - まずは `Email` を有効化
 
 ## 4. DB作成（SQL Editor）
-`supabase/schema.sql` の内容をSQL Editorで実行してください。  
-現在は **schema.sql 1ファイルに統合済み** です（追加パッチ実行は不要）。
+`supabase/schema-02.sql` の内容をSQL Editorで実行してください。  
+現在は **schema-02.sql 1ファイルに統合済み** です（追加パッチ実行は不要）。
 
 このスキーマには以下が含まれています。
 - マルチテナントテーブル
@@ -78,10 +78,7 @@ Supabase Storageで次のバケットを作成してください。
 8. 本番では `POST /api/internal/indexing/run` に `Authorization: Bearer $INDEXER_RUNNER_SECRET` を付与してCron実行
 
 
-## 追加パッチ（監査ログ/運用ダッシュボード）
-
-
-## 追加パッチ（Platform Admin Console）
+## 補足SQL（初期データ投入・任意）
 
 最初の管理者ユーザー登録:
 ```sql

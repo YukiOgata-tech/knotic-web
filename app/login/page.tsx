@@ -15,7 +15,16 @@ export const metadata: Metadata = buildMarketingMetadata({
   noIndex: true,
 })
 
-export default async function LoginPage() {
+type PageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}
+
+function firstParam(value: string | string[] | undefined) {
+  if (Array.isArray(value)) return value[0]
+  return value
+}
+
+export default async function LoginPage({ searchParams }: PageProps) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -24,6 +33,9 @@ export default async function LoginPage() {
   if (user) {
     redirect("/console")
   }
+
+  const params = (await searchParams) ?? {}
+  const defaultEmail = firstParam(params.email) ?? ""
 
   return (
     <PageFrame
@@ -38,7 +50,7 @@ export default async function LoginPage() {
           </CardHeader>
           <CardContent className="grid gap-4">
             <RedirectTargetPicker />
-            <LoginForm />
+            <LoginForm defaultEmail={defaultEmail} />
           </CardContent>
         </Card>
       </section>
