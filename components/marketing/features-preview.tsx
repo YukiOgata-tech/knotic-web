@@ -26,7 +26,7 @@ const previewItems = [
 
 function FeaturesPreview() {
   return (
-    <section className="-mx-4 relative overflow-hidden border-y border-black/40 bg-emerald-200/20 px-4 py-5 dark:border-white/40 dark:bg-slate-900/75 sm:mx-0 sm:rounded-3xl sm:border sm:p-8">
+    <section className="-mx-4 relative overflow-hidden border-y border-black/20 bg-white/85 px-4 py-5 dark:border-white/10 dark:bg-slate-900/75 sm:mx-0 sm:rounded-3xl sm:border sm:p-8">
       <div className="pointer-events-none absolute -right-14 -top-16 h-44 w-44 rounded-full bg-cyan-300/20 blur-3xl dark:bg-cyan-400/20" />
       <div className="space-y-3">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-700 dark:text-cyan-300">
@@ -36,7 +36,7 @@ function FeaturesPreview() {
           導入しやすく、続けやすい
           <span className="block font-mono text-cyan-700 dark:text-cyan-300">実運用向けAIボット機能</span>
         </h2>
-        <p className="hidden md:block max-w-3xl text-zinc-800 dark:text-zinc-200">
+        <p className="max-w-3xl text-zinc-600 dark:text-zinc-300">
           Web問い合わせ対応とマニュアル案内を主目的に、公開導線と運用導線をセットで設計しています。
         </p>
       </div>
@@ -49,13 +49,13 @@ function FeaturesPreview() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.45 }}
             transition={{ duration: 0.32, delay: 0.06 * index }}
-            className="rounded-2xl border border-black/40 bg-gray-300/35 p-4 dark:border-white/40 dark:bg-slate-950/45"
+            className="rounded-2xl border border-black/20 bg-white/85 p-4 dark:border-white/10 dark:bg-slate-950/45"
           >
             <div className="flex items-center gap-2.5">
-              <item.icon className="size-5 shrink-0 text-cyan-700 dark:text-cyan-200" />
+              <item.icon className="size-5 shrink-0 text-cyan-700 dark:text-cyan-300" />
               <h3 className="text-base font-semibold">{item.title}</h3>
             </div>
-            <p className="mt-2 text-sm leading-6 text-zinc-700 dark:text-zinc-300">{item.copy}</p>
+            <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-300">{item.copy}</p>
           </motion.article>
         ))}
       </div>
