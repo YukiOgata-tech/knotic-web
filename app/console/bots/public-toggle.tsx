@@ -6,15 +6,18 @@ type Props = {
   botId: string
   isPublic: boolean
   isEditor: boolean
+  isFreeTier?: boolean
   redirectTo?: string
   action: (formData: FormData) => void | Promise<void>
 }
 
-export function PublicToggle({ botId, isPublic, isEditor, redirectTo = "/console/bots", action }: Props) {
+export function PublicToggle({ botId, isPublic, isEditor, isFreeTier = false, redirectTo = "/console/bots", action }: Props) {
   const formRef = React.useRef<HTMLFormElement>(null)
-  const [checked, setChecked] = React.useState(isPublic)
+  const [checked, setChecked] = React.useState(isFreeTier ? false : isPublic)
   const [confirmOpen, setConfirmOpen] = React.useState(false)
   const [pendingNext, setPendingNext] = React.useState<boolean | null>(null)
+
+  const isDisabled = !isEditor || isFreeTier
 
   return (
     <>
@@ -27,7 +30,7 @@ export function PublicToggle({ botId, isPublic, isEditor, redirectTo = "/console
             type="checkbox"
             className="peer sr-only"
             checked={checked}
-            disabled={!isEditor}
+            disabled={isDisabled}
             onChange={(e) => {
               const next = e.target.checked
               setPendingNext(next)
@@ -38,6 +41,9 @@ export function PublicToggle({ botId, isPublic, isEditor, redirectTo = "/console
           <span className="pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5" />
         </label>
         <span className="text-xs text-muted-foreground">{checked ? "有効" : "無効"}</span>
+        {isFreeTier && (
+          <span className="text-xs text-amber-600 dark:text-amber-400">（公開には契約が必要）</span>
+        )}
       </form>
 
       {confirmOpen ? (

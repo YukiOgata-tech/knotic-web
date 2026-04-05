@@ -52,6 +52,7 @@ export default async function ConsoleBotDetailPage({ params, searchParams }: Pag
   if (!bot) notFound()
 
   const isEditor = membership.role === "editor"
+  const isFreeTier = !data.currentPlan
   const maxHistoryTurnLimit = data.currentPlan?.code === "lite" ? 20 : 30
   const botSources = data.sources.filter((source) => source.bot_id === bot.id)
   const widgetTokenRow = data.tokenByBotId.get(bot.id) ?? null
@@ -66,6 +67,7 @@ export default async function ConsoleBotDetailPage({ params, searchParams }: Pag
         widgetTokenRow={widgetTokenRow}
         isEditor={isEditor}
         hasHostedPage={Boolean(data.currentPlan?.has_hosted_page)}
+        isFreeTier={isFreeTier}
         maxHistoryTurnLimit={maxHistoryTurnLimit}
         backHref="/console/bots"
         redirectTo={`/console/bots/${encodeURIComponent(botRef)}`}

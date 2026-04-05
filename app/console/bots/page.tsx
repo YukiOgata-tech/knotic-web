@@ -5,6 +5,7 @@ import { ConsoleAlerts } from "@/app/console/_components/console-alerts"
 import { fetchConsoleData, requireConsoleContext } from "@/app/console/_lib/data"
 import { firstParam } from "@/app/console/_lib/ui"
 import { CreateBotForm } from "@/app/console/bots/create-bot-form"
+import { DataRetentionNotice } from "@/app/console/bots/data-retention-notice"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -39,11 +40,15 @@ export default async function ConsoleBotsPage({ searchParams }: PageProps) {
   if (!membership) return null
   const data = await fetchConsoleData(membership.tenant_id)
   const isEditor = membership.role === "editor"
-  const botLimit = data.currentPlan
-    ? data.currentPlan.internal_max_bots_cap > 0
-      ? Math.min(data.currentPlan.max_bots, data.currentPlan.internal_max_bots_cap)
-      : data.currentPlan.max_bots
-    : null
+  const isFreeTier = !data.currentPlan
+  const FREE_TIER_BOT_LIMIT = 1
+  const botLimit = isFreeTier
+    ? FREE_TIER_BOT_LIMIT
+    : data.currentPlan
+      ? data.currentPlan.internal_max_bots_cap > 0
+        ? Math.min(data.currentPlan.max_bots, data.currentPlan.internal_max_bots_cap)
+        : data.currentPlan.max_bots
+      : null
   const botOverCount = botLimit !== null ? Math.max(0, data.botCount - botLimit) : 0
   const hostedCandidates = data.bots
     .filter(
@@ -93,8 +98,13 @@ export default async function ConsoleBotsPage({ searchParams }: PageProps) {
 
       <Card className="border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
         <CardHeader>
-          <CardTitle>Bot管理</CardTitle>
-          <CardDescription>Bot作成と各Bot設定画面への導線を管理します。</CardDescription>
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <CardTitle>Bot管理</CardTitle>
+              <CardDescription>Bot作成と各Bot設定画面への導線を管理します。</CardDescription>
+            </div>
+            {isFreeTier && <DataRetentionNotice />}
+          </div>
         </CardHeader>
         <CardContent className="grid gap-4">
           <div className="rounded-xl border border-black/20 bg-slate-50 p-4 text-sm dark:border-white/10 dark:bg-slate-900/50">

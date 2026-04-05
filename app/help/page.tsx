@@ -295,6 +295,10 @@ export default async function HelpPage({ searchParams }: PageProps) {
               Widget 埋め込みガイド（コード例）
               <ArrowRight className="size-3.5" />
             </Link>
+            <Link href="/help/widget-guide" className="inline-flex items-center gap-2 hover:underline">
+              サービス別 Widget 設置ガイド（WordPress / Wix / STUDIO ほか）
+              <ArrowRight className="size-3.5" />
+            </Link>
             <Link href="/faq" className="inline-flex items-center gap-2 hover:underline">
               FAQを見る
               <ArrowRight className="size-3.5" />

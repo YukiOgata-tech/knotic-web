@@ -1,5 +1,21 @@
 import { createAdminClient } from "@/lib/supabase/admin"
 
+export const FREE_TIER_PLAN_CODE = "free"
+
+const FREE_TIER_SNAPSHOT: TenantPlanSnapshot = {
+  subscriptionStatus: FREE_TIER_PLAN_CODE,
+  planCode: FREE_TIER_PLAN_CODE,
+  planName: "無料プラン",
+  maxBots: 1,
+  maxHostedPages: 0,
+  maxMonthlyMessages: 50,
+  maxStorageMb: 50,
+  internalMaxBotsCap: 0,
+  hasApi: false,
+  hasHostedPage: false,
+  billingMode: "manual",
+}
+
 export type TenantPlanSnapshot = {
   subscriptionStatus: string
   planCode: string
@@ -120,7 +136,7 @@ export async function getTenantPlanSnapshot(tenantId: string): Promise<TenantPla
     .maybeSingle()
 
   if (error || !data?.plans) {
-    throw new Error("契約プラン情報が取得できませんでした。subscriptions / plans / overrides を確認してください。")
+    return FREE_TIER_SNAPSHOT
   }
 
   const plans = normalizePlans(data.plans)
@@ -132,6 +148,7 @@ export async function getTenantPlanSnapshot(tenantId: string): Promise<TenantPla
 }
 
 export function assertSubscriptionOperational(plan: TenantPlanSnapshot) {
+  if (plan.subscriptionStatus === FREE_TIER_PLAN_CODE) return
   if (BLOCKED_SUBSCRIPTION_STATUSES.has(plan.subscriptionStatus)) {
     throw new QuotaError(
       "subscription_blocked",

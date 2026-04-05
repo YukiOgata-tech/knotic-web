@@ -7,6 +7,7 @@ import {
   assertTenantCanCreateBot,
   assertTenantCanIndexData,
   getTenantPlanSnapshot,
+  FREE_TIER_PLAN_CODE,
 } from "@/lib/billing/limits"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { processQueuedIndexingJobs } from "@/lib/indexing/pipeline"
@@ -170,6 +171,13 @@ export async function toggleBotPublicAction(formData: FormData) {
     const { supabase, tenantId } = await getTenantContext(true)
     const botId = String(formData.get("bot_id") ?? "")
     const nextPublic = String(formData.get("next_public") ?? "") === "true"
+
+    if (nextPublic) {
+      const plan = await getTenantPlanSnapshot(tenantId)
+      if (plan.planCode === FREE_TIER_PLAN_CODE) {
+        redirect(toAppUrl(redirectTo, { error: "Botの公開には契約プランへの加入が必要です。" }))
+      }
+    }
 
     const { error } = await supabase
       .from("bots")

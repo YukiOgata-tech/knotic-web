@@ -210,6 +210,66 @@ export async function requireConsoleContext() {
   }
 }
 
+export type FreeTierInactivityState = {
+  daysSinceActivity: number
+  daysUntilDeletion: number
+  shouldWarn: boolean
+}
+
+export async function fetchFreeTierInactivityState(
+  tenantId: string
+): Promise<FreeTierInactivityState | null> {
+  const supabase = await createClient()
+
+  // 有効サブスクリプションまたはオーバーライドがあればフリー枠ではない
+  const [{ data: activeSub }, { data: activeOverride }] = await Promise.all([
+    supabase
+      .from("subscriptions")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .in("status", ["trialing", "active", "past_due", "unpaid", "incomplete", "paused"])
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("tenant_contract_overrides")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle(),
+  ])
+
+  if (activeSub || activeOverride) return null
+
+  // 最終audit_logとテナント作成日を並行取得
+  const [{ data: lastLog }, { data: tenant }] = await Promise.all([
+    supabase
+      .from("audit_logs")
+      .select("created_at")
+      .eq("tenant_id", tenantId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("tenants")
+      .select("created_at")
+      .eq("id", tenantId)
+      .maybeSingle(),
+  ])
+
+  const lastActivityDate = lastLog?.created_at
+    ? new Date(lastLog.created_at)
+    : tenant?.created_at
+      ? new Date(tenant.created_at)
+      : new Date()
+
+  const daysSinceActivity = (Date.now() - lastActivityDate.getTime()) / (1000 * 60 * 60 * 24)
+  const daysUntilDeletion = Math.max(0, 14 - Math.floor(daysSinceActivity))
+  const shouldWarn = daysSinceActivity >= 7
+
+  return { daysSinceActivity, daysUntilDeletion, shouldWarn }
+}
+
 export async function fetchConsolePlanLabel(tenantId: string) {
   const supabase = await createClient()
 

@@ -5,7 +5,7 @@ import Link from "next/link"
 import { LogoutButton } from "@/components/auth/logout-button"
 import { Container } from "@/components/layout/container"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { fetchConsolePlanLabel, requireConsoleContext } from "@/app/console/_lib/data"
+import { fetchConsolePlanLabel, fetchFreeTierInactivityState, requireConsoleContext } from "@/app/console/_lib/data"
 import { boolBadge } from "@/app/console/_lib/ui"
 import { ConsoleNav } from "@/app/console/_components/console-nav"
 import { ConsoleMobileNav } from "@/app/console/_components/console-mobile-nav"
@@ -85,7 +85,10 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
   }
 
   const isEditor = membership.role === "editor"
-  const planLabel = await fetchConsolePlanLabel(membership.tenant_id)
+  const [planLabel, inactivityState] = await Promise.all([
+    fetchConsolePlanLabel(membership.tenant_id),
+    fetchFreeTierInactivityState(membership.tenant_id),
+  ])
 
   return (
     <div className="relative overflow-x-clip bg-[linear-gradient(180deg,#fff9ee_0%,#ffffff_45%,#f7fbff_100%)] dark:bg-[linear-gradient(180deg,#0f172a_0%,#0b1220_45%,#0a0f1a_100%)] lg:py-8">
@@ -132,6 +135,22 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
             </Card>
           ) : null}
           <MobileDesktopRecommendModal />
+          {inactivityState?.shouldWarn && (
+            <div className={`rounded-xl border px-4 py-3 text-sm ${
+              inactivityState.daysUntilDeletion <= 3
+                ? "border-rose-300/60 bg-rose-50/80 text-rose-900 dark:border-rose-500/40 dark:bg-rose-950/20 dark:text-rose-200"
+                : "border-amber-300/60 bg-amber-50/80 text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/20 dark:text-amber-200"
+            }`}>
+              <p className="font-medium">
+                {inactivityState.daysUntilDeletion === 0
+                  ? "本日、Botデータが自動削除されます"
+                  : `Botデータが ${inactivityState.daysUntilDeletion} 日後に自動削除されます`}
+              </p>
+              <p className="mt-0.5 text-xs opacity-80">
+                最終操作から7日以上経過しています。操作を行うか、プランに契約するとデータが保持されます。
+              </p>
+            </div>
+          )}
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-black/20 bg-white/90 px-4 py-2.5 dark:border-white/10 dark:bg-slate-900/80">
             <p className="text-sm text-muted-foreground">{user.email}</p>
             <div className="flex items-center gap-x-2">

@@ -113,6 +113,7 @@ type Props = {
   widgetTokenRow: WidgetTokenRow
   isEditor: boolean
   hasHostedPage: boolean
+  isFreeTier?: boolean
   maxHistoryTurnLimit: number
   redirectTo?: string
   backHref?: string
@@ -470,6 +471,7 @@ export function HostedConfigEditor({
   widgetTokenRow,
   isEditor,
   hasHostedPage,
+  isFreeTier = false,
   maxHistoryTurnLimit,
   redirectTo = "/console/bots",
   backHref = "/console/bots",
@@ -1782,6 +1784,7 @@ export function HostedConfigEditor({
             botId={bot.id}
             isPublic={Boolean(bot.is_public)}
             isEditor={isEditor}
+            isFreeTier={isFreeTier}
             redirectTo={redirectTo}
             action={togglePublicAction}
           />

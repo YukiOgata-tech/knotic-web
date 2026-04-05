@@ -3,3 +3,6 @@ verify_jwt = false
 
 [functions.index-url-llm]
 verify_jwt = false
+
+[functions.free-tier-cleanup]
+verify_jwt = false

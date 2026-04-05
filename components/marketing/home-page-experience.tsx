@@ -129,19 +129,84 @@ function Reveal({
   children,
   delay = 0,
   amount = 0.25,
+  distance = 26,
 }: {
   children: React.ReactNode
   delay?: number
   amount?: number
+  distance?: number
 }) {
   const shouldReduceMotion = useReducedMotion()
 
   return (
     <motion.div
-      initial={shouldReduceMotion ? undefined : { opacity: 0, y: 26 }}
-      whileInView={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+      initial={shouldReduceMotion ? undefined : { opacity: 0, y: distance, filter: "blur(14px)" }}
+      whileInView={shouldReduceMotion ? undefined : { opacity: 1, y: 0, filter: "blur(0px)" }}
       viewport={{ once: true, amount }}
-      transition={{ duration: 0.5, ease: "easeOut", delay }}
+      transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1], delay }}
+    >
+      {children}
+    </motion.div>
+  )
+}
+
+function SectionReveal({
+  children,
+  className,
+  delay = 0,
+  amount = 0.18,
+  id,
+}: {
+  children: React.ReactNode
+  className: string
+  delay?: number
+  amount?: number
+  id?: string
+}) {
+  const shouldReduceMotion = useReducedMotion()
+  const ref = React.useRef<HTMLElement | null>(null)
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start 0.92", "end 0.15"],
+  })
+  const y = useTransform(scrollYProgress, [0, 1], [shouldReduceMotion ? 0 : 30, shouldReduceMotion ? 0 : -10])
+
+  return (
+    <motion.section
+      ref={ref}
+      id={id}
+      initial={shouldReduceMotion ? undefined : { opacity: 0, y: 32, filter: "blur(16px)" }}
+      whileInView={shouldReduceMotion ? undefined : { opacity: 1, y: 0, filter: "blur(0px)" }}
+      viewport={{ once: true, amount }}
+      transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1], delay }}
+      style={shouldReduceMotion ? undefined : { y }}
+      className={`relative ${className}`}
+    >
+      {children}
+    </motion.section>
+  )
+}
+
+function StaggerItem({
+  children,
+  index,
+  className,
+}: {
+  children: React.ReactNode
+  index: number
+  className?: string
+}) {
+  const shouldReduceMotion = useReducedMotion()
+  const x = index % 2 === 0 ? -18 : 18
+  const rotate = index % 2 === 0 ? -1.4 : 1.4
+
+  return (
+    <motion.div
+      initial={shouldReduceMotion ? undefined : { opacity: 0, x, y: 22, rotate, filter: "blur(10px)" }}
+      whileInView={shouldReduceMotion ? undefined : { opacity: 1, x: 0, y: 0, rotate: 0, filter: "blur(0px)" }}
+      viewport={{ once: true, amount: 0.35 }}
+      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1], delay: index * 0.06 }}
+      className={className}
     >
       {children}
     </motion.div>
@@ -153,41 +218,57 @@ export function HomePageExperience() {
   const { scrollYProgress } = useScroll()
   const heroY = useTransform(scrollYProgress, [0, 0.22], [0, shouldReduceMotion ? 0 : 70])
   const heroRotate = useTransform(scrollYProgress, [0, 0.22], [0, shouldReduceMotion ? 0 : -2.5])
+  const heroTextY = useTransform(scrollYProgress, [0, 0.18], [0, shouldReduceMotion ? 0 : -18])
+  const heroBadgeY = useTransform(scrollYProgress, [0, 0.15], [0, shouldReduceMotion ? 0 : -10])
+  const ambientLeftY = useTransform(scrollYProgress, [0, 0.4], [0, shouldReduceMotion ? 0 : 110])
+  const ambientRightY = useTransform(scrollYProgress, [0, 0.4], [0, shouldReduceMotion ? 0 : 70])
+  const ambientGridY = useTransform(scrollYProgress, [0, 0.4], [0, shouldReduceMotion ? 0 : 34])
 
   return (
     <div className="font-jp relative overflow-x-clip bg-[linear-gradient(180deg,#fff7ea_0%,#fffdf7_28%,#f3fbff_74%,#edf7ff_100%)] text-zinc-900 dark:bg-[linear-gradient(180deg,#091423_0%,#0b1220_42%,#08111c_100%)] dark:text-zinc-100">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-176 overflow-hidden">
-        <div className="absolute left-[-8%] -top-24 h-80 w-[20rem] rounded-full bg-amber-300/30 blur-3xl dark:bg-amber-200/10" />
-        <div className="absolute right-[-10%] top-4 h-96 w-96 rounded-full bg-cyan-300/30 blur-3xl dark:bg-cyan-300/10" />
-        <div className="absolute inset-0 opacity-45 bg-[linear-gradient(to_right,rgba(15,23,42,.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,23,42,.08)_1px,transparent_1px)] bg-size-[44px_44px] dark:opacity-15" />
+        <motion.div
+          style={shouldReduceMotion ? undefined : { y: ambientLeftY }}
+          className="absolute left-[-8%] -top-24 h-80 w-[20rem] rounded-full bg-amber-300/30 blur-3xl dark:bg-amber-200/10"
+        />
+        <motion.div
+          style={shouldReduceMotion ? undefined : { y: ambientRightY }}
+          className="absolute right-[-10%] top-4 h-96 w-96 rounded-full bg-cyan-300/30 blur-3xl dark:bg-cyan-300/10"
+        />
+        <motion.div
+          style={shouldReduceMotion ? undefined : { y: ambientGridY }}
+          className="absolute inset-0 opacity-45 bg-[linear-gradient(to_right,rgba(15,23,42,.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,23,42,.08)_1px,transparent_1px)] bg-size-[44px_44px] dark:opacity-15"
+        />
       </div>
 
       <section className="relative isolate">
         <Container size="wide" className="relative pt-8 pb-10 sm:pt-12 sm:pb-14 lg:pt-18 lg:pb-18">
           <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,.92fr)_minmax(0,1.08fr)] lg:gap-10">
             <Reveal>
-              <div className="inline-flex flex-wrap items-center gap-2">
-                <Badge className="rounded-full border border-amber-400/40 bg-amber-400/90 px-3 py-1 text-[11px] tracking-[0.16em] text-white hover:bg-amber-400/90">
-                  AI BOT PLATFORM
-                </Badge>
-                <span className="rounded-full border border-black/10 bg-white/80 px-3 py-1 text-[11px] font-medium text-zinc-700 backdrop-blur dark:border-white/10 dark:bg-slate-950/60 dark:text-zinc-200">
-                  URL とファイルで、公開まで一気通貫
-                </span>
-              </div>
-
-              <div className="mt-5 max-w-4xl space-y-5">
-                <h1 className="text-[2.35rem] font-black leading-[0.98] tracking-[-0.04em] sm:text-[4.2rem] lg:text-[4.2rem]">
-                  <span className="block">URL<span className="text-xl sm:text-4xl">や</span>資料<span className="text-xl sm:text-4xl">を</span>準備するだけ</span>
-                  <span className="mt-2 block text-[1.55rem] font-semibold tracking-[-0.03em] sm:text-[2.7rem] lg:text-[3.35rem]">
-                    <TypingHeadline phrases={typedPhrases} />
+              <motion.div style={shouldReduceMotion ? undefined : { y: heroTextY }}>
+                <motion.div style={shouldReduceMotion ? undefined : { y: heroBadgeY }} className="inline-flex flex-wrap items-center gap-2">
+                  <Badge className="rounded-full border border-amber-400/40 bg-amber-400/90 px-3 py-1 text-[11px] tracking-[0.16em] text-white hover:bg-amber-400/90">
+                    AI BOT PLATFORM
+                  </Badge>
+                  <span className="rounded-full border border-black/10 bg-white/80 px-3 py-1 text-[11px] font-medium text-zinc-700 backdrop-blur dark:border-white/10 dark:bg-slate-950/60 dark:text-zinc-200">
+                    URL とファイルで、公開まで一気通貫
                   </span>
-                </h1>
+                </motion.div>
 
-                <p className="max-w-2xl text-sm leading-7 text-zinc-600 sm:text-lg sm:leading-8 dark:text-zinc-300">
-                  URLやファイルを登録するだけで、Webサイト埋め込み･共有URL･APIから使えるAIボットを構築。
-                  公開導線と運用導線を分けず、導入後の改善まで同じ画面で進められます。
-                </p>
-              </div>
+                <div className="mt-5 max-w-4xl space-y-5">
+                  <h1 className="text-[2.35rem] font-black leading-[0.98] tracking-[-0.04em] sm:text-[4.2rem] lg:text-[4.2rem]">
+                    <span className="block">URL<span className="text-xl sm:text-4xl">や</span>資料<span className="text-xl sm:text-4xl">を</span>準備するだけ</span>
+                    <span className="mt-2 block text-[1.55rem] font-semibold tracking-[-0.03em] sm:text-[2.7rem] lg:text-[3.35rem]">
+                      <TypingHeadline phrases={typedPhrases} />
+                    </span>
+                  </h1>
+
+                  <p className="max-w-2xl text-sm leading-7 text-zinc-600 sm:text-lg sm:leading-8 dark:text-zinc-300">
+                    URLやファイルを登録するだけで、Webサイト埋め込み･共有URL･APIから使えるAIボットを構築。
+                    公開導線と運用導線を分けず、導入後の改善まで同じ画面で進められます。
+                  </p>
+                </div>
+              </motion.div>
               <div className="mt-6 flex flex-wrap items-center gap-3">
                 <AuthAwareCtaButton
                   guestHref="/signup"
@@ -287,108 +368,135 @@ export function HomePageExperience() {
       </section>
 
       <Container size="full" className="relative z-10 flex flex-col gap-8 py-6 sm:w-[90%] sm:gap-14 sm:py-10">
-        <section id="home-stats" className="grid grid-cols-3 divide-x divide-black/10 rounded-2xl border border-black/40 bg-white/80 py-3 shadow-sm dark:divide-white/10 dark:border-white/50 dark:bg-slate-900/70 sm:py-4">
-          {stats.map((stat) => (
-            <div key={stat.label} className="flex flex-col items-center gap-0.5 px-2 text-center">
-              <span className="text-base font-bold sm:text-2xl">{stat.value}</span>
-              <span className="text-[10px] font-semibold text-zinc-900 dark:text-zinc-100 sm:text-sm">{stat.label}</span>
-              <span className="hidden text-xs font-semibold text-zinc-800 dark:text-zinc-200 sm:block">{stat.sub}</span>
-            </div>
+        <SectionReveal
+          id="home-stats"
+          className="grid grid-cols-3 divide-x divide-black/10 overflow-hidden rounded-2xl border border-black/40 bg-white/80 py-3 shadow-sm dark:divide-white/10 dark:border-white/50 dark:bg-slate-900/70 sm:py-4"
+        >
+          {stats.map((stat, index) => (
+            <StaggerItem key={stat.label} index={index}>
+              <div className="flex flex-col items-center gap-0.5 px-2 text-center">
+                <span className="text-base font-bold sm:text-2xl">{stat.value}</span>
+                <span className="text-[10px] font-semibold text-zinc-900 dark:text-zinc-100 sm:text-sm">{stat.label}</span>
+                <span className="hidden text-xs font-semibold text-zinc-800 dark:text-zinc-200 sm:block">{stat.sub}</span>
+              </div>
+            </StaggerItem>
           ))}
-        </section>
+        </SectionReveal>
 
-        <section className="-mx-4 space-y-3 border-y border-black/40 bg-white/80 px-4 py-4 dark:border-white/10 dark:bg-slate-900/70 sm:mx-0 sm:space-y-5 sm:rounded-3xl sm:border sm:p-8">
+        <SectionReveal
+          className="-mx-4 space-y-3 border-y border-black/40 bg-white/80 px-4 py-4 dark:border-white/10 dark:bg-slate-900/70 sm:mx-0 sm:space-y-5 sm:rounded-3xl sm:border sm:p-8"
+        >
           <div className="space-y-1 sm:space-y-2">
             <h2 className="text-xl font-semibold tracking-tight sm:text-3xl">こんな"課題"ありませんか？</h2>
             <p className="hidden text-zinc-800 dark:text-zinc-200 sm:block">多くのチームが同じ問題を抱えています。knoticでその問題を解決しましょう。</p>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3">
-            {problems.map((problem) => (
-              <div
+            {problems.map((problem, index) => (
+              <StaggerItem key={problem} index={index}>
+                <div
                 key={problem}
                 className="flex items-start gap-2 rounded-xl border border-black/40 bg-white/70 px-3 py-2 dark:border-white/50 dark:bg-slate-900/60 sm:px-4 sm:py-3"
               >
                 <XCircle className="mt-0.5 size-3.5 shrink-0 text-rose-500 sm:size-4" />
                 <span className="text-xs text-zinc-700 dark:text-zinc-200 sm:text-sm">{problem}</span>
-              </div>
+                </div>
+              </StaggerItem>
             ))}
           </div>
-        </section>
+        </SectionReveal>
 
-        <section className="space-y-3 sm:space-y-5">
+        <SectionReveal
+          className="space-y-3 sm:space-y-5"
+        >
           <div className="space-y-1 sm:space-y-2">
             <h2 className="text-xl font-semibold tracking-tight sm:text-3xl">3ステップで公開!</h2>
             <p className="hidden text-zinc-600 dark:text-zinc-300 sm:block">エンジニア不要。最短数分でAIボットを本番公開できます。</p>
           </div>
           <div className="flex flex-col gap-2 sm:grid sm:grid-cols-3 sm:gap-4">
-            {steps.map((step) => (
-              <div
-                key={step.number}
-                className="flex items-start gap-3 rounded-xl border border-black/40 bg-gray-200/50 px-4 py-3 dark:border-white/10 dark:bg-gray-800/70 sm:flex-col sm:rounded-2xl sm:p-6"
-              >
-                <span className="shrink-0 text-xl font-bold text-cyan-600/90 hover:underline dark:text-cyan-400 sm:text-4xl">{step.number}</span>
-                <div>
-                  <h3 className="text-sm font-semibold sm:mt-2 sm:text-lg">{step.title}</h3>
-                  <p className="mt-0.5 text-xs text-zinc-600 dark:text-zinc-300 sm:mt-1 sm:text-sm">{step.description}</p>
-                </div>
-              </div>
+            {steps.map((step, index) => (
+              <StaggerItem key={step.number} index={index}>
+                <motion.div
+                  whileHover={shouldReduceMotion ? undefined : { y: -4 }}
+                  transition={{ duration: 0.2 }}
+                  className="flex items-start gap-3 rounded-xl border border-black/40 bg-gray-200/50 px-4 py-3 dark:border-white/10 dark:bg-gray-800/70 sm:flex-col sm:rounded-2xl sm:p-6"
+                >
+                  <span className="shrink-0 text-xl font-bold text-cyan-600/90 hover:underline dark:text-cyan-400 sm:text-4xl">{step.number}</span>
+                  <div>
+                    <h3 className="text-sm font-semibold sm:mt-2 sm:text-lg">{step.title}</h3>
+                    <p className="mt-0.5 text-xs text-zinc-600 dark:text-zinc-300 sm:mt-1 sm:text-sm">{step.description}</p>
+                  </div>
+                </motion.div>
+              </StaggerItem>
             ))}
           </div>
-        </section>
+        </SectionReveal>
 
         <FeaturesPreview />
 
-        <section className="space-y-3 sm:space-y-5">
+        <SectionReveal
+          className="space-y-3 sm:space-y-5"
+        >
           <div className="space-y-1 sm:space-y-2">
             <h2 className="text-xl font-semibold tracking-tight sm:text-3xl">活用シーン</h2>
             <p className="hidden text-zinc-600 dark:text-zinc-300 sm:block">さまざまな業務課題に対応できます。</p>
           </div>
           <div className="flex flex-col gap-2 sm:grid sm:grid-cols-3 sm:gap-4">
-            {useCases.map((uc) => (
-              <div
-                key={uc.title}
-                className="rounded-xl border-y border-black/40 bg-slate-100/80 px-4 py-3 shadow-2xl dark:border-white/40 dark:bg-slate-900/70 sm:rounded-2xl sm:p-6"
-              >
-                <div className="flex items-center gap-2.5">
-                  <CheckCircle2 className="size-4 shrink-0 text-cyan-600 dark:text-cyan-400 sm:size-6" />
-                  <h3 className="text-sm font-semibold sm:text-lg">{uc.title}</h3>
-                </div>
-                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 sm:mt-2 sm:text-sm">{uc.description}</p>
-              </div>
+            {useCases.map((uc, index) => (
+              <StaggerItem key={uc.title} index={index}>
+                <motion.div
+                  whileHover={shouldReduceMotion ? undefined : { y: -5 }}
+                  transition={{ duration: 0.22 }}
+                  className="rounded-xl border-y border-black/40 bg-slate-100/80 px-4 py-3 shadow-2xl dark:border-white/40 dark:bg-slate-900/70 sm:rounded-2xl sm:p-6"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <CheckCircle2 className="size-4 shrink-0 text-cyan-600 dark:text-cyan-400 sm:size-6" />
+                    <h3 className="text-sm font-semibold sm:text-lg">{uc.title}</h3>
+                  </div>
+                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 sm:mt-2 sm:text-sm">{uc.description}</p>
+                </motion.div>
+              </StaggerItem>
             ))}
           </div>
-        </section>
+        </SectionReveal>
 
-        <section className="space-y-3 sm:space-y-5">
+        <SectionReveal
+          className="space-y-3 sm:space-y-5"
+        >
           <div className="space-y-1 sm:space-y-2">
             <h2 className="text-xl font-semibold tracking-tight sm:text-3xl">料金プラン</h2>
             <p className="hidden text-zinc-600 dark:text-zinc-300 sm:block">小さく始められる価格帯から、運用規模に合わせて段階的に拡張できます。</p>
           </div>
           <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0 sm:pb-0 lg:grid lg:grid-cols-3 lg:overflow-visible ">
-            {plans.map((plan) => (
-              <Card
+            {plans.map((plan, index) => (
+              <motion.div
                 key={plan.name}
-                className="w-[60vw] shrink-0 snap-start border-black/40 bg-white/90 transition-transform duration-200 hover:-translate-y-1 hover:shadow-2xl dark:border-white/10 dark:bg-slate-900/75 sm:w-[60vw] lg:w-auto"
+                initial={shouldReduceMotion ? undefined : { opacity: 0, y: 26, scale: 0.96, filter: "blur(10px)" }}
+                whileInView={shouldReduceMotion ? undefined : { opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+                viewport={{ once: true, amount: 0.35 }}
+                transition={{ duration: 0.52, ease: [0.22, 1, 0.36, 1], delay: index * 0.08 }}
+                className="shrink-0 sm:w-[60vw] lg:w-auto"
               >
-                <CardHeader className="pb-1 sm:pb-6">
-                  <CardDescription className="text-gray-700 dark:text-white">{plan.note}</CardDescription>
-                  <CardTitle className="text-xl sm:text-2xl">- {plan.name} -</CardTitle>
-                  <p className="text-2xl font-semibold tracking-tight sm:text-3xl">{plan.price}</p>
-                </CardHeader>
-                <CardContent className="space-y-1.5 text-sm text-zinc-700 dark:text-zinc-200 sm:space-y-2">
-                  {plan.points.map((point) => (
-                    <div key={point} className="flex items-start gap-2">
-                      <CheckCircle2 className="mt-0.5 size-3.5 text-cyan-600 sm:size-4" />
-                      <span className="text-xs sm:text-sm">{point}</span>
-                    </div>
-                  ))}
-                </CardContent>
-                <CardFooter>
-                  <Button asChild variant="outline" className="w-[80%] rounded-none border-x-0 border-black dark:border-white">
-                    <Link href="/contact" className="text-xs sm:text-base">このプランで相談する</Link>
-                  </Button>
-                </CardFooter>
-              </Card>
+                <Card className="w-[60vw] snap-start border-black/40 bg-white/90 transition-transform duration-200 hover:-translate-y-1 hover:shadow-2xl dark:border-white/10 dark:bg-slate-900/75 sm:w-[60vw] lg:w-auto">
+                  <CardHeader className="pb-1 sm:pb-6">
+                    <CardDescription className="text-gray-700 dark:text-white">{plan.note}</CardDescription>
+                    <CardTitle className="text-xl sm:text-2xl">- {plan.name} -</CardTitle>
+                    <p className="text-2xl font-semibold tracking-tight sm:text-3xl">{plan.price}</p>
+                  </CardHeader>
+                  <CardContent className="space-y-1.5 text-sm text-zinc-700 dark:text-zinc-200 sm:space-y-2">
+                    {plan.points.map((point) => (
+                      <div key={point} className="flex items-start gap-2">
+                        <CheckCircle2 className="mt-0.5 size-3.5 text-cyan-600 sm:size-4" />
+                        <span className="text-xs sm:text-sm">{point}</span>
+                      </div>
+                    ))}
+                  </CardContent>
+                  <CardFooter>
+                    <Button asChild variant="outline" className="w-[80%] rounded-none border-x-0 border-black dark:border-white">
+                      <Link href="/contact" className="text-xs sm:text-base">このプランで相談する</Link>
+                    </Button>
+                  </CardFooter>
+                </Card>
+              </motion.div>
             ))}
           </div>
           <Button asChild variant="outline" className="gap-2 rounded-2xl border-x-0 border-black dark:border-white">
@@ -397,9 +505,11 @@ export function HomePageExperience() {
               <ArrowRight className="size-4" />
             </Link>
           </Button>
-        </section>
+        </SectionReveal>
 
-        <section className="-mx-4 space-y-3 border-y border-black/40 bg-white/80 px-4 py-4 dark:border-white/10 dark:bg-slate-900/70 sm:mx-0 sm:space-y-5 sm:rounded-3xl sm:border sm:p-8">
+        <SectionReveal
+          className="-mx-4 space-y-3 border-y border-black/40 bg-white/80 px-4 py-4 dark:border-white/10 dark:bg-slate-900/70 sm:mx-0 sm:space-y-5 sm:rounded-3xl sm:border sm:p-8"
+        >
           <div className="space-y-1 sm:space-y-2">
             <h2 className="text-xl font-semibold tracking-tight sm:text-3xl">FAQ</h2>
             <p className="hidden text-zinc-600 dark:text-zinc-300 sm:block">埋め込み方法、公開URL、主な用途、料金感などを先に確認できます。</p>
@@ -411,9 +521,11 @@ export function HomePageExperience() {
               <ArrowRight className="size-4" />
             </Link>
           </Button>
-        </section>
+        </SectionReveal>
 
-        <CTASection />
+        <Reveal amount={0.2} distance={34}>
+          <CTASection />
+        </Reveal>
       </Container>
     </div>
   )
