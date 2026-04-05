@@ -141,9 +141,6 @@ export default function FlyerPage() {
             }}>
               <span style={{ fontStyle: "italic" }}>AI</span>アシスタントが今日から使えます。
             </p>
-            {/* <p style={{ fontSize: "9pt", color: "#cbd5e1", lineHeight: "1.7", fontWeight: "400" }}>
-              コーディング不要・初期費用なし・月額制。お問い合わせ対応から社内ナレッジ管理まで。
-            </p> */}
           </div>
 
           {/* タグ */}
@@ -267,7 +264,6 @@ export default function FlyerPage() {
                   padding: "9px 12px",
                   background: "white",
                   border: "1px solid #e2e8f0",
-                  borderLeft: "3px solid #0891b2",
                   display: "flex",
                   gap: "9px",
                   alignItems: "flex-start",
