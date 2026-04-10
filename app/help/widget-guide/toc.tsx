@@ -14,6 +14,7 @@ const TOC_ITEMS = [
   { id: "section-shopify", label: "8. Shopify" },
   { id: "section-base", label: "9. BASE" },
   { id: "section-unsupported", label: "10. 非対応サービス" },
+  { id: "section-script-options", label: "上書きオプション（任意）" },
   { id: "section-checklist", label: "設置後の確認" },
 ]
 

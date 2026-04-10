@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { LogIn, UserPlus, X } from "lucide-react"
+import { LayoutDashboard, LogIn, UserPlus, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 
@@ -24,20 +24,37 @@ export function PlanCtaButton({ planCode, planName, className }: Props) {
   const router = useRouter()
   const [modal, setModal] = React.useState<ModalState>("closed")
   const [loading, setLoading] = React.useState(false)
+  const [status, setStatus] = React.useState<BillingStatus | null>(null)
   const formRef = React.useRef<HTMLFormElement | null>(null)
 
+  React.useEffect(() => {
+    fetch("/api/billing/status")
+      .then((res) => res.json())
+      .then((data: BillingStatus) => setStatus(data))
+      .catch(() => {/* ネットワークエラー時はデフォルト表示のまま */})
+  }, [])
+
   async function handleClick() {
+    if (status?.authenticated && status.hasActiveSubscription) {
+      router.push("/console/billing")
+      return
+    }
+
     setLoading(true)
     try {
-      const res = await fetch("/api/billing/status")
-      const status: BillingStatus = await res.json()
+      let current: BillingStatus
+      if (status) {
+        current = status
+      } else {
+        current = await fetch("/api/billing/status").then((r) => r.json())
+      }
 
-      if (!status.authenticated) {
+      if (!current.authenticated) {
         setModal("unauthenticated")
         return
       }
 
-      if (status.hasActiveSubscription) {
+      if (current.hasActiveSubscription) {
         router.push("/console/billing")
         return
       }
@@ -48,20 +65,33 @@ export function PlanCtaButton({ planCode, planName, className }: Props) {
     }
   }
 
+  const isSubscribed = status?.authenticated && status.hasActiveSubscription
+
   return (
     <>
       <form ref={formRef} action="/api/stripe/checkout" method="post" className="hidden">
         <input type="hidden" name="plan_code" value={planCode} />
       </form>
 
-      <Button
-        type="button"
-        disabled={loading}
-        onClick={handleClick}
-        className={className}
-      >
-        {loading ? "確認中..." : "このプランで契約する"}
-      </Button>
+      {isSubscribed ? (
+        <Button
+          type="button"
+          onClick={handleClick}
+          className={`inline-flex items-center gap-2 bg-amber-500/50 text-white hover:bg-amber-600 dark:bg-amber-500/50 dark:hover:bg-amber-400 ${className ?? ""}`}
+        >
+          <LayoutDashboard className="size-4" />
+          管理画面で確認する
+        </Button>
+      ) : (
+        <Button
+          type="button"
+          disabled={loading}
+          onClick={handleClick}
+          className={className}
+        >
+          {loading ? "確認中..." : "このプランで契約する"}
+        </Button>
+      )}
 
       {modal === "unauthenticated" ? (
         <div

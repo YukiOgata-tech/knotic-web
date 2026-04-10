@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { ArrowLeft, BookOpen, CheckCircle2, ExternalLink, Info, AlertTriangle } from "lucide-react"
+import { ArrowLeft, BookOpen, CheckCircle2, ExternalLink, Info, AlertTriangle, Settings2 } from "lucide-react"
 
 import { PageFrame } from "@/components/marketing/page-frame"
 import { buildMarketingMetadata } from "@/lib/seo/metadata"
@@ -67,7 +67,7 @@ export default function WidgetGuideDocsPage() {
                 <>Console の <strong>Bot管理</strong> を開き、設置したいBotの「Bot設定を開く」をクリック</>,
                 <><strong>Widget タブ</strong>を開き「Widgetを有効にする」をオンにして設定を保存</>,
                 <><strong>Widgetトークン管理</strong>セクションで「トークン再発行」を実行（初回のみ）</>,
-                <>発行された script タグ（<code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs dark:bg-slate-800">{"<script src=\"...\" data-bot-id=\"bot_xxxx\" data-widget-token=\"wt_xxxx\"></script>"}</code>）をコピー</>,
+                <>発行された script タグ（<code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs dark:bg-slate-800">{"<script src=\"...\" data-bot-id=\"bot_xxxx\" data-widget-token=\"wt_xxxx\"></script>"}</code>）をコピー。ボタン位置や表示モードは<strong>コンソールの設定から変更できるため、scriptタグには不要</strong>です</>,
                 <>トークンは発行時の1回のみ表示されます。必ず安全な場所に控えてください</>,
                 <><strong>許可オリジン</strong>に設置先サイトのURL（例: <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs dark:bg-slate-800">https://example.com</code>）を登録してから保存</>,
               ].map((item, i) => (
@@ -80,11 +80,11 @@ export default function WidgetGuideDocsPage() {
               ))}
             </ol>
             <p className="mt-3 text-xs text-muted-foreground">
-              コード例や各オプション（data-mode, data-position）の詳細は{" "}
-              <Link href="/help/widget" className="text-cyan-700 underline underline-offset-2 dark:text-cyan-400">
-                Widget 埋め込みガイド（開発者向け）
-              </Link>{" "}
-              も参照してください。
+              位置・モードなどの詳細設定はコンソールのWidget設定から変更できます。scriptタグへの上書きオプションは{" "}
+              <a href="#section-script-options" className="text-cyan-700 underline underline-offset-2 dark:text-cyan-400">
+                こちら
+              </a>
+              {" "}を参照してください。
             </p>
           </section>
 
@@ -270,6 +270,60 @@ export default function WidgetGuideDocsPage() {
             <p className="mt-3 text-sm text-rose-800/90 dark:text-rose-300">
               これらのサービスをお使いで Widget を設置したい場合は、WordPress・Wix・STUDIO・Squarespace・Webflow などへの移行をご検討ください。または、knotic の「<strong>Hosted URL（公開チャットURL）</strong>」機能を使って独立したチャットページを公開し、そのリンクをサイトに設置する方法もあります（Standardプラン以上）。
             </p>
+          </section>
+
+          {/* スクリプトの上書きオプション */}
+          <section id="section-script-options" className="mb-10 scroll-mt-28 rounded-xl border border-black/10 bg-white/80 p-5 dark:border-white/10 dark:bg-slate-900/60">
+            <div className="mb-3 flex items-center gap-2">
+              <Settings2 className="size-4 text-cyan-600 dark:text-cyan-400" />
+              <h2 className="text-sm font-semibold">scriptタグの上書きオプション（任意・通常は不要）</h2>
+            </div>
+            <div className="mb-4 rounded-lg border border-emerald-200/60 bg-emerald-50/70 px-4 py-3 dark:border-emerald-500/30 dark:bg-emerald-950/20">
+              <p className="text-xs text-emerald-800 dark:text-emerald-300">
+                <strong>ボタン位置・表示モードはコンソールから変更できます。</strong>
+                {" "}scriptタグを修正・再設置する必要はなく、コンソール画面で保存するだけで即時反映されます。
+              </p>
+            </div>
+            <p className="mb-4 text-sm text-muted-foreground">
+              scriptタグには以下の任意属性を追加することで、コンソール設定を上書きすることができます。
+              複数サイトへの同一Botの設置でサイトごとに見た目を変えたい場合などに使用します。
+            </p>
+            <div className="overflow-x-auto rounded-lg border border-black/10 dark:border-white/10">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-100/80 dark:bg-slate-800/60">
+                  <tr>
+                    <th className="px-4 py-2.5 text-left font-semibold text-slate-700 dark:text-slate-300">属性</th>
+                    <th className="px-4 py-2.5 text-left font-semibold text-slate-700 dark:text-slate-300">値</th>
+                    <th className="px-4 py-2.5 text-left font-semibold text-slate-700 dark:text-slate-300">説明</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-black/10 dark:divide-white/10">
+                  <tr>
+                    <td className="px-4 py-2.5 font-mono text-slate-800 dark:text-slate-200">data-position</td>
+                    <td className="px-4 py-2.5 text-slate-600 dark:text-slate-400">
+                      <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">right-bottom</code>{" / "}
+                      <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">right-top</code>
+                    </td>
+                    <td className="px-4 py-2.5 text-slate-600 dark:text-slate-400">ボタン表示位置の上書き</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-2.5 font-mono text-slate-800 dark:text-slate-200">data-mode</td>
+                    <td className="px-4 py-2.5 text-slate-600 dark:text-slate-400">
+                      <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">overlay</code>{" / "}
+                      <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">redirect</code>{" / "}
+                      <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">both</code>
+                    </td>
+                    <td className="px-4 py-2.5 text-slate-600 dark:text-slate-400">チャット起動モードの上書き</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-3 rounded-lg border border-slate-200/60 bg-slate-50/80 px-4 py-3 dark:border-white/10 dark:bg-slate-800/40">
+              <p className="text-xs text-muted-foreground">
+                これらの属性は省略が基本です。省略した場合はコンソールの設定値が自動的に読み込まれます。
+                必要な場合のみ、通常の埋め込みscriptタグに追記してください。
+              </p>
+            </div>
           </section>
 
           {/* 設置後の確認 */}
