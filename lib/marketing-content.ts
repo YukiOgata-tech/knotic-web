@@ -43,18 +43,28 @@ export const features = [
 
 export const plans = [
   {
-    name: "Lite",
-    price: "¥10,000 / 月",
-    note: "問い合わせ対応を小さく始める",
-    points: ["Bot: 1体", "月間メッセージ: 1,000", "データ量: 100MB", "公開方法: Widget中心"],
+    code: "starter" as const,
+    name: "Starter",
+    price: "¥4,900 / 月",
+    note: "サイト設置から始める",
+    points: ["Bot: 1体", "月間メッセージ: 300", "データ量: 75MB", "公開方法: Widget"],
   },
   {
+    code: "lite" as const,
+    name: "Lite",
+    price: "¥9,800 / 月",
+    note: "利用増加に対応して本格運用へ",
+    points: ["Bot: 1体", "月間メッセージ: 1,000", "データ量: 100MB", "公開方法: Widget"],
+  },
+  {
+    code: "standard" as const,
     name: "Standard",
     price: "¥24,800 / 月",
     note: "公開導線と運用を安定化",
     points: ["Bot: 2体", "月間メッセージ: 5,000", "データ量: 1,024MB", "公開方法: Widget/Hosted/API"],
   },
   {
+    code: "pro" as const,
     name: "Pro",
     price: "¥100,000 / 月",
     note: "複数部門へ本格展開",

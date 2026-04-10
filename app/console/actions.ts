@@ -87,7 +87,8 @@ function normalizeConfigTab(value: string | null | undefined) {
 }
 
 function getHistoryTurnLimitCap(planCode: string | null | undefined) {
-  return planCode === "lite" ? 20 : 30
+  if (planCode === "starter" || planCode === "lite") return 20
+  return 30
 }
 
 async function getTenantContext(requireEditor = false) {

@@ -15,9 +15,10 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 
-type PlanCode = "lite" | "standard" | "pro"
+type PlanCode = "starter" | "lite" | "standard" | "pro"
 
 const PLAN_RANK: Record<PlanCode, number> = {
+  starter: 0,
   lite: 1,
   standard: 2,
   pro: 3,

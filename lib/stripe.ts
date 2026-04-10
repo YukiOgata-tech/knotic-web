@@ -5,7 +5,7 @@ import { getAppUrl } from "@/lib/env"
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET
 
-type PlanCode = "lite" | "standard" | "pro"
+type PlanCode = "starter" | "lite" | "standard" | "pro"
 
 let stripeClient: Stripe | null = null
 
@@ -29,6 +29,7 @@ export function getStripeWebhookSecret() {
 
 export function getStripePriceMap() {
   return {
+    starter: requireEnv(process.env.STRIPE_PRICE_STARTER_MONTHLY, "STRIPE_PRICE_STARTER_MONTHLY"),
     lite: requireEnv(process.env.STRIPE_PRICE_LITE_MONTHLY, "STRIPE_PRICE_LITE_MONTHLY"),
     standard: requireEnv(process.env.STRIPE_PRICE_STANDARD_MONTHLY, "STRIPE_PRICE_STANDARD_MONTHLY"),
     pro: requireEnv(process.env.STRIPE_PRICE_PRO_MONTHLY, "STRIPE_PRICE_PRO_MONTHLY"),
@@ -37,6 +38,7 @@ export function getStripePriceMap() {
 
 export function getStripePriceMapSafe() {
   return {
+    starter: process.env.STRIPE_PRICE_STARTER_MONTHLY ?? null,
     lite: process.env.STRIPE_PRICE_LITE_MONTHLY ?? null,
     standard: process.env.STRIPE_PRICE_STANDARD_MONTHLY ?? null,
     pro: process.env.STRIPE_PRICE_PRO_MONTHLY ?? null,
@@ -45,6 +47,7 @@ export function getStripePriceMapSafe() {
 
 export function resolvePlanCodeFromPriceId(priceId: string): PlanCode | null {
   const map = getStripePriceMapSafe()
+  if (map.starter === priceId) return "starter"
   if (map.lite === priceId) return "lite"
   if (map.standard === priceId) return "standard"
   if (map.pro === priceId) return "pro"

@@ -13,6 +13,7 @@
 
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_PRICE_STARTER_MONTHLY`
 - `STRIPE_PRICE_LITE_MONTHLY`
 - `STRIPE_PRICE_STANDARD_MONTHLY`
 - `STRIPE_PRICE_PRO_MONTHLY`
@@ -20,8 +21,9 @@
 
 ## 2. StripeダッシュボードでPriceを作成
 
-3プラン分の「月額 recurring price」を作成し、price IDをenvへ設定します。
+4プラン分の「月額 recurring price」を作成し、price IDをenvへ設定します。
 
+- Starter -> `STRIPE_PRICE_STARTER_MONTHLY`
 - Lite -> `STRIPE_PRICE_LITE_MONTHLY`
 - Standard -> `STRIPE_PRICE_STANDARD_MONTHLY`
 - Pro -> `STRIPE_PRICE_PRO_MONTHLY`

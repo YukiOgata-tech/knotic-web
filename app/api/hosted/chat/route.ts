@@ -45,7 +45,8 @@ function estimateTokens(text: string) {
 }
 
 function getHistoryTurnLimitCap(planCode: string) {
-  return planCode === "lite" ? 20 : 30
+  if (planCode === "starter" || planCode === "lite") return 20
+  return 30
 }
 
 function normalizeModel(candidate: string | undefined, fallback: string) {

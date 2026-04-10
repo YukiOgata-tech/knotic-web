@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { ArrowRight, BookOpenText, Clock3, LifeBuoy, Search } from "lucide-react"
+import { ArrowRight, BookOpenText, Clock3, CreditCard, Code2, LayoutGrid, LifeBuoy, Search, UserCog } from "lucide-react"
 import { Fragment, type ReactNode } from "react"
 
 import { helpDocCategories, type HelpDocArticle, type HelpDocCategory } from "@/content/help-docs"
@@ -84,6 +84,41 @@ function renderInlineEmphasis(text: string): ReactNode {
   })
 }
 
+const GUIDE_CARDS = [
+  {
+    href: "/help/plans",
+    title: "プラン・料金",
+    description: "無料プランの制限、データ保持ポリシー、プラン比較・変更・解約",
+    Icon: CreditCard,
+    iconBg: "bg-emerald-100 dark:bg-emerald-900/40",
+    iconColor: "text-emerald-700 dark:text-emerald-400",
+  },
+  {
+    href: "/help/account",
+    title: "アカウント・データ管理",
+    description: "ログイン・パスワードリセット・Bot削除・テナント脱退",
+    Icon: UserCog,
+    iconBg: "bg-violet-100 dark:bg-violet-900/40",
+    iconColor: "text-violet-700 dark:text-violet-400",
+  },
+  {
+    href: "/help/widget-guide",
+    title: "Widget 設置ガイド",
+    description: "WordPress・Wix・STUDIO など各サービスへの設置手順",
+    Icon: LayoutGrid,
+    iconBg: "bg-cyan-100 dark:bg-cyan-900/40",
+    iconColor: "text-cyan-700 dark:text-cyan-400",
+  },
+  {
+    href: "/help/widget",
+    title: "Widget 埋め込み（開発者向け）",
+    description: "HTML・Next.js・React・Vue.js のコード例と属性一覧",
+    Icon: Code2,
+    iconBg: "bg-amber-100 dark:bg-amber-900/40",
+    iconColor: "text-amber-700 dark:text-amber-400",
+  },
+] as const
+
 export default async function HelpPage({ searchParams }: PageProps) {
   const params = (await searchParams) ?? {}
   const rawQuery = firstParam(params.q)?.trim() ?? ""
@@ -98,6 +133,34 @@ export default async function HelpPage({ searchParams }: PageProps) {
       title="利用者ドキュメント"
       description="導入準備から公開運用まで、実務ですぐ使える手順をまとめています。まずは検索またはカテゴリから必要なガイドを選んでください。"
     >
+      {/* トピック別ガイドカード */}
+      <section className="-mx-4 mb-5 px-4 sm:mx-0 sm:mb-6 sm:px-0">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-700 dark:text-cyan-300">
+          トピック別ガイド
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {GUIDE_CARDS.map((card) => (
+            <Link
+              key={card.href}
+              href={card.href}
+              className="group flex flex-col gap-2 rounded-2xl border border-black/15 bg-white/90 p-4 transition-all hover:border-cyan-400/50 hover:shadow-sm dark:border-white/10 dark:bg-slate-900/70 dark:hover:border-cyan-500/40"
+            >
+              <div className={`inline-flex size-8 items-center justify-center rounded-xl ${card.iconBg}`}>
+                <card.Icon className={`size-4 ${card.iconColor}`} />
+              </div>
+              <div>
+                <p className="text-sm font-semibold leading-snug">{card.title}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground leading-snug">{card.description}</p>
+              </div>
+              <div className="mt-auto flex items-center gap-1 text-xs text-cyan-700 dark:text-cyan-400">
+                <span>詳しく見る</span>
+                <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" />
+              </div>
+            </Link>
+          ))}
+        </div>
+      </section>
+
       <section className="-mx-4 rounded-none border-0 bg-transparent px-4 py-3 sm:mx-0 sm:rounded-3xl sm:border sm:border-black/20 sm:bg-white/90 sm:p-6 dark:sm:border-white/10 dark:sm:bg-slate-900/75">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
           <form action="/help" method="get" className="space-y-3">
@@ -291,24 +354,28 @@ export default async function HelpPage({ searchParams }: PageProps) {
             関連ページ
           </p>
           <div className="mt-3 grid gap-2 text-sm">
-            <Link href="/help/widget" className="inline-flex items-center gap-2 hover:underline">
-              Widget 埋め込みガイド（コード例）
+            <Link href="/help/plans" className="inline-flex items-center gap-2 hover:underline">
+              プラン・料金ガイド
+              <ArrowRight className="size-3.5" />
+            </Link>
+            <Link href="/help/account" className="inline-flex items-center gap-2 hover:underline">
+              アカウント・データ管理ガイド
               <ArrowRight className="size-3.5" />
             </Link>
             <Link href="/help/widget-guide" className="inline-flex items-center gap-2 hover:underline">
-              サービス別 Widget 設置ガイド（WordPress / Wix / STUDIO ほか）
+              サービス別 Widget 設置ガイド
               <ArrowRight className="size-3.5" />
             </Link>
-            <Link href="/faq" className="inline-flex items-center gap-2 hover:underline">
-              FAQを見る
-              <ArrowRight className="size-3.5" />
-            </Link>
-            <Link href="/security" className="inline-flex items-center gap-2 hover:underline">
-              セキュリティ情報
+            <Link href="/help/widget" className="inline-flex items-center gap-2 hover:underline">
+              Widget 埋め込みガイド（開発者向け）
               <ArrowRight className="size-3.5" />
             </Link>
             <Link href="/pricing" className="inline-flex items-center gap-2 hover:underline">
               料金と上限
+              <ArrowRight className="size-3.5" />
+            </Link>
+            <Link href="/faq" className="inline-flex items-center gap-2 hover:underline">
+              FAQ を見る
               <ArrowRight className="size-3.5" />
             </Link>
           </div>

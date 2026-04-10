@@ -13,6 +13,7 @@ import {
 import { createClient } from "@/lib/supabase/server"
 
 const PLAN_RANK: Record<PlanCode, number> = {
+  starter: 0,
   lite: 1,
   standard: 2,
   pro: 3,
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData()
     const planCode = String(formData.get("plan_code") ?? "").trim() as PlanCode
 
-    if (!(["lite", "standard", "pro"] as const).includes(planCode)) {
+    if (!(["starter", "lite", "standard", "pro"] as const).includes(planCode)) {
       return NextResponse.redirect(new URL("/console/billing?error=invalid_plan", request.url), 303)
     }
 

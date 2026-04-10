@@ -5,6 +5,7 @@ import { motion } from "framer-motion"
 import { Check, CircleX, Sparkles } from "lucide-react"
 
 import { pricingComparisonRows, pricingPlans } from "@/content/pricing"
+import { PlanCtaButton } from "@/components/marketing/plan-cta-button"
 import { Button } from "@/components/ui/button"
 
 const iconRows = new Set([
@@ -60,12 +61,12 @@ function PricingShowcase() {
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-700 dark:text-cyan-300">
           Plans
         </p>
-        <h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-3xl">3プランの料金と対応範囲</h2>
+        <h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-3xl">4プランの料金と対応範囲</h2>
         <p className="mt-2 text-[13px] leading-6 text-zinc-600 dark:text-zinc-300 sm:mt-3 sm:text-base sm:leading-8">
-          小さく始めて、公開規模と運用負荷に合わせて段階的に拡張できます。
+          サイト設置から始め、利用増加・公開規模に合わせて段階的に拡張できます。
         </p>
 
-        <div className="mt-4 grid gap-3 sm:mt-5 sm:gap-4 lg:grid-cols-3">
+        <div className="mt-4 grid gap-3 sm:mt-5 sm:gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {pricingPlans.map((plan, index) => {
             const recommended = plan.code === "standard"
             return (
@@ -112,9 +113,17 @@ function PricingShowcase() {
                   <ChannelPill label="API" enabled={plan.channels.api} />
                 </div>
 
-                <Button asChild className="mt-5 w-full rounded-full">
-                  <Link href="/contact">このプランで相談する</Link>
-                </Button>
+                {plan.code === "pro" ? (
+                  <Button asChild variant="outline" className="mt-5 w-full rounded-full">
+                    <Link href="/contact">お問合せする</Link>
+                  </Button>
+                ) : (
+                  <PlanCtaButton
+                    planCode={plan.code}
+                    planName={plan.name}
+                    className="mt-5 w-full rounded-full"
+                  />
+                )}
               </motion.article>
             )
           })}
@@ -131,36 +140,41 @@ function PricingShowcase() {
         </p>
 
         <div className="mt-4 max-w-full overflow-x-auto overscroll-x-contain rounded-xl border border-black/20 [-webkit-overflow-scrolling:touch] dark:border-white/10">
-          <table className="w-150 text-xs sm:w-full sm:min-w-190 sm:text-sm">
+          <table className="w-180 text-xs sm:w-full sm:min-w-220 sm:text-sm">
             <colgroup>
-              <col className="w-[22%] sm:w-[24%]" />
-              <col className="w-[26%] sm:w-[25.3%]" />
-              <col className="w-[26%] sm:w-[25.3%]" />
-              <col className="w-[26%] sm:w-[25.4%]" />
+              <col className="w-[22%] sm:w-[22%]" />
+              <col className="w-[19.5%] sm:w-[19.5%]" />
+              <col className="w-[19.5%] sm:w-[19.5%]" />
+              <col className="w-[19.5%] sm:w-[19.5%]" />
+              <col className="w-[19.5%] sm:w-[19.5%]" />
             </colgroup>
             <thead className="bg-zinc-100/90 dark:bg-slate-800/80">
               <tr>
-                <th className="bg-zinc-100/95 px-3 py-3 font-semibold whitespace-nowrap sm:px-5 dark:bg-slate-800/95 text-center">
+                <th className="bg-zinc-100/95 px-3 py-3 font-semibold whitespace-nowrap sm:px-4 dark:bg-slate-800/95 text-center">
                   項目
                 </th>
-                <th className="px-3 py-3 text-center font-semibold whitespace-nowrap sm:px-4">Lite</th>
-                <th className="px-3 py-3 text-center font-semibold whitespace-nowrap sm:px-4">Standard</th>
-                <th className="px-3 py-3 text-center font-semibold whitespace-nowrap sm:px-4">Pro</th>
+                <th className="px-2 py-3 text-center font-semibold whitespace-nowrap sm:px-3">Starter</th>
+                <th className="px-2 py-3 text-center font-semibold whitespace-nowrap sm:px-3">Lite</th>
+                <th className="px-2 py-3 text-center font-semibold whitespace-nowrap sm:px-3">Standard</th>
+                <th className="px-2 py-3 text-center font-semibold whitespace-nowrap sm:px-3">Pro</th>
               </tr>
             </thead>
             <tbody>
               {pricingComparisonRows.map((row) => (
                 <tr key={row.label} className="border-t border-black/20 dark:border-white/10">
-                  <td className="bg-white px-3 py-3 font-medium text-zinc-800 sm:px-5 dark:bg-slate-900 dark:text-zinc-100">
+                  <td className="bg-white px-3 py-3 font-medium text-zinc-800 sm:px-4 dark:bg-slate-900 dark:text-zinc-100">
                     {row.label}
                   </td>
-                  <td className="px-3 py-3 text-zinc-700 whitespace-nowrap sm:px-4 dark:text-zinc-200">
+                  <td className="px-2 py-3 text-zinc-700 whitespace-nowrap sm:px-3 dark:text-zinc-200">
+                    <span className="inline-flex items-center gap-2">{renderCell(row.label, row.values.starter)}</span>
+                  </td>
+                  <td className="px-2 py-3 text-zinc-700 whitespace-nowrap sm:px-3 dark:text-zinc-200">
                     <span className="inline-flex items-center gap-2">{renderCell(row.label, row.values.lite)}</span>
                   </td>
-                  <td className="px-3 py-3 text-zinc-700 whitespace-nowrap sm:px-4 dark:text-zinc-200">
+                  <td className="px-2 py-3 text-zinc-700 whitespace-nowrap sm:px-3 dark:text-zinc-200">
                     <span className="inline-flex items-center gap-2">{renderCell(row.label, row.values.standard)}</span>
                   </td>
-                  <td className="px-3 py-3 text-zinc-700 whitespace-nowrap sm:px-4 dark:text-zinc-200">
+                  <td className="px-2 py-3 text-zinc-700 whitespace-nowrap sm:px-3 dark:text-zinc-200">
                     <span className="inline-flex items-center gap-2">{renderCell(row.label, row.values.pro)}</span>
                   </td>
                 </tr>
@@ -174,9 +188,10 @@ function PricingShowcase() {
         <article className="border-b border-black/15 pb-4 last:border-b-0 lg:border-b-0 lg:pb-0 sm:rounded-2xl sm:border sm:border-black/20 sm:bg-white/85 sm:p-6 dark:border-white/10 sm:dark:bg-slate-950/35">
           <h3 className="text-lg font-semibold tracking-tight sm:text-2xl">導入の進め方</h3>
           <ol className="mt-2 grid gap-2 text-[13px] leading-6 text-zinc-800 dark:text-zinc-100 sm:mt-3 sm:gap-2.5 sm:text-base sm:leading-8">
-            <li>1. Liteで問い合わせ対応またはマニュアル案内の1用途を公開</li>
-            <li>2. 運用が安定したらStandardで公開チャネルと上限を拡張</li>
-            <li>3. 複数部門展開やAPI連携が必要ならProへ移行</li>
+            <li>1. Starterで既存サイトへのWidget設置から始める</li>
+            <li>2. 利用が増えてきたらLiteへ（メッセージ3倍以上）</li>
+            <li>3. Hosted URLやAPI連携が必要になったらStandardへ</li>
+            <li>4. 複数部門展開・大規模運用はProへ移行</li>
           </ol>
           <div className="mt-4 gap-3 flex sm:flex-wrap">
             <Button asChild variant="outline" className="rounded-full border-black/40 dark:border-white/40 hover:shadow-xl">

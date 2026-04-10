@@ -1,5 +1,5 @@
 export type PricingPlan = {
-  code: "lite" | "standard" | "pro"
+  code: "starter" | "lite" | "standard" | "pro"
   name: string
   priceLabel: string
   monthlyPriceJpy: number
@@ -23,6 +23,7 @@ export type PricingPlan = {
 export type PricingComparisonRow = {
   label: string
   values: {
+    starter: string
     lite: string
     standard: string
     pro: string
@@ -31,12 +32,29 @@ export type PricingComparisonRow = {
 
 export const pricingPlans: PricingPlan[] = [
   {
+    code: "starter",
+    name: "Starter",
+    priceLabel: "¥4,900 / 月",
+    monthlyPriceJpy: 4900,
+    tagline: "サイトに設置して試してみる",
+    target: "既存サイトへのWidget設置から始めたい小規模事業者向け",
+    botLimitLabel: "1体",
+    monthlyMessagesLabel: "300 / 月",
+    storageLabel: "75MB",
+    channels: { widget: true, hostedPage: false, api: false },
+    modelSelection: false,
+    apiRpm: "30",
+    maxApiKeys: "0",
+    maxHostedPages: "0",
+    origins: "無制限（内部制御あり）",
+  },
+  {
     code: "lite",
     name: "Lite",
-    priceLabel: "¥10,000 / 月",
-    monthlyPriceJpy: 10000,
-    tagline: "まずは1用途を素早く立ち上げる",
-    target: "問い合わせ対応やマニュアル案内を小さく始めるチーム向け",
+    priceLabel: "¥9,800 / 月",
+    monthlyPriceJpy: 9800,
+    tagline: "利用増加に対応して本格運用へ",
+    target: "問い合わせ対応やマニュアル案内を安定稼働させたいチーム向け",
     botLimitLabel: "1体",
     monthlyMessagesLabel: "1,000 / 月",
     storageLabel: "100MB",
@@ -87,7 +105,8 @@ export const pricingComparisonRows: PricingComparisonRow[] = [
   {
     label: "月額",
     values: {
-      lite: "¥10,000",
+      starter: "¥4,900",
+      lite: "¥9,800",
       standard: "¥24,800",
       pro: "¥100,000",
     },
@@ -95,6 +114,7 @@ export const pricingComparisonRows: PricingComparisonRow[] = [
   {
     label: "Bot上限",
     values: {
+      starter: "1",
       lite: "1",
       standard: "2",
       pro: "無制限表示（内部50）",
@@ -103,6 +123,7 @@ export const pricingComparisonRows: PricingComparisonRow[] = [
   {
     label: "月間メッセージ上限",
     values: {
+      starter: "300",
       lite: "1,000",
       standard: "5,000",
       pro: "20,000",
@@ -111,6 +132,7 @@ export const pricingComparisonRows: PricingComparisonRow[] = [
   {
     label: "データ量上限",
     values: {
+      starter: "75MB",
       lite: "100MB",
       standard: "1,024MB",
       pro: "10,240MB",
@@ -119,6 +141,7 @@ export const pricingComparisonRows: PricingComparisonRow[] = [
   {
     label: "Widget埋め込み",
     values: {
+      starter: "可",
       lite: "可",
       standard: "可",
       pro: "可",
@@ -127,6 +150,7 @@ export const pricingComparisonRows: PricingComparisonRow[] = [
   {
     label: "Hosted Page公開",
     values: {
+      starter: "不可",
       lite: "不可",
       standard: "可",
       pro: "可",
@@ -135,6 +159,7 @@ export const pricingComparisonRows: PricingComparisonRow[] = [
   {
     label: "API利用",
     values: {
+      starter: "不可",
       lite: "不可",
       standard: "可",
       pro: "可",
@@ -143,6 +168,7 @@ export const pricingComparisonRows: PricingComparisonRow[] = [
   {
     label: "モデル選択",
     values: {
+      starter: "不可",
       lite: "不可",
       standard: "可",
       pro: "可",
@@ -151,6 +177,7 @@ export const pricingComparisonRows: PricingComparisonRow[] = [
   {
     label: "APIキー上限",
     values: {
+      starter: "0",
       lite: "0",
       standard: "2",
       pro: "10",
@@ -159,6 +186,7 @@ export const pricingComparisonRows: PricingComparisonRow[] = [
   {
     label: "Hostedページ上限",
     values: {
+      starter: "0",
       lite: "0",
       standard: "2",
       pro: "50",
@@ -167,6 +195,7 @@ export const pricingComparisonRows: PricingComparisonRow[] = [
   {
     label: "API RPM上限",
     values: {
+      starter: "30",
       lite: "30",
       standard: "120",
       pro: "300",

@@ -6,7 +6,7 @@ import { getStripeClient, getStripePriceMap } from "@/lib/stripe"
 import type { PlanCode } from "@/lib/stripe"
 import { getAppUrl } from "@/lib/env"
 
-const VALID_PLAN_CODES = new Set<PlanCode>(["lite", "standard", "pro"])
+const VALID_PLAN_CODES = new Set<PlanCode>(["starter", "lite", "standard", "pro"])
 
 function isCustomerMissingError(error: unknown) {
   if (!(error instanceof Error) || !("code" in error)) return false

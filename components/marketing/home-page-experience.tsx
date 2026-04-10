@@ -16,6 +16,7 @@ import { AuthAwareCtaButton } from "@/components/auth/auth-aware"
 import { Container } from "@/components/layout/container"
 import { FaqAccordion } from "@/components/marketing/faq-accordion"
 import { FeaturesPreview } from "@/components/marketing/features-preview"
+import { PlanCtaButton } from "@/components/marketing/plan-cta-button"
 import { CTASection } from "@/components/marketing/page-frame"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -466,7 +467,7 @@ export function HomePageExperience() {
             <h2 className="text-xl font-semibold tracking-tight sm:text-3xl">料金プラン</h2>
             <p className="hidden text-zinc-600 dark:text-zinc-300 sm:block">小さく始められる価格帯から、運用規模に合わせて段階的に拡張できます。</p>
           </div>
-          <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0 sm:pb-0 lg:grid lg:grid-cols-3 lg:overflow-visible ">
+          <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0 sm:pb-0 lg:grid lg:grid-cols-4 lg:overflow-visible ">
             {plans.map((plan, index) => (
               <motion.div
                 key={plan.name}
@@ -491,9 +492,17 @@ export function HomePageExperience() {
                     ))}
                   </CardContent>
                   <CardFooter>
-                    <Button asChild variant="outline" className="w-[80%] rounded-none border-x-0 border-black dark:border-white">
-                      <Link href="/contact" className="text-xs sm:text-base">このプランで相談する</Link>
-                    </Button>
+                    {plan.code === "pro" ? (
+                      <Button asChild variant="outline" className="w-[80%] rounded-none border-x-0 border-black dark:border-white">
+                        <Link href="/contact" className="text-xs sm:text-base">お問合せする</Link>
+                      </Button>
+                    ) : (
+                      <PlanCtaButton
+                        planCode={plan.code}
+                        planName={plan.name}
+                        className="w-[80%] rounded-none border border-x-0 border-black bg-transparent text-xs text-zinc-900 hover:bg-zinc-100 dark:border-white dark:text-white dark:hover:bg-slate-800 sm:text-base"
+                      />
+                    )}
                   </CardFooter>
                 </Card>
               </motion.div>

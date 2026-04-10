@@ -18,7 +18,8 @@ type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
-const PLAN_LABELS: Record<"lite" | "standard" | "pro", string> = {
+const PLAN_LABELS: Record<"starter" | "lite" | "standard" | "pro", string> = {
+  starter: "Starter",
   lite: "Lite",
   standard: "Standard",
   pro: "Pro",
@@ -33,7 +34,7 @@ type BillingSubscriptionRow = {
   current_period_end: string | null
   cancel_at_period_end: boolean
   plans: {
-    code: "lite" | "standard" | "pro"
+    code: "starter" | "lite" | "standard" | "pro"
     name: string
     monthly_price_jpy: number
   } | null
@@ -42,6 +43,7 @@ type BillingSubscriptionRow = {
 type PlanLimitRow = {
   code: string
   name: string
+  monthly_price_jpy: number
   max_bots: number
   max_hosted_pages: number
   max_storage_mb: number
@@ -181,7 +183,7 @@ export default async function ConsoleBillingPage({ searchParams }: PageProps) {
   const currentCode = subscription?.plans?.code ?? null
 
   const prices = getStripePriceMapSafe()
-  const stripeReady = Boolean(prices.lite && prices.standard && prices.pro)
+  const stripeReady = Boolean(prices.starter && prices.lite && prices.standard && prices.pro)
   const [botCount, storageBytes] = await Promise.all([
     getTenantBotCount(tenantId),
     getTenantStorageUsageBytes(tenantId),
@@ -225,7 +227,7 @@ export default async function ConsoleBillingPage({ searchParams }: PageProps) {
 
   const { data: planRowsRaw } = await admin
     .from("plans")
-    .select("code, name, max_bots, max_hosted_pages, max_storage_mb, internal_max_bots_cap, has_api, has_hosted_page")
+    .select("code, name, monthly_price_jpy, max_bots, max_hosted_pages, max_storage_mb, internal_max_bots_cap, has_api, has_hosted_page")
     .eq("is_active", true)
 
   const planRows = (planRowsRaw ?? []) as PlanLimitRow[]
@@ -492,12 +494,13 @@ export default async function ConsoleBillingPage({ searchParams }: PageProps) {
         </Card>
       ) : null}
 
-      <section id="plan-options" className="grid gap-4 lg:grid-cols-3">
-        {(["lite", "standard", "pro"] as const).map((code) => {
+      <section id="plan-options" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {(["starter", "lite", "standard", "pro"] as const).map((code) => {
           const isCurrent = currentCode === code
           const isScheduledTarget = pendingPlanChange?.targetPlanCode === code
           const planChangeLocked = hasScheduledPlanChange || Boolean(pendingPlanChange)
           const disabled = !isEditor || !stripeReady || planChangeLocked
+          const planRow = planByCode.get(code)
           return (
             <Card
               key={code}
@@ -520,7 +523,7 @@ export default async function ConsoleBillingPage({ searchParams }: PageProps) {
                   ) : null}
                 </CardTitle>
                 <CardDescription>
-                  {code === "lite" ? "¥10,000 / 月" : code === "standard" ? "¥24,800 / 月" : "¥100,000 / 月"}
+                  {planRow ? formatJpy(planRow.monthly_price_jpy) + " / 月" : "-"}
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-2">
