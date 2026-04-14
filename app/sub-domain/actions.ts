@@ -585,6 +585,154 @@ export async function updatePlanLimitsAction(formData: FormData) {
   }
 }
 
+export async function clearNotificationAction(formData: FormData) {
+  try {
+    const { admin } = await requirePlatformAdminActionContext()
+    const id = String(formData.get("id") ?? "").trim()
+    if (!id) throw new Error("id が不正です。")
+
+    const { error } = await admin
+      .from("tenant_notifications")
+      .update({ read_at: new Date().toISOString() })
+      .eq("id", id)
+      .is("read_at", null)
+
+    if (error) throw error
+
+    revalidatePath("/sub-domain/notifications")
+    redirect("/sub-domain/notifications?notice=" + encodeURIComponent("通知を既読にしました。"))
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "既読化に失敗しました。"
+    redirect("/sub-domain/notifications?error=" + encodeURIComponent(message))
+  }
+}
+
+export async function clearAllNotificationsForTenantAction(formData: FormData) {
+  try {
+    const { admin } = await requirePlatformAdminActionContext()
+    const tenantId = String(formData.get("tenant_id") ?? "").trim()
+    if (!parseUuid(tenantId)) throw new Error("tenant_id が不正です。")
+
+    const { error } = await admin
+      .from("tenant_notifications")
+      .update({ read_at: new Date().toISOString() })
+      .eq("tenant_id", tenantId)
+      .is("read_at", null)
+
+    if (error) throw error
+
+    revalidatePath("/sub-domain/notifications")
+    redirect("/sub-domain/notifications?notice=" + encodeURIComponent("テナントの未読通知を全て既読にしました。"))
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "一括既読化に失敗しました。"
+    redirect("/sub-domain/notifications?error=" + encodeURIComponent(message))
+  }
+}
+
+export async function deleteNotificationAction(formData: FormData) {
+  try {
+    const { admin } = await requirePlatformAdminActionContext()
+    const id = String(formData.get("id") ?? "").trim()
+    if (!id) throw new Error("id が不正です。")
+
+    const { error } = await admin.from("tenant_notifications").delete().eq("id", id)
+    if (error) throw error
+
+    revalidatePath("/sub-domain/notifications")
+    redirect("/sub-domain/notifications?notice=" + encodeURIComponent("通知を削除しました。"))
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "削除に失敗しました。"
+    redirect("/sub-domain/notifications?error=" + encodeURIComponent(message))
+  }
+}
+
+export async function createPromoCodeAction(formData: FormData) {
+  try {
+    const { admin } = await requirePlatformAdminActionContext()
+
+    const code = String(formData.get("code") ?? "").trim().toUpperCase()
+    const description = String(formData.get("description") ?? "").trim()
+    const trialDays = Number(formData.get("trial_days") ?? "14")
+    const planCode = String(formData.get("plan_code") ?? "").trim() || null
+    const maxUsesRaw = String(formData.get("max_uses") ?? "").trim()
+    const maxUses = maxUsesRaw === "" ? null : Number(maxUsesRaw)
+    const expiresAtRaw = String(formData.get("expires_at") ?? "").trim()
+    const expiresAt = expiresAtRaw || null
+
+    if (!code) throw new Error("コードは必須です。")
+    if (!/^[A-Z0-9_-]+$/.test(code)) throw new Error("コードは英数字・ハイフン・アンダースコアのみ使用できます。")
+    if (!Number.isFinite(trialDays) || trialDays < 1 || trialDays > 365) {
+      throw new Error("トライアル日数は1〜365の整数で入力してください。")
+    }
+    if (maxUses !== null && (!Number.isFinite(maxUses) || maxUses < 1)) {
+      throw new Error("最大使用回数は1以上の整数を入力してください。")
+    }
+
+    const { error } = await admin.from("promo_codes").insert({
+      code,
+      description: description || null,
+      trial_days: trialDays,
+      plan_code: planCode,
+      max_uses: maxUses,
+      expires_at: expiresAt,
+      is_active: true,
+    })
+
+    if (error) {
+      if (error.code === "23505") throw new Error(`コード「${code}」はすでに登録されています。`)
+      throw error
+    }
+
+    revalidatePath("/sub-domain/promo-codes")
+    redirect(`/sub-domain/promo-codes?notice=${encodeURIComponent(`コード「${code}」を作成しました。`)}`)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "招待コードの作成に失敗しました。"
+    redirect(`/sub-domain/promo-codes?error=${encodeURIComponent(message)}`)
+  }
+}
+
+export async function togglePromoCodeActiveAction(formData: FormData) {
+  try {
+    const { admin } = await requirePlatformAdminActionContext()
+
+    const id = String(formData.get("id") ?? "").trim()
+    const isActive = String(formData.get("is_active") ?? "") === "true"
+
+    if (!id) throw new Error("id が不正です。")
+
+    const { error } = await admin
+      .from("promo_codes")
+      .update({ is_active: isActive, updated_at: new Date().toISOString() })
+      .eq("id", id)
+
+    if (error) throw error
+
+    revalidatePath("/sub-domain/promo-codes")
+    redirect(`/sub-domain/promo-codes?notice=${encodeURIComponent(isActive ? "コードを有効化しました。" : "コードを無効化しました。")}`)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "状態の更新に失敗しました。"
+    redirect(`/sub-domain/promo-codes?error=${encodeURIComponent(message)}`)
+  }
+}
+
+export async function deletePromoCodeAction(formData: FormData) {
+  try {
+    const { admin } = await requirePlatformAdminActionContext()
+
+    const id = String(formData.get("id") ?? "").trim()
+    if (!id) throw new Error("id が不正です。")
+
+    const { error } = await admin.from("promo_codes").delete().eq("id", id)
+    if (error) throw error
+
+    revalidatePath("/sub-domain/promo-codes")
+    redirect(`/sub-domain/promo-codes?notice=${encodeURIComponent("コードを削除しました。")}`)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "削除に失敗しました。"
+    redirect(`/sub-domain/promo-codes?error=${encodeURIComponent(message)}`)
+  }
+}
+
 export async function upsertTenantMembershipAction(formData: FormData) {
   const redirectTo = normalizeRedirectTo(formData.get("redirect_to"))
 

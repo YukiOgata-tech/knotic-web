@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BookOpen, ClipboardList, LayoutDashboard, ScrollText, Settings2, UserPlus } from "lucide-react"
+import { Bell, BookOpen, ClipboardList, CreditCard, LayoutDashboard, ScrollText, Settings2, Tag, UserPlus } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -29,6 +29,18 @@ const NAV_ITEMS: NavItem[] = [
     isActive: (p) => p === "/sub-domain/tenants/new",
   },
   {
+    href: "/sub-domain/notifications",
+    label: "テナント通知",
+    icon: Bell,
+    isActive: (p) => p.startsWith("/sub-domain/notifications"),
+  },
+  {
+    href: "/sub-domain/billing-events",
+    label: "支払いイベント",
+    icon: CreditCard,
+    isActive: (p) => p.startsWith("/sub-domain/billing-events"),
+  },
+  {
     href: "/sub-domain/audit-logs",
     label: "監査ログ",
     icon: ScrollText,
@@ -45,6 +57,12 @@ const NAV_ITEMS: NavItem[] = [
     label: "プラン管理",
     icon: Settings2,
     isActive: (p) => p.startsWith("/sub-domain/plans"),
+  },
+  {
+    href: "/sub-domain/promo-codes",
+    label: "招待コード管理",
+    icon: Tag,
+    isActive: (p) => p.startsWith("/sub-domain/promo-codes"),
   },
   {
     href: "/sub-domain/docs",

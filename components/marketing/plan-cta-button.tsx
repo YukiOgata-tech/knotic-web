@@ -11,6 +11,7 @@ type Props = {
   planCode: string
   planName: string
   className?: string
+  promoCode?: string
 }
 
 type BillingStatus = {
@@ -20,7 +21,7 @@ type BillingStatus = {
 
 type ModalState = "closed" | "unauthenticated"
 
-export function PlanCtaButton({ planCode, planName, className }: Props) {
+export function PlanCtaButton({ planCode, planName, className, promoCode }: Props) {
   const router = useRouter()
   const [modal, setModal] = React.useState<ModalState>("closed")
   const [loading, setLoading] = React.useState(false)
@@ -71,6 +72,7 @@ export function PlanCtaButton({ planCode, planName, className }: Props) {
     <>
       <form ref={formRef} action="/api/stripe/checkout" method="post" className="hidden">
         <input type="hidden" name="plan_code" value={planCode} />
+        {promoCode ? <input type="hidden" name="promo_code" value={promoCode} /> : null}
       </form>
 
       {isSubscribed ? (

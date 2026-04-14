@@ -1,12 +1,14 @@
 "use client"
 
+import * as React from "react"
 import Link from "next/link"
 import { motion } from "framer-motion"
-import { Check, CircleX, Sparkles } from "lucide-react"
+import { Check, CircleX, Loader2, Sparkles, Tag } from "lucide-react"
 
 import { pricingComparisonRows, pricingPlans } from "@/content/pricing"
 import { PlanCtaButton } from "@/components/marketing/plan-cta-button"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 
 const iconRows = new Set([
   "Widget埋め込み",
@@ -51,9 +53,84 @@ function ChannelPill({ label, enabled }: { label: string; enabled: boolean }) {
   )
 }
 
+type PromoState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "valid"; trialDays: number; message: string }
+  | { status: "invalid"; message: string }
+
 function PricingShowcase() {
+  const [promoInput, setPromoInput] = React.useState("")
+  const [promoState, setPromoState] = React.useState<PromoState>({ status: "idle" })
+  const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function handlePromoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const value = e.target.value
+    setPromoInput(value)
+
+    if (timerRef.current) clearTimeout(timerRef.current)
+
+    if (!value.trim()) {
+      setPromoState({ status: "idle" })
+      return
+    }
+
+    setPromoState({ status: "loading" })
+    timerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/stripe/validate-promo?code=${encodeURIComponent(value.trim())}`)
+        const data = await res.json() as { valid: boolean; trialDays?: number; message?: string }
+        if (data.valid && data.trialDays) {
+          setPromoState({ status: "valid", trialDays: data.trialDays, message: data.message ?? "" })
+        } else {
+          setPromoState({ status: "invalid", message: data.message ?? "無効なコードです。" })
+        }
+      } catch {
+        setPromoState({ status: "invalid", message: "コードの確認に失敗しました。" })
+      }
+    }, 400)
+  }
+
+  const appliedPromoCode = promoState.status === "valid" ? promoInput.trim().toUpperCase() : ""
+
   return (
     <div className="grid gap-5 sm:gap-8">
+      {/* ── 招待コード入力欄 ── */}
+      <div className="-mx-4 border-y border-black/20 bg-white/90 px-4 py-4 sm:mx-0 sm:rounded-2xl sm:border sm:px-6 sm:py-5 dark:border-white/10 dark:bg-slate-900/70">
+        <div className="flex items-center gap-2">
+          <Tag className="size-4 text-cyan-600 dark:text-cyan-400" />
+          <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">招待コードをお持ちの方</p>
+        </div>
+        <p className="mt-1 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+          イベント等でお受け取りのコードを入力すると、無料トライアルが適用されます。
+        </p>
+        <div className="mt-3 flex items-center gap-2">
+          <Input
+            value={promoInput}
+            onChange={handlePromoChange}
+            placeholder="例: NIIGATA2026"
+            className="max-w-xs uppercase placeholder:normal-case"
+            aria-label="招待コード"
+            maxLength={64}
+          />
+          {promoState.status === "loading" ? (
+            <Loader2 className="size-4 animate-spin text-zinc-400" />
+          ) : null}
+        </div>
+        {promoState.status === "valid" ? (
+          <p className="mt-2 flex items-center gap-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-400">
+            <Check className="size-4" />
+            {promoState.message}
+          </p>
+        ) : null}
+        {promoState.status === "invalid" ? (
+          <p className="mt-2 flex items-center gap-1.5 text-sm text-red-600 dark:text-red-400">
+            <CircleX className="size-4" />
+            {promoState.message}
+          </p>
+        ) : null}
+      </div>
+
       <section
         id="plans"
         className="-mx-4 border-y border-black/20 bg-white/90 px-4 py-5 sm:mx-0 sm:rounded-3xl sm:border sm:p-6 dark:border-white/10 dark:bg-slate-900/70"
@@ -121,6 +198,7 @@ function PricingShowcase() {
                   <PlanCtaButton
                     planCode={plan.code}
                     planName={plan.name}
+                    promoCode={appliedPromoCode}
                     className="mt-5 w-full rounded-full"
                   />
                 )}

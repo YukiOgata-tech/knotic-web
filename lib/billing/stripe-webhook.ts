@@ -188,6 +188,13 @@ export async function processStripeEvent(
         const subscription = await stripe.subscriptions.retrieve(session.subscription)
         tenantId = await upsertSubscriptionFromStripe(admin, subscription)
       }
+
+      // 招待コードが使われていた場合、使用回数をインクリメント
+      const usedPromoCode = session.metadata?.promo_code
+      if (usedPromoCode) {
+        await admin.rpc("increment_promo_code_used_count", { p_code: usedPromoCode })
+      }
+
       break
     }
 

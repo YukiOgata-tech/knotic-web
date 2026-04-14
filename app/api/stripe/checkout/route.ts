@@ -12,6 +12,27 @@ import {
 } from "@/lib/stripe"
 import { createClient } from "@/lib/supabase/server"
 
+async function resolvePromoTrial(
+  admin: ReturnType<typeof createAdminClient>,
+  code: string,
+  planCode: string
+): Promise<number | null> {
+  if (!code) return null
+
+  const { data } = await admin
+    .from("promo_codes")
+    .select("trial_days, max_uses, used_count, expires_at, is_active, plan_code")
+    .eq("code", code.toUpperCase())
+    .maybeSingle()
+
+  if (!data || !data.is_active) return null
+  if (data.expires_at && new Date(String(data.expires_at)) <= new Date()) return null
+  if (data.max_uses !== null && Number(data.used_count) >= Number(data.max_uses)) return null
+  if (data.plan_code && data.plan_code !== planCode) return null
+
+  return Number(data.trial_days)
+}
+
 const PLAN_RANK: Record<PlanCode, number> = {
   starter: 0,
   lite: 1,
@@ -44,6 +65,7 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
     const planCode = String(formData.get("plan_code") ?? "").trim() as PlanCode
+    const rawPromoCode = String(formData.get("promo_code") ?? "").trim().toUpperCase()
 
     if (!(["starter", "lite", "standard", "pro"] as const).includes(planCode)) {
       return NextResponse.redirect(new URL("/console/billing?error=invalid_plan", request.url), 303)
@@ -269,6 +291,8 @@ export async function POST(request: NextRequest) {
     }
 
     const urls = getStripeReturnUrls()
+    const trialDays = await resolvePromoTrial(admin, rawPromoCode, planCode)
+    const promoCode = trialDays !== null ? rawPromoCode : null
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
@@ -280,14 +304,17 @@ export async function POST(request: NextRequest) {
       metadata: {
         tenant_id: tenantId,
         plan_code: planCode,
+        ...(promoCode ? { promo_code: promoCode } : {}),
       },
       subscription_data: {
+        ...(trialDays !== null ? { trial_period_days: trialDays } : {}),
         metadata: {
           tenant_id: tenantId,
           plan_code: planCode,
         },
       },
-      allow_promotion_codes: true,
+      // トライアルコード適用時はStripe側のプロモコード入力欄を非表示にする（二重入力防止）
+      allow_promotion_codes: promoCode === null,
     })
 
     if (!session.url) {

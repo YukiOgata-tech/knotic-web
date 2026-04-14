@@ -4,13 +4,16 @@ import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
+  Bell,
   BookOpen,
   ClipboardList,
+  CreditCard,
   LayoutDashboard,
   Menu,
   ScrollText,
   Settings2,
   ShieldCheck,
+  Tag,
   UserPlus,
   X,
 } from "lucide-react"
@@ -25,7 +28,10 @@ type NavItem = {
   isActive: (pathname: string) => boolean
 }
 
-const NAV_ITEMS: NavItem[] = [
+type TabItem = NavItem & { shortLabel: string }
+
+/** ドロワー用：全ナビ項目 */
+const ALL_NAV_ITEMS: NavItem[] = [
   {
     href: "/sub-domain",
     label: "ダッシュボード",
@@ -39,6 +45,18 @@ const NAV_ITEMS: NavItem[] = [
     label: "テナント作成",
     icon: UserPlus,
     isActive: (p) => p === "/sub-domain/tenants/new",
+  },
+  {
+    href: "/sub-domain/notifications",
+    label: "テナント通知",
+    icon: Bell,
+    isActive: (p) => p.startsWith("/sub-domain/notifications"),
+  },
+  {
+    href: "/sub-domain/billing-events",
+    label: "支払いイベント",
+    icon: CreditCard,
+    isActive: (p) => p.startsWith("/sub-domain/billing-events"),
   },
   {
     href: "/sub-domain/audit-logs",
@@ -59,11 +77,26 @@ const NAV_ITEMS: NavItem[] = [
     isActive: (p) => p.startsWith("/sub-domain/plans"),
   },
   {
+    href: "/sub-domain/promo-codes",
+    label: "招待コード管理",
+    icon: Tag,
+    isActive: (p) => p.startsWith("/sub-domain/promo-codes"),
+  },
+  {
     href: "/sub-domain/docs",
     label: "運用ドキュメント",
     icon: BookOpen,
     isActive: (p) => p.startsWith("/sub-domain/docs"),
   },
+]
+
+/** ボトムタブ用：最重要5項目のみ・短縮ラベル付き */
+const TAB_ITEMS: TabItem[] = [
+  { ...ALL_NAV_ITEMS[0], shortLabel: "ホーム" },
+  { ...ALL_NAV_ITEMS[2], shortLabel: "通知" },
+  { ...ALL_NAV_ITEMS[3], shortLabel: "支払い" },
+  { ...ALL_NAV_ITEMS[5], shortLabel: "ジョブ" },
+  { ...ALL_NAV_ITEMS[4], shortLabel: "ログ" },
 ]
 
 type Props = {
@@ -104,14 +137,14 @@ export function AdminMobileNav({ adminEmail, role }: Props) {
         </button>
       </div>
 
-      {/* ドロワーオーバーレイ */}
+      {/* ドロワー（全項目） */}
       {open && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setOpen(false)}
           />
-          <div className="absolute bottom-0 left-0 top-0 w-72 overflow-y-auto bg-slate-950 shadow-2xl">
+          <div className="absolute bottom-0 left-0 top-0 w-64 overflow-y-auto bg-slate-950 shadow-2xl">
             {/* ドロワーヘッダー */}
             <div className="flex items-start justify-between border-b border-white/10 px-4 py-4">
               <div>
@@ -119,7 +152,7 @@ export function AdminMobileNav({ adminEmail, role }: Props) {
                   <ShieldCheck className="size-4 text-amber-400" />
                   <span className="text-sm font-bold text-amber-400">knotic admin</span>
                 </div>
-                <p className="mt-1 text-xs text-slate-400">{adminEmail}</p>
+                <p className="mt-1 truncate text-xs text-slate-400">{adminEmail}</p>
                 <span className="mt-1 inline-block rounded-md bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-400">
                   {role}
                 </span>
@@ -134,9 +167,9 @@ export function AdminMobileNav({ adminEmail, role }: Props) {
               </button>
             </div>
 
-            {/* ナビゲーション */}
-            <nav className="grid gap-0.5 p-3">
-              {NAV_ITEMS.map((item) => {
+            {/* 全ナビゲーション */}
+            <nav className="grid gap-0.5 p-2">
+              {ALL_NAV_ITEMS.map((item) => {
                 const active = item.isActive(pathname)
                 const Icon = item.icon
                 return (
@@ -144,7 +177,7 @@ export function AdminMobileNav({ adminEmail, role }: Props) {
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors",
+                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                       active
                         ? "bg-amber-500/15 text-amber-400"
                         : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
@@ -165,10 +198,10 @@ export function AdminMobileNav({ adminEmail, role }: Props) {
         </div>
       )}
 
-      {/* ボトムタブバー */}
+      {/* ボトムタブバー（5項目固定） */}
       <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-white/10 bg-slate-950/95 pb-safe backdrop-blur-sm lg:hidden">
         <div className="flex">
-          {NAV_ITEMS.map((item) => {
+          {TAB_ITEMS.map((item) => {
             const active = item.isActive(pathname)
             const Icon = item.icon
             return (
@@ -184,9 +217,7 @@ export function AdminMobileNav({ adminEmail, role }: Props) {
                   className={cn("size-5 transition-transform", active && "scale-110")}
                   strokeWidth={active ? 2.5 : 1.75}
                 />
-                <span className="leading-none">
-                  {item.label.length > 6 ? item.label.slice(0, 5) + "…" : item.label}
-                </span>
+                <span className="leading-none">{item.shortLabel}</span>
               </Link>
             )
           })}

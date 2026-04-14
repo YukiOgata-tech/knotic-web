@@ -151,7 +151,8 @@ insert into public.plans (
   has_line
 )
 values
-  ('lite', 'Lite', 10000, 1, 1000, 100, false, false, true, false, false, 50, 0, 0, null, 200, 30, 80, 'standard', 'documentation', false),
+  ('starter', 'Starter', 4900, 1, 300, 75, false, false, true, false, false, 50, 0, 0, null, 200, 30, 80, 'standard', 'documentation', false),
+  ('lite', 'Lite', 9800, 1, 1000, 100, false, false, true, false, false, 50, 0, 0, null, 200, 30, 80, 'standard', 'documentation', false),
   ('standard', 'Standard', 24800, 2, 5000, 1024, true, true, true, true, false, 50, 2, 2, null, 200, 120, 80, 'standard', 'documentation', false),
   ('pro', 'Pro', 100000, 50, 20000, 10240, true, true, true, true, true, 50, 10, 50, null, 200, 300, 80, 'standard', 'documentation', false)
 on conflict (code) do update
@@ -1479,10 +1480,10 @@ $$;
 -- G) ensure final plan entitlements state
 update public.plans
 set
-  max_api_keys = case code when 'lite' then 0 when 'standard' then 2 when 'pro' then 10 else max_api_keys end,
-  max_hosted_pages = case code when 'lite' then 0 when 'standard' then 2 when 'pro' then 50 else max_hosted_pages end,
+  max_api_keys = case code when 'starter' then 0 when 'lite' then 0 when 'standard' then 2 when 'pro' then 10 else max_api_keys end,
+  max_hosted_pages = case code when 'starter' then 0 when 'lite' then 0 when 'standard' then 2 when 'pro' then 50 else max_hosted_pages end,
   internal_max_allowed_origins_cap = coalesce(internal_max_allowed_origins_cap, 200),
-  api_rpm_limit = case code when 'lite' then 30 when 'standard' then 120 when 'pro' then 300 else api_rpm_limit end,
+  api_rpm_limit = case code when 'starter' then 30 when 'lite' then 30 when 'standard' then 120 when 'pro' then 300 else api_rpm_limit end,
   overage_notify_threshold_percent = coalesce(overage_notify_threshold_percent, 80),
   spam_protection_profile = coalesce(nullif(spam_protection_profile, ''), 'standard'),
   support_level = coalesce(nullif(support_level, ''), 'documentation');
@@ -1492,7 +1493,32 @@ set
 -- Applied after base schema.sql to reproduce current Supabase state.
 -- ============================================================================
 
--- 0) Public storage bucket for bot logos
+-- 0) Promo codes (invitation codes with trial grant)
+create table if not exists public.promo_codes (
+  id          uuid        primary key default gen_random_uuid(),
+  code        text        unique not null,
+  description text,
+  trial_days  integer     not null default 14,
+  plan_code   text        null,
+  max_uses    integer     null,
+  used_count  integer     not null default 0,
+  expires_at  timestamptz null,
+  is_active   boolean     not null default true,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+create or replace function public.increment_promo_code_used_count(p_code text)
+returns void
+language sql
+security definer
+as $$
+  update public.promo_codes
+  set used_count = used_count + 1
+  where code = upper(p_code);
+$$;
+
+-- 1) Public storage bucket for bot logos
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (
   'bot-logos',
@@ -1704,7 +1730,30 @@ select cron.schedule(
   $cron$
 );
 
--- 6-b) rate limit cleanup jobs
+-- 6-b) free tier cleanup (Edge Function via pg_net)
+create extension if not exists pg_net;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'knotic-free-tier-cleanup') THEN
+    PERFORM cron.unschedule('knotic-free-tier-cleanup');
+  END IF;
+END
+$$;
+
+select cron.schedule(
+  'knotic-free-tier-cleanup',
+  '15 3 * * *',
+  $cron$
+    select net.http_post(
+      url     := 'https://wbsrawibepsvcvkyzwtm.supabase.co/functions/v1/free-tier-cleanup',
+      headers := '{"Content-Type": "application/json"}'::jsonb,
+      body    := '{}'::jsonb
+    );
+  $cron$
+);
+
+-- 6-d) rate limit cleanup jobs
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'rate-limit-bucket-cleanup') THEN
