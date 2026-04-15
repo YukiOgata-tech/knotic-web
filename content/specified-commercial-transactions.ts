@@ -7,7 +7,7 @@ export type CommercialLawSection = {
 
 export const commercialLawMeta = {
   effectiveDate: "2026-02-10",
-  revisedAt: "2026-03-17",
+  revisedAt: "2026-04-15",
 }
 
 /**
@@ -42,7 +42,8 @@ export const commercialLawSections: CommercialLawSection[] = [
       "以下の月額料金（消費税10%込み）で提供します。最新の価格は申込画面にてご確認ください。",
     ],
     items: [
-      "Lite プラン：¥10,000 / 月（税込）",
+      "Starter プラン：¥4,900 / 月（税込）",
+      "Lite プラン：¥9,800 / 月（税込）",
       "Standard プラン：¥24,800 / 月（税込）",
       "Pro プラン：¥100,000 / 月（税込）",
     ],
@@ -153,7 +154,7 @@ export const commercialLawSections: CommercialLawSection[] = [
 export const subscriptionImportantNotices: string[] = [
   "本サービスは月次自動更新の定期購入（サブスクリプション）契約です。",
   "契約期間終了後は自動的に同一料金・同一条件で更新されます。更新を停止するには、更新日の前日23:59（日本時間）までに解約手続きを行ってください。",
-  "2回目以降も同一の月額料金が自動決済されます（Lite ¥10,000／Standard ¥24,800／Pro ¥100,000、各税込）。",
+  "2回目以降も選択したプランの月額料金が自動決済されます（Starter ¥4,900／Lite ¥9,800／Standard ¥24,800／Pro ¥100,000、各税込）。",
   "アップグレードは機能を即時反映し、差額は日割りで請求されます。ダウングレードは次回更新日から適用され、返金はありません。",
   "解約は管理コンソール（/console/billing）の「解約する」から手続きができます。電話・メールのみでの解約受付は行っていません。",
   "決済完了後の返金は、法令上必要な場合を除き承ることができません。",

@@ -7,7 +7,7 @@ export type TermsSection = {
 
 export const termsMeta = {
   effectiveDate: "2026-02-10",
-  revisedAt: "2026-03-01",
+  revisedAt: "2026-04-15",
 }
 
 export const termsSections: TermsSection[] = [

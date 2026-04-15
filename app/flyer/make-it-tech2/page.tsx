@@ -32,7 +32,7 @@ const services = [
   {
     icon: <ClipboardList size={18} />,
     title: "業務整理",
-    body: "業務フロー、入力ルール、管理表を整理し、引き継げる運用にします。",
+    body: "業務フロー、入力ルール、マニュアル書類などを整理し、生産性向上を目指します。",
   },
   {
     icon: <Wrench size={18} />,
@@ -41,7 +41,7 @@ const services = [
   },
   {
     icon: <Cpu size={18} />,
-    title: "小規模DX",
+    title: "DX",
     body: "AI活用、簡易管理画面、計算システムなど必要な範囲だけ開発。",
   },
 ]
@@ -118,10 +118,10 @@ export default function MakeItTechFlyer2Page() {
         <section
           style={{
             position: "relative",
-            minHeight: "78mm",
+            minHeight: "50mm",
             background: "linear-gradient(135deg, #052e16 0%, #064e3b 45%, #0f172a 100%)",
             color: "white",
-            padding: "8mm 10mm 6mm",
+            padding: "6mm 10mm 4mm",
             overflow: "hidden",
           }}
         >
@@ -137,7 +137,7 @@ export default function MakeItTechFlyer2Page() {
               border: "2mm solid rgba(250,204,21,0.16)",
             }}
           />
-          <div
+          {/* <div
             style={{
               position: "absolute",
               right: "-18mm",
@@ -153,11 +153,11 @@ export default function MakeItTechFlyer2Page() {
             }}
           >
             新潟の中小事業者・個人事業主向け
-          </div>
+          </div> */}
 
           <div style={{ position: "relative", display: "grid", gridTemplateColumns: "1fr 42mm", gap: "7mm" }}>
             <div>
-              <div style={{ display: "flex", alignItems: "center", gap: "3mm", marginBottom: "7mm" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "3mm", marginBottom: "3mm" }}>
                 <div
                   style={{
                     width: "12mm",
@@ -184,18 +184,17 @@ export default function MakeItTechFlyer2Page() {
                 </div>
               </div>
 
-              <p style={{ display: "inline-block", background: "#facc15", color: "#111827", padding: "1.2mm 3mm", borderRadius: "999px", fontSize: "8pt", fontWeight: 900 }}>
+              {/* <p style={{ display: "inline-block", background: "#facc15", color: "#111827", padding: "1.2mm 3mm", borderRadius: "999px", fontSize: "8pt", fontWeight: 900 }}>
                 作るより先に、まず整理。
-              </p>
+              </p> */}
               <h1 style={{ marginTop: "4mm", fontSize: "27pt", fontWeight: 900, lineHeight: 1.18, letterSpacing: "-0.05em" }}>
                 現場で回る
-                <br />
                 <span style={{ color: "#86efac" }}>ITの仕組み</span>を
                 <br />
                 いっしょに作ります。
               </h1>
-              <p style={{ marginTop: "4mm", maxWidth: "116mm", fontSize: "9.2pt", lineHeight: 1.75, color: "#e2e8f0", fontWeight: 500 }}>
-                Web制作、業務改善、ツール導入、自動化、小規模システム構築まで。
+              <p style={{ marginTop: "1mm", maxWidth: "116mm", fontSize: "9.2pt", lineHeight: 1.75, color: "#e2e8f0", fontWeight: 500 }}>
+                Web制作、AI導入、ツール導入、自動化、専用システム構築まで。
                 既存ツールで済むなら作らず、必要なところだけ低コストで実装します。
               </p>
             </div>
@@ -223,12 +222,9 @@ export default function MakeItTechFlyer2Page() {
           </div>
         </section>
 
-        <section style={{ position: "relative", padding: "5mm 10mm 4mm" }}>
+        <section style={{ position: "relative", padding: "4mm 10mm 2mm" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "3mm" }}>
             <div>
-              <p style={{ fontSize: "7.5pt", fontWeight: 900, color: "#16a34a", letterSpacing: "0.2em" }}>
-                CHECK
-              </p>
               <h2 style={{ fontSize: "15pt", fontWeight: 900, letterSpacing: "-0.03em" }}>
                 こんな状態なら相談できます
               </h2>
@@ -344,10 +340,10 @@ export default function MakeItTechFlyer2Page() {
           }}
         >
           <div style={{ position: "absolute", right: "-8mm", top: "-10mm", width: "34mm", height: "34mm", borderRadius: "999px", background: "#facc15" }} />
-          <div style={{ position: "relative", display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "2.5mm" }}>
+          <div style={{ position: "relative", display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "2mm" }}>
             {process.map(([num, title, body], index) => (
               <div key={num} style={{ position: "relative" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "2mm", marginBottom: "2mm" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "2mm", marginBottom: "1mm" }}>
                   <span
                     style={{
                       display: "inline-flex",
@@ -384,10 +380,10 @@ export default function MakeItTechFlyer2Page() {
                 background: "white",
                 border: "1.5px solid #e2e8f0",
                 borderRadius: "6mm",
-                padding: "4mm",
+                padding: "3mm",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: "2mm", marginBottom: "3mm" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "2mm", marginBottom: "2mm" }}>
                 <FileText size={18} color="#16a34a" />
                 <p style={{ fontSize: "12pt", fontWeight: 900 }}>対応実績</p>
               </div>
@@ -406,7 +402,7 @@ export default function MakeItTechFlyer2Page() {
                 <div>
                   <p style={{ fontSize: "9pt", fontWeight: 900 }}>代表 / 尾形友輝</p>
                   <p style={{ marginTop: "1mm", fontSize: "7.2pt", color: "#64748b", fontWeight: 700 }}>
-                    新潟大学 工学部 情報電子分野 在学中。Web・システム開発、業務AI化支援を実施。
+                    新潟大学 工学部 情報電子分野 在学中。Web・システム開発、業務AI化支援を実施。Youtube出演 など
                   </p>
                 </div>
               </div>
@@ -464,7 +460,7 @@ export default function MakeItTechFlyer2Page() {
             <p style={{ marginTop: "2mm", fontSize: "8.2pt", lineHeight: 1.6, color: "#cbd5e1", fontWeight: 600 }}>
               無料相談・実績詳細はWebサイトへ。補助金活用や段階的なDX導入もご相談いただけます。
             </p>
-            <div
+            {/* <div
               style={{
                 marginTop: "3mm",
                 display: "inline-flex",
@@ -479,17 +475,17 @@ export default function MakeItTechFlyer2Page() {
               }}
             >
               make-it-tech.com
-            </div>
+            </div> */}
           </div>
           <div style={{ textAlign: "center" }}>
-            <div style={{ display: "inline-block", background: "white", padding: "2mm", borderRadius: "4mm" }}>
+            <div style={{ display: "inline-block", background: "white", padding: "1mm", borderRadius: "4mm" }}>
               <img
                 src="/images/qr-make-it-tech.png"
                 alt="Make It Tech QRコード"
                 style={{ width: "25mm", height: "25mm", borderRadius: "2mm", display: "block" }}
               />
             </div>
-            <p style={{ marginTop: "1mm", fontSize: "6.5pt", color: "#94a3b8", fontWeight: 700 }}>カメラで読み取り</p>
+            {/* <p style={{ marginTop: "1mm", fontSize: "6.5pt", color: "#94a3b8", fontWeight: 700 }}>カメラで読み取り</p> */}
           </div>
         </section>
 
@@ -504,8 +500,8 @@ export default function MakeItTechFlyer2Page() {
             fontWeight: 700,
           }}
         >
-          <p>© Make It Tech - 新潟のIT/DX支援</p>
-          <p>Web制作 / 業務改善 / 自動化 / DX支援 / マーケティング支援</p>
+          <p>© Make It Tech - IT/DX支援</p>
+          <p>Web制作 / 自動化 / DX支援 / マーケティング支援</p>
         </div>
       </div>
 
