@@ -92,6 +92,10 @@ function normalizeModel(candidate: string | undefined, fallback: string) {
   return ALLOWED_MODELS.has(value) ? value : fallback
 }
 
+function getDefaultFileSearchFallbackModel(model: string) {
+  return model === "gpt-5-mini" || model === "gpt-5-nano" ? "gpt-4o-mini" : null
+}
+
 function parseOriginHost(origin: string | null) {
   if (!origin) return null
   try {
@@ -357,9 +361,9 @@ async function handleChat(request: NextRequest) {
   const defaultModel = normalizeModel(bot.ai_model ?? "gpt-5-mini", "gpt-5-mini")
   const fallbackModel = bot.ai_fallback_model
     ? normalizeModel(bot.ai_fallback_model, defaultModel)
-    : null
+    : getDefaultFileSearchFallbackModel(defaultModel)
   const selectedModel = defaultModel
-  const maxOutputTokens = Number(bot.ai_max_output_tokens ?? 900)
+  const maxOutputTokens = Number(bot.ai_max_output_tokens ?? 1200)
   const conversationLimit = Math.min(
     getHistoryTurnLimitCap(plan.planCode),
     Math.max(1, bot.history_turn_limit ?? 8)

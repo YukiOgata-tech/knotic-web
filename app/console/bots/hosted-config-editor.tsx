@@ -40,11 +40,13 @@ import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ProcessingOverlay } from "@/components/ui/processing-overlay"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { createClient } from "@/lib/supabase/client"
@@ -160,6 +162,7 @@ const MODEL_LABELS: Record<string, string> = {
   "gpt-4o-mini": "Knotic Nano",
 }
 const MODEL_OPTION_SET = new Set<string>(MODEL_OPTIONS)
+const MAX_SOURCE_FILE_SIZE_BYTES = 20 * 1024 * 1024
 
 function normalizeUiModel(value: string | null | undefined, fallback: (typeof MODEL_OPTIONS)[number]) {
   if (!value) return fallback
@@ -563,6 +566,7 @@ export function HostedConfigEditor({
   const urlInputRef = React.useRef<HTMLInputElement>(null)
   const router = useRouter()
   const [isSaving, startSaveTransition] = React.useTransition()
+  const [isAddingFile, startAddFileTransition] = React.useTransition()
   const [isDeletingBot, startDeleteBotTransition] = React.useTransition()
   const [previewKey, setPreviewKey] = React.useState(0)
   const [previewMode, setPreviewMode] = React.useState<"chat" | "widget">("chat")
@@ -672,7 +676,8 @@ export function HostedConfigEditor({
   const [confirmReindexId, setConfirmReindexId] = React.useState<string | null>(null)
   const [deletingId, setDeletingId] = React.useState<string | null>(null)
   const [addFileLoading, setAddFileLoading] = React.useState(false)
-  type SourceDetailState = { sourceId: string; pages: SourcePage[]; loading: boolean; error?: string; viewingPage: SourcePage | null; pageText: string | null; pageTextLoading: boolean; pageTextError?: string }
+  const [addFileError, setAddFileError] = React.useState<string | null>(null)
+  type SourceDetailState = { source: BotSourceRow | null; sourceId: string; pages: SourcePage[]; loading: boolean; error?: string; viewingPage: SourcePage | null; pageText: string | null; pageTextLoading: boolean; pageTextError?: string }
   const [sourceDetail, setSourceDetail] = React.useState<SourceDetailState | null>(null)
 
   React.useEffect(() => {
@@ -882,8 +887,13 @@ export function HostedConfigEditor({
     }
   }
 
-  async function handleOpenSourceDetail(sourceId: string) {
-    setSourceDetail({ sourceId, pages: [], loading: true, viewingPage: null, pageText: null, pageTextLoading: false })
+  async function handleOpenSourceDetail(source: BotSourceRow) {
+    setSourceDetail({ source, sourceId: source.id, pages: [], loading: true, viewingPage: null, pageText: null, pageTextLoading: false })
+    if (source.type !== "url") {
+      setSourceDetail((s) => s ? { ...s, loading: false } : null)
+      return
+    }
+    const sourceId = source.id
     const result = await getSourcePagesAction(sourceId)
     setSourceDetail((s) => s ? { ...s, pages: result.pages, loading: false, error: result.error } : null)
   }
@@ -1046,6 +1056,12 @@ export function HostedConfigEditor({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+
+    <ProcessingOverlay
+      open={addFileLoading || isAddingFile}
+      title="ファイルを追加しています"
+      description="アップロード後、ナレッジ検索へ同期しています。PDFなど大きめのファイルでは少し時間がかかります。"
+    />
 
     <div className="grid min-w-0 gap-4">
       <div className="min-w-0 overflow-hidden rounded-xl border border-black/20 bg-white/90 dark:border-white/10 dark:bg-slate-900/80">
@@ -2073,9 +2089,20 @@ export function HostedConfigEditor({
           ) : (
             <form
               action={async (fd) => {
+                const file = fd.get("file")
+                if (file instanceof File && file.size > MAX_SOURCE_FILE_SIZE_BYTES) {
+                  setAddFileError("ファイルサイズは20MB以下にしてください。")
+                  return
+                }
+                setAddFileError(null)
                 setAddFileLoading(true)
-                await addFileSourceAction(fd)
-                setAddFileLoading(false)
+                startAddFileTransition(async () => {
+                  try {
+                    await addFileSourceAction(fd)
+                  } finally {
+                    setAddFileLoading(false)
+                  }
+                })
               }}
               className="grid gap-2"
             >
@@ -2088,13 +2115,30 @@ export function HostedConfigEditor({
                   type="file"
                   accept=".pdf,.doc,.docx,.pptx,.tex,.txt,.md,.html,.css,.json,.c,.cpp,.cs,.go,.java,.js,.ts,.py,.rb,.rs,.sh,.php,.csv,.xlsx,.xls"
                   required
-                  disabled={!isEditor || addFileLoading}
+                  disabled={!isEditor || addFileLoading || isAddingFile}
+                  onChange={(event) => {
+                    const file = event.currentTarget.files?.[0]
+                    setAddFileError(
+                      file && file.size > MAX_SOURCE_FILE_SIZE_BYTES
+                        ? "ファイルサイズは20MB以下にしてください。"
+                        : null
+                    )
+                  }}
                   className="flex-1"
                 />
-                <Button type="submit" size="sm" disabled={!isEditor || addFileLoading}>
-                  {addFileLoading ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />アップロード中</> : "追加"}
+                <Button type="submit" size="sm" disabled={!isEditor || addFileLoading || isAddingFile || Boolean(addFileError)}>
+                  {addFileLoading || isAddingFile ? (
+                    <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />処理中</>
+                  ) : "追加"}
                 </Button>
               </div>
+              {(addFileLoading || isAddingFile) ? (
+                <div className="flex items-center gap-2 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs text-cyan-800 dark:border-cyan-800/60 dark:bg-cyan-950/30 dark:text-cyan-200">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ファイルをアップロードし、ナレッジに同期しています。完了までこのままお待ちください。
+                </div>
+              ) : null}
+              {addFileError ? <p className="text-[11px] text-destructive">{addFileError}</p> : null}
               <p className="text-[11px] text-muted-foreground">
                 PDF・Word・PowerPoint・CSV・Excel・テキストなど対応。1ファイル最大20MB。
               </p>
@@ -2250,7 +2294,7 @@ export function HostedConfigEditor({
                         type="button"
                         size="sm"
                         variant="ghost"
-                        onClick={() => void handleOpenSourceDetail(source.id)}
+                        onClick={() => void handleOpenSourceDetail(source)}
                         className="text-slate-400 hover:text-cyan-600 dark:text-slate-500 dark:hover:text-cyan-400"
                         title="インデックス内容を確認"
                       >
@@ -2331,6 +2375,9 @@ export function HostedConfigEditor({
         <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="text-sm">インデックス内容の確認</DialogTitle>
+            <DialogDescription>
+              登録済みソースの同期状態と、確認可能な取得テキストを表示します。
+            </DialogDescription>
           </DialogHeader>
 
           {sourceDetail?.loading ? (
@@ -2340,6 +2387,34 @@ export function HostedConfigEditor({
             </div>
           ) : sourceDetail?.error ? (
             <p className="text-sm text-rose-600 dark:text-rose-400 py-4">{sourceDetail.error}</p>
+          ) : sourceDetail?.source && sourceDetail.source.type !== "url" ? (
+            <div className="grid gap-3 rounded-lg border border-black/10 bg-slate-50 p-4 text-sm dark:border-white/10 dark:bg-slate-900/50">
+              <div className="flex flex-wrap items-center gap-2">
+                <SourceStatusBadge status={sourceDetail.source.status} />
+                {sourceDetail.source.file_size_bytes ? (
+                  <span className="text-xs text-muted-foreground">{formatMbFromBytes(sourceDetail.source.file_size_bytes)}</span>
+                ) : null}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate font-medium">{sourceDetail.source.file_name ?? "ファイルソース"}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  最終同期: {formatDateTime(sourceDetail.source.file_search_last_synced_at)}
+                </p>
+              </div>
+              {sourceDetail.source.file_search_error ? (
+                <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-800/60 dark:bg-rose-950/30 dark:text-rose-300">
+                  エラー: {sourceDetail.source.file_search_error}
+                </p>
+              ) : sourceDetail.source.status === "ready" ? (
+                <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-950/30 dark:text-emerald-200">
+                  このファイルは OpenAI File Search に同期済みです。PDF・Word・PowerPoint などのファイル本文は確認用テキストとして保存していないため、この画面では本文プレビューを表示しません。
+                </p>
+              ) : (
+                <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-200">
+                  ファイルの同期が完了していません。状態が「同期済み」になるまでお待ちください。
+                </p>
+              )}
+            </div>
           ) : sourceDetail?.viewingPage ? (
             /* ページ本文ビュー */
             <div className="flex flex-col gap-3 min-h-0">

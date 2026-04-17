@@ -370,12 +370,40 @@ export type FileSearchAnswer = {
   citationFileIds: string[]
 }
 
-function getReasoningEffortByModel(model: string): "minimal" | null {
+class EmptyFileSearchOutputError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "EmptyFileSearchOutputError"
+  }
+}
+
+function getFileSearchReasoningEffortByModel(model: string): "low" | null {
   const normalized = model.trim().toLowerCase()
   if (normalized.startsWith("gpt-5-mini") || normalized.startsWith("gpt-5-nano")) {
-    return "minimal"
+    return "low"
   }
   return null
+}
+
+function shouldRetryWithoutReasoning(error: unknown) {
+  return error instanceof Error && error.message.includes("tools cannot be used with reasoning.effort")
+}
+
+function shouldRetryWithLargerOutput(error: unknown) {
+  return error instanceof EmptyFileSearchOutputError
+}
+
+function summarizeOutputShape(output: unknown) {
+  if (!Array.isArray(output)) return "output:not-array"
+  return output
+    .map((item) => {
+      if (!item || typeof item !== "object") return "unknown"
+      const obj = item as Record<string, unknown>
+      const type = typeof obj.type === "string" ? obj.type : "unknown"
+      const status = typeof obj.status === "string" ? `:${obj.status}` : ""
+      return `${type}${status}`
+    })
+    .join(",")
 }
 
 export async function answerWithOpenAiFileSearch(params: {
@@ -387,8 +415,10 @@ export async function answerWithOpenAiFileSearch(params: {
   conversation?: Array<{ role: "user" | "assistant"; content: string }>
   maxOutputTokens?: number
 }) {
-  const tryCall = async (model: string): Promise<FileSearchAnswer> => {
-    const reasoningEffort = getReasoningEffortByModel(model)
+  const tryCall = async (model: string, options?: {
+    maxOutputTokens?: number
+    reasoningEffort?: "low" | null
+  }): Promise<FileSearchAnswer> => {
     // instructions は input[] の外で渡す（ユーザー入力と明確に分離）
     const input = [
       ...(params.conversation ?? []).map((turn) => ({
@@ -416,12 +446,15 @@ export async function answerWithOpenAiFileSearch(params: {
           },
         ],
         tool_choice: "auto",
-        max_output_tokens: params.maxOutputTokens ?? 900,
-        ...(reasoningEffort ? { reasoning: { effort: reasoningEffort } } : {}),
+        max_output_tokens: options?.maxOutputTokens ?? params.maxOutputTokens ?? 900,
+        ...(options?.reasoningEffort ? { reasoning: { effort: options.reasoningEffort } } : {}),
       }),
     })
 
     const body = (await res.json()) as {
+      id?: string
+      status?: string
+      incomplete_details?: unknown
       output_text?: string
       usage?: { input_tokens?: number; output_tokens?: number }
       output?: unknown
@@ -438,6 +471,12 @@ export async function answerWithOpenAiFileSearch(params: {
     // 引用情報は citations 配列として別途返すためテキスト中には不要
     const text = rawText.replace(/【\d+:[^】]*】/g, "").replace(/  +/g, " ").trim()
 
+    if (!text) {
+      throw new EmptyFileSearchOutputError(
+        `OpenAI returned empty output_text. model=${model} response=${body.id ?? "-"} status=${body.status ?? "-"} output=${summarizeOutputShape(body.output)} incomplete=${JSON.stringify(body.incomplete_details ?? null)}`
+      )
+    }
+
     return {
       text,
       usage: body.usage ?? {},
@@ -445,14 +484,36 @@ export async function answerWithOpenAiFileSearch(params: {
     }
   }
 
+  const tryCallWithRecovery = async (model: string): Promise<FileSearchAnswer> => {
+    const baseMaxOutputTokens = params.maxOutputTokens ?? 900
+    const reasoningEffort = getFileSearchReasoningEffortByModel(model)
+
+    try {
+      return await tryCall(model, { maxOutputTokens: baseMaxOutputTokens, reasoningEffort })
+    } catch (error) {
+      if (reasoningEffort && shouldRetryWithoutReasoning(error)) {
+        return await tryCall(model, { maxOutputTokens: baseMaxOutputTokens, reasoningEffort: null })
+      }
+
+      if (shouldRetryWithLargerOutput(error) && baseMaxOutputTokens < 2400) {
+        return await tryCall(model, {
+          maxOutputTokens: Math.min(4000, Math.max(2400, baseMaxOutputTokens * 2)),
+          reasoningEffort,
+        })
+      }
+
+      throw error
+    }
+  }
+
   try {
-    const primary = await tryCall(params.model)
+    const primary = await tryCallWithRecovery(params.model)
     return { model: params.model, ...primary }
   } catch (error) {
     if (!params.fallbackModel || params.fallbackModel === params.model) {
       throw error
     }
-    const fallback = await tryCall(params.fallbackModel)
+    const fallback = await tryCallWithRecovery(params.fallbackModel)
     return { model: params.fallbackModel!, ...fallback }
   }
 }
