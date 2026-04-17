@@ -85,13 +85,17 @@ function MarkdownMessage({ content }: { content: string }) {
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       components={{
-        h1: ({ children }) => <h1 className="mb-1 text-base font-bold">{children}</h1>,
-        h2: ({ children }) => <h2 className="mb-1 text-sm font-bold">{children}</h2>,
-        h3: ({ children }) => <h3 className="mb-1 text-sm font-semibold">{children}</h3>,
-        p: ({ children }) => <p className="mb-1.5 last:mb-0 leading-relaxed">{children}</p>,
-        ul: ({ children }) => <ul className="mb-1.5 ml-4 list-disc space-y-0.5">{children}</ul>,
-        ol: ({ children }) => <ol className="mb-1.5 ml-4 list-decimal space-y-0.5">{children}</ol>,
-        li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+        h1: ({ children }) => <h1 className="mb-2 mt-1 text-base font-bold leading-6 first:mt-0">{children}</h1>,
+        h2: ({ children }) => (
+          <h2 className="mb-2 mt-4 border-b border-black/10 pb-1 text-[15px] font-bold leading-6 first:mt-0 dark:border-white/10">
+            {children}
+          </h2>
+        ),
+        h3: ({ children }) => <h3 className="mb-1.5 mt-3 text-sm font-semibold leading-5 first:mt-0">{children}</h3>,
+        p: ({ children }) => <p className="mb-2.5 last:mb-0 leading-7">{children}</p>,
+        ul: ({ children }) => <ul className="mb-3 ml-4 list-disc space-y-1.5">{children}</ul>,
+        ol: ({ children }) => <ol className="mb-3 ml-4 list-decimal space-y-1.5">{children}</ol>,
+        li: ({ children }) => <li className="pl-0.5 leading-7">{children}</li>,
         strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
         em: ({ children }) => <em className="italic">{children}</em>,
         a: ({ href, children }) => (
