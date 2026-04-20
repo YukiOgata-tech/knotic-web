@@ -17,6 +17,7 @@ import { requireConsoleContext } from "@/app/console/_lib/data"
 import { getAppUrl } from "@/lib/env"
 import { sendMemberInviteEmail } from "@/lib/email/resend"
 import { ALLOWED_FILE_EXTENSIONS, SPREADSHEET_EXTENSIONS, cleanupSourceFromOpenAiFileSearch, syncBinaryFileToOpenAiFileSearch, syncSourceTextToOpenAiFileSearch } from "@/lib/filesearch/openai"
+import { pdfToStructuredMarkdown } from "@/lib/indexing/pdf"
 import { spreadsheetToMarkdown } from "@/lib/indexing/spreadsheet"
 
 const ALLOWED_MODELS = [
@@ -290,6 +291,8 @@ export async function addUrlSourceAction(formData: FormData) {
 
 export async function addFileSourceAction(formData: FormData) {
   const redirectTo = String(formData.get("redirect_to") ?? "")
+  const activeTab = normalizeConfigTab(String(formData.get("active_tab") ?? "ai"))
+  const withActiveTab = (params: Record<string, string>) => ({ ...params, active_tab: activeTab })
 
   try {
     const { supabase, user, tenantId } = await getTenantContext(true)
@@ -297,21 +300,21 @@ export async function addFileSourceAction(formData: FormData) {
     const file = formData.get("file")
 
     if (!botId) {
-      redirect(toAppUrl(redirectTo, { error: "Botを選択してください。" }))
+      redirect(toAppUrl(redirectTo, withActiveTab({ error: "Botを選択してください。" })))
     }
 
     if (!(file instanceof File) || file.size === 0) {
-      redirect(toAppUrl(redirectTo, { error: "ファイルを選択してください。" }))
+      redirect(toAppUrl(redirectTo, withActiveTab({ error: "ファイルを選択してください。" })))
     }
 
     const fileName = file.name || "upload"
     const ext = fileName.split(".").pop()?.toLowerCase() ?? ""
     if (!ALLOWED_FILE_EXTENSIONS.has(ext)) {
-      redirect(toAppUrl(redirectTo, { error: "対応していないファイル形式です。" }))
+      redirect(toAppUrl(redirectTo, withActiveTab({ error: "対応していないファイル形式です。" })))
     }
 
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      redirect(toAppUrl(redirectTo, { error: "ファイルサイズは20MB以下にしてください。" }))
+      redirect(toAppUrl(redirectTo, withActiveTab({ error: "ファイルサイズは20MB以下にしてください。" })))
     }
     await assertTenantCanIndexData(tenantId, file.size)
 
@@ -357,7 +360,17 @@ export async function addFileSourceAction(formData: FormData) {
       .maybeSingle()
 
     if (bot?.public_id) {
-      if (SPREADSHEET_EXTENSIONS.has(ext)) {
+      if (ext === "pdf") {
+        const markdown = await pdfToStructuredMarkdown(bytes, fileName)
+        await syncSourceTextToOpenAiFileSearch({
+          botId,
+          botPublicId: String(bot.public_id),
+          sourceId: insertedSource.id,
+          sourceType: "pdf",
+          sourceLabel: fileName,
+          text: markdown,
+        })
+      } else if (SPREADSHEET_EXTENSIONS.has(ext)) {
         const markdown = spreadsheetToMarkdown(bytes, fileName)
         await syncSourceTextToOpenAiFileSearch({
           botId,
@@ -390,12 +403,12 @@ export async function addFileSourceAction(formData: FormData) {
       targetId: botId,
       after: { bot_id: botId, file_name: fileName, file_size_bytes: file.size },
     })
-    redirect(toAppUrl(redirectTo, { notice: "ファイルを追加しました。" }))
+    redirect(toAppUrl(redirectTo, withActiveTab({ notice: "ファイルを追加しました。" })))
   } catch (error) {
     redirect(
-      toAppUrl(redirectTo, {
+      toAppUrl(redirectTo, withActiveTab({
         error: error instanceof Error ? error.message : "ファイル追加に失敗しました。",
-      })
+      }))
     )
   }
 }

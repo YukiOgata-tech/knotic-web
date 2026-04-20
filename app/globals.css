@@ -185,4 +185,103 @@
   .knotic-loader-dot {
     animation: knotic-loader-dot 0.9s ease-in-out infinite;
   }
+
+  .knotic-chat-markdown {
+    line-height: 1.75;
+    overflow-wrap: anywhere;
+  }
+
+  .knotic-chat-markdown p {
+    margin-bottom: 0.625rem;
+  }
+
+  .knotic-chat-markdown p:last-child {
+    margin-bottom: 0;
+  }
+
+  .knotic-chat-markdown ul,
+  .knotic-chat-markdown ol {
+    list-style: none;
+    margin: 0.5rem 0 0.75rem;
+    padding-left: 0;
+  }
+
+  .knotic-chat-markdown ul ul,
+  .knotic-chat-markdown ul ol,
+  .knotic-chat-markdown ol ul,
+  .knotic-chat-markdown ol ol {
+    margin-left: 1.35rem;
+  }
+
+  .knotic-chat-markdown ol {
+    counter-reset: knotic-chat-list;
+  }
+
+  .knotic-chat-markdown li {
+    margin: 0.35rem 0;
+    padding-left: 1.65rem;
+    position: relative;
+  }
+
+  .knotic-chat-markdown ol > li {
+    counter-increment: knotic-chat-list;
+    padding-left: 2rem;
+  }
+
+  .knotic-chat-markdown ul > li::before,
+  .knotic-chat-markdown ol > li::before {
+    color: rgb(100 116 139);
+    left: 0;
+    position: absolute;
+  }
+
+  .dark .knotic-chat-markdown ul > li::before,
+  .dark .knotic-chat-markdown ol > li::before {
+    color: rgb(148 163 184);
+  }
+
+  .knotic-chat-markdown ul > li::before {
+    content: "\2022";
+    font-weight: 700;
+    top: 0.02rem;
+  }
+
+  .knotic-chat-markdown ul ul > li::before {
+    content: "\25E6";
+  }
+
+  .knotic-chat-markdown ul ul ul > li::before {
+    content: "\25AA";
+  }
+
+  .knotic-chat-markdown ol > li::before {
+    content: counter(knotic-chat-list) ".";
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    text-align: right;
+    top: 0;
+    width: 1.35rem;
+  }
+
+  .knotic-chat-markdown ol ol > li::before {
+    content: counter(knotic-chat-list, lower-alpha) ".";
+  }
+
+  .knotic-chat-markdown ol ol ol > li::before {
+    content: counter(knotic-chat-list, lower-roman) ".";
+  }
+
+  .knotic-chat-markdown li > p {
+    margin-bottom: 0.25rem;
+  }
+
+  .knotic-chat-markdown li > p:last-child {
+    margin-bottom: 0;
+  }
+
+  .knotic-chat-markdown li > ul,
+  .knotic-chat-markdown li > ol {
+    margin-top: 0.35rem;
+    margin-bottom: 0.25rem;
+  }
 }

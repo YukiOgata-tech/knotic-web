@@ -2107,6 +2107,7 @@ export function HostedConfigEditor({
               className="grid gap-2"
             >
               <input type="hidden" name="redirect_to" value={redirectTo} />
+              <input type="hidden" name="active_tab" value="ai" />
               <input type="hidden" name="bot_id" value={bot.id} />
               <div className="flex gap-2 items-center">
                 <Input

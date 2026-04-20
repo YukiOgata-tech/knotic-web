@@ -2,12 +2,14 @@ import crypto from "node:crypto"
 
 import { assertTenantCanIndexData } from "@/lib/billing/limits"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { syncSourceTextToOpenAiFileSearch, syncBinaryFileToOpenAiFileSearch } from "@/lib/filesearch/openai"
+import { SPREADSHEET_EXTENSIONS, syncSourceTextToOpenAiFileSearch, syncBinaryFileToOpenAiFileSearch } from "@/lib/filesearch/openai"
 import {
   MAX_CRAWL_PAGES_PER_JOB,
   STORAGE_BUCKET_ARTIFACTS,
 } from "@/lib/indexing/config"
 import { fetchPage, fetchWithRetry, filterUrlsByHost, parseSitemapUrls, USER_AGENT } from "@/lib/indexing/html"
+import { pdfToStructuredMarkdown } from "@/lib/indexing/pdf"
+import { spreadsheetToMarkdown } from "@/lib/indexing/spreadsheet"
 
 export type IndexProgressEvent =
   | { type: "fetching_sitemap" }
@@ -248,13 +250,38 @@ async function processFileSource(job: IndexingJob, source: SourceRow) {
     throw new Error("Bot public_id is missing while syncing file search.")
   }
 
-  await syncBinaryFileToOpenAiFileSearch({
-    botId: source.bot_id,
-    botPublicId: String(bot.public_id),
-    sourceId: source.id,
-    filename: source.file_name ?? `file-${source.id}`,
-    buffer: fileBuffer,
-  })
+  const filename = source.file_name ?? `file-${source.id}`
+  const ext = filename.split(".").pop()?.toLowerCase() ?? ""
+
+  if (ext === "pdf") {
+    const markdown = await pdfToStructuredMarkdown(fileBuffer, filename)
+    await syncSourceTextToOpenAiFileSearch({
+      botId: source.bot_id,
+      botPublicId: String(bot.public_id),
+      sourceId: source.id,
+      sourceType: "pdf",
+      sourceLabel: filename,
+      text: markdown,
+    })
+  } else if (SPREADSHEET_EXTENSIONS.has(ext)) {
+    const markdown = spreadsheetToMarkdown(fileBuffer, filename)
+    await syncSourceTextToOpenAiFileSearch({
+      botId: source.bot_id,
+      botPublicId: String(bot.public_id),
+      sourceId: source.id,
+      sourceType: "file",
+      sourceLabel: filename,
+      text: markdown,
+    })
+  } else {
+    await syncBinaryFileToOpenAiFileSearch({
+      botId: source.bot_id,
+      botPublicId: String(bot.public_id),
+      sourceId: source.id,
+      filename,
+      buffer: fileBuffer,
+    })
+  }
 
   const { error: sourceUpdateError } = await admin
     .from("sources")

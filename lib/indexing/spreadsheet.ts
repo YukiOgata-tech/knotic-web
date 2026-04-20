@@ -1,8 +1,8 @@
 import * as XLSX from "xlsx"
 
 /**
- * CSVまたはExcel（.xlsx/.xls）バッファをMarkdown形式に変換する。
- * ヘッダー行を見出しとして使用し、各行をテーブル行として出力する。
+ * CSVまたはExcel（.xlsx/.xls）バッファを検索しやすいMarkdown形式に変換する。
+ * シート名、Q&A列、表構造を維持し、セル内改行や空ヘッダーを正規化する。
  */
 export function spreadsheetToMarkdown(buffer: Buffer, filename: string): string {
   const ext = filename.split(".").pop()?.toLowerCase() ?? ""
@@ -10,29 +10,35 @@ export function spreadsheetToMarkdown(buffer: Buffer, filename: string): string 
   let workbook: XLSX.WorkBook
   if (ext === "csv") {
     const text = buffer.toString("utf-8")
-    workbook = XLSX.read(text, { type: "string" })
+    workbook = XLSX.read(text, { type: "string", raw: false })
   } else {
-    workbook = XLSX.read(buffer, { type: "buffer" })
+    workbook = XLSX.read(buffer, { type: "buffer", raw: false })
   }
 
-  const sections: string[] = []
+  const sections: string[] = [`# ${filename}`, ""]
 
   for (const sheetName of workbook.SheetNames) {
     const sheet = workbook.Sheets[sheetName]
-    const rows: string[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" })
+    const rows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1, defval: "", raw: false })
 
     if (rows.length === 0) continue
 
-    const headers = rows[0].map(String)
-    const dataRows = rows.slice(1).filter((row) => row.some((cell) => String(cell).trim() !== ""))
+    const firstDataIndex = rows.findIndex((row) => row.some((cell) => normalizeCell(cell) !== ""))
+    if (firstDataIndex === -1) continue
+
+    const rawHeaders = rows[firstDataIndex].map(normalizeCell)
+    const dataRows = rows.slice(firstDataIndex + 1).filter((row) => row.some((cell) => normalizeCell(cell) !== ""))
+    const columnCount = Math.max(rawHeaders.length, ...dataRows.map((row) => row.length))
+    const headers = normalizeHeaders(rawHeaders, columnCount)
 
     if (dataRows.length === 0) continue
 
     const isQaSheet = isFaqSheet(headers)
 
-    if (workbook.SheetNames.length > 1) {
-      sections.push(`## ${sheetName}`)
-    }
+    sections.push(`## ${sheetName}`)
+    sections.push("")
+    sections.push(`Rows: ${dataRows.length}`)
+    sections.push("")
 
     if (isQaSheet) {
       // Q&A形式: question/answer列を検出して読みやすいMarkdownに変換
@@ -40,8 +46,8 @@ export function spreadsheetToMarkdown(buffer: Buffer, filename: string): string 
       const answerIdx = findColumnIndex(headers, ["answer", "回答", "a", "答え", "解答"])
 
       for (const row of dataRows) {
-        const question = String(row[questionIdx] ?? "").trim()
-        const answer = String(row[answerIdx] ?? "").trim()
+        const question = normalizeCell(row[questionIdx] ?? "")
+        const answer = normalizeCell(row[answerIdx] ?? "")
         if (!question) continue
         sections.push(`### ${question}`)
         if (answer) sections.push(answer)
@@ -49,12 +55,12 @@ export function spreadsheetToMarkdown(buffer: Buffer, filename: string): string 
       }
     } else {
       // 汎用テーブル形式: Markdownテーブルとして出力
-      const headerLine = `| ${headers.join(" | ")} |`
+      const headerLine = `| ${headers.map(escapeTableCell).join(" | ")} |`
       const separatorLine = `| ${headers.map(() => "---").join(" | ")} |`
       sections.push(headerLine, separatorLine)
 
       for (const row of dataRows) {
-        const cells = headers.map((_, i) => String(row[i] ?? "").replace(/\|/g, "\\|").trim())
+        const cells = headers.map((_, i) => escapeTableCell(normalizeCell(row[i] ?? "")))
         sections.push(`| ${cells.join(" | ")} |`)
       }
       sections.push("")
@@ -66,6 +72,24 @@ export function spreadsheetToMarkdown(buffer: Buffer, filename: string): string 
   }
 
   return sections.join("\n")
+}
+
+function normalizeHeaders(headers: string[], columnCount: number) {
+  return Array.from({ length: columnCount }, (_, index) => {
+    const value = normalizeCell(headers[index] ?? "")
+    return value || `Column ${index + 1}`
+  })
+}
+
+function normalizeCell(value: unknown) {
+  return String(value ?? "")
+    .replace(/\r?\n/g, "<br>")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function escapeTableCell(value: string) {
+  return value.replace(/\|/g, "\\|")
 }
 
 function isFaqSheet(headers: string[]): boolean {

@@ -80,64 +80,143 @@ function TypingDots() {
   )
 }
 
+const SECTION_LABEL_CANDIDATES = new Set([
+  "概要",
+  "要点",
+  "目的",
+  "背景",
+  "詳細",
+  "内容",
+  "内容の要点",
+  "手順",
+  "方法",
+  "実施項目",
+  "確認項目",
+  "注意点",
+  "補足",
+  "関連情報",
+  "期待される成果",
+  "出典の示唆",
+  "次に確認すること",
+])
+
+function parseListLine(line: string) {
+  const bulletMatch = line.match(/^([ \t]*)([-*+•◦▪●○・])\s+(.+)$/)
+  if (bulletMatch) {
+    return {
+      indent: bulletMatch[1],
+      marker: "-",
+      text: bulletMatch[3].trim(),
+      ordered: false,
+    }
+  }
+
+  const orderedMatch = line.match(/^([ \t]*)(\d+|[０-９]+)[.)．。]\s+(.+)$/)
+  if (orderedMatch) {
+    const number = orderedMatch[2].replace(/[０-９]/g, (char) =>
+      String.fromCharCode(char.charCodeAt(0) - 0xfee0)
+    )
+    return {
+      indent: orderedMatch[1],
+      marker: `${number}.`,
+      text: orderedMatch[3].trim(),
+      ordered: true,
+    }
+  }
+
+  return null
+}
+
+function isSectionLabel(text: string, nextText: string | null) {
+  const normalized = text.replace(/^\*\*|\*\*$/g, "").replace(/[:：]$/, "").trim()
+  const baseLabel = normalized.replace(/[（(].*[）)]$/, "").trim()
+  if (SECTION_LABEL_CANDIDATES.has(normalized) || SECTION_LABEL_CANDIDATES.has(baseLabel)) return true
+  if (!nextText || nextText.length < 18) return false
+  if (normalized.length > 16) return false
+  if (/[。、.!?！？]/.test(normalized)) return false
+  if (/[、,]/.test(normalized)) return false
+  return /^[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}A-Za-z0-9 　・/（）()-]+$/u.test(normalized)
+}
+
+function normalizeMarkdownLists(content: string) {
+  const normalizedLines = content.split(/\r?\n/).map((line) => {
+    const parsed = parseListLine(line)
+    if (!parsed) return line
+    return `${parsed.indent}${parsed.marker} ${parsed.text}`
+  })
+
+  return normalizedLines
+    .map((line, index) => {
+      const parsed = parseListLine(line)
+      if (!parsed || parsed.ordered || parsed.indent.length > 0) return line
+
+      const nextParsed = normalizedLines.slice(index + 1).map(parseListLine).find(Boolean)
+      if (!isSectionLabel(parsed.text, nextParsed?.text ?? null)) return line
+
+      return `### ${parsed.text.replace(/^\*\*|\*\*$/g, "").replace(/[:：]$/, "").trim()}`
+    })
+    .join("\n")
+}
+
 function MarkdownMessage({ content }: { content: string }) {
+  const normalizedContent = normalizeMarkdownLists(content)
+
   return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      components={{
-        h1: ({ children }) => <h1 className="mb-2 mt-1 text-base font-bold leading-6 first:mt-0">{children}</h1>,
-        h2: ({ children }) => (
-          <h2 className="mb-2 mt-4 border-b border-black/10 pb-1 text-[15px] font-bold leading-6 first:mt-0 dark:border-white/10">
-            {children}
-          </h2>
-        ),
-        h3: ({ children }) => <h3 className="mb-1.5 mt-3 text-sm font-semibold leading-5 first:mt-0">{children}</h3>,
-        p: ({ children }) => <p className="mb-2.5 last:mb-0 leading-7">{children}</p>,
-        ul: ({ children }) => <ul className="mb-3 ml-4 list-disc space-y-1.5">{children}</ul>,
-        ol: ({ children }) => <ol className="mb-3 ml-4 list-decimal space-y-1.5">{children}</ol>,
-        li: ({ children }) => <li className="pl-0.5 leading-7">{children}</li>,
-        strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-        em: ({ children }) => <em className="italic">{children}</em>,
-        a: ({ href, children }) => (
-          <a
-            href={href}
-            target="_blank"
-            rel="noreferrer"
-            className="underline decoration-cyan-500 underline-offset-2 hover:text-cyan-600 dark:hover:text-cyan-300"
-          >
-            {children}
-          </a>
-        ),
-        code: ({ children, className }) => {
-          const isBlock = className?.includes("language-")
-          return isBlock ? (
-            <code className="block rounded bg-black/10 px-3 py-2 font-mono text-xs dark:bg-white/10">{children}</code>
-          ) : (
-            <code className="rounded bg-black/10 px-1 py-0.5 font-mono text-xs dark:bg-white/10">{children}</code>
-          )
-        },
-        pre: ({ children }) => (
-          <pre className="mb-1.5 overflow-x-auto rounded-md bg-black/10 p-3 dark:bg-white/10">{children}</pre>
-        ),
-        blockquote: ({ children }) => (
-          <blockquote className="mb-1.5 border-l-2 border-cyan-500 pl-3 text-muted-foreground">{children}</blockquote>
-        ),
-        table: ({ children }) => (
-          <div className="mb-1.5 overflow-x-auto">
-            <table className="min-w-full border-collapse text-xs">{children}</table>
-          </div>
-        ),
-        th: ({ children }) => (
-          <th className="border border-black/20 bg-black/5 px-2 py-1 text-left font-semibold dark:border-white/15 dark:bg-white/5">{children}</th>
-        ),
-        td: ({ children }) => (
-          <td className="border border-black/20 px-2 py-1 dark:border-white/15">{children}</td>
-        ),
-        hr: () => <hr className="my-2 border-black/20 dark:border-white/15" />,
-      }}
-    >
-      {content}
-    </ReactMarkdown>
+    <div className="knotic-chat-markdown">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          h1: ({ children }) => <h1 className="mb-2 mt-1 text-base font-bold leading-6 first:mt-0">{children}</h1>,
+          h2: ({ children }) => (
+            <h2 className="mb-2 mt-4 border-b border-black/10 pb-1 text-[15px] font-bold leading-6 first:mt-0 dark:border-white/10">
+              {children}
+            </h2>
+          ),
+          h3: ({ children }) => <h3 className="mb-1.5 mt-3 text-sm font-semibold leading-5 first:mt-0">{children}</h3>,
+          p: ({ children }) => <p>{children}</p>,
+          strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+          em: ({ children }) => <em className="italic">{children}</em>,
+          a: ({ href, children }) => (
+            <a
+              href={href}
+              target="_blank"
+              rel="noreferrer"
+              className="underline decoration-cyan-500 underline-offset-2 hover:text-cyan-600 dark:hover:text-cyan-300"
+            >
+              {children}
+            </a>
+          ),
+          code: ({ children, className }) => {
+            const isBlock = className?.includes("language-")
+            return isBlock ? (
+              <code className="block rounded bg-black/10 px-3 py-2 font-mono text-xs dark:bg-white/10">{children}</code>
+            ) : (
+              <code className="rounded bg-black/10 px-1 py-0.5 font-mono text-xs dark:bg-white/10">{children}</code>
+            )
+          },
+          pre: ({ children }) => (
+            <pre className="mb-1.5 overflow-x-auto rounded-md bg-black/10 p-3 dark:bg-white/10">{children}</pre>
+          ),
+          blockquote: ({ children }) => (
+            <blockquote className="mb-1.5 border-l-2 border-cyan-500 pl-3 text-muted-foreground">{children}</blockquote>
+          ),
+          table: ({ children }) => (
+            <div className="mb-1.5 overflow-x-auto">
+              <table className="min-w-full border-collapse text-xs">{children}</table>
+            </div>
+          ),
+          th: ({ children }) => (
+            <th className="border border-black/20 bg-black/5 px-2 py-1 text-left font-semibold dark:border-white/15 dark:bg-white/5">{children}</th>
+          ),
+          td: ({ children }) => (
+            <td className="border border-black/20 px-2 py-1 dark:border-white/15">{children}</td>
+          ),
+          hr: () => <hr className="my-2 border-black/20 dark:border-white/15" />,
+        }}
+      >
+        {normalizedContent}
+      </ReactMarkdown>
+    </div>
   )
 }
 
@@ -459,6 +538,18 @@ export function HostedChatClient({
         data = JSON.parse(rawText) as typeof data
       } catch {
         console.error("[chat] response is not JSON. status:", res.status, "body:", rawText.slice(0, 300))
+      }
+      const debugChat =
+        process.env.NODE_ENV !== "production" ||
+        (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug_chat"))
+      if (debugChat) {
+        console.groupCollapsed("[knotic-chat] API response")
+        console.log("status:", res.status)
+        console.log("raw response text:", rawText)
+        console.log("answer markdown:", data.answer ?? "")
+        console.log("normalized markdown:", normalizeMarkdownLists(data.answer ?? ""))
+        console.log("parsed payload:", data)
+        console.groupEnd()
       }
 
       if (!res.ok) {
