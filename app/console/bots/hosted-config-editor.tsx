@@ -889,10 +889,6 @@ export function HostedConfigEditor({
 
   async function handleOpenSourceDetail(source: BotSourceRow) {
     setSourceDetail({ source, sourceId: source.id, pages: [], loading: true, viewingPage: null, pageText: null, pageTextLoading: false })
-    if (source.type !== "url") {
-      setSourceDetail((s) => s ? { ...s, loading: false } : null)
-      return
-    }
     const sourceId = source.id
     const result = await getSourcePagesAction(sourceId)
     setSourceDetail((s) => s ? { ...s, pages: result.pages, loading: false, error: result.error } : null)
@@ -920,26 +916,33 @@ export function HostedConfigEditor({
     setDeletingId(null)
   }
 
-  async function handleReindex(sourceId: string, mode: "raw" | "llm" = indexMode) {
+  async function handleReindex(source: BotSourceRow, mode: "raw" | "llm" = indexMode) {
     if (reindexState.phase === "running") return
+    const sourceId = source.id
+    const isUrlSource = source.type === "url"
+    const effectiveMode = isUrlSource ? mode : "raw"
     setReindexState({ sourceId, phase: "running", error: null, warnings: [] })
     try {
       const initRes = await fetch("/api/v1/reindex", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceId, botId: bot.id, mode }),
+        body: JSON.stringify({ sourceId, botId: bot.id, mode: effectiveMode }),
       })
       if (!initRes.ok) {
         const err = (await initRes.json().catch(() => ({ error: "ナレッジ更新の開始に失敗しました。" }))) as { error?: string }
         setReindexState((s) => ({ ...s, phase: "error", error: err.error ?? "エラーが発生しました。" }))
         return
       }
-      const { jobId } = (await initRes.json()) as { jobId: string }
+      const { jobId, completed } = (await initRes.json()) as { jobId: string; completed?: boolean }
+      if (!isUrlSource || completed) {
+        setReindexState((s) => ({ ...s, phase: "done" }))
+        return
+      }
 
       const { supabaseUrl, supabaseAnonKey } = getSupabasePublicEnv()
       const { data: { session } } = await createClient().auth.getSession()
       const jwt = session?.access_token ?? supabaseAnonKey
-      const edgeFn = mode === "llm" ? "index-url-llm" : "index-url"
+      const edgeFn = effectiveMode === "llm" ? "index-url-llm" : "index-url"
       const fnResponse = await fetch(`${supabaseUrl}/functions/v1/${edgeFn}`, {
         method: "POST",
         headers: {
@@ -1461,7 +1464,7 @@ export function HostedConfigEditor({
                   ) : null}
                 </div>
                 {logoError ? <p className="text-[11px] text-destructive">{logoError}</p> : null}
-                <p className="text-[11px] text-muted-foreground">PNG/JPG/WebP/SVG  最大2MB。未設定時はデフォルトロゴを使用します。</p>
+                <p className="text-[11px] text-muted-foreground">PNG/JPG/WebP/SVG  最大2MB。未設定時はKnoticロゴを使用します。</p>
               </div>
             </div>
           </div>
@@ -1919,7 +1922,7 @@ export function HostedConfigEditor({
         <div className="grid gap-1">
           <p className="text-sm font-semibold">情報ソース管理</p>
           <p className="text-xs text-muted-foreground">
-            URL/PDFを追加すると自動でAIに読み込まれます。内容が更新された場合は「ナレッジを更新」で再読み込みできます。
+            URL/ファイルを追加すると自動でAIに読み込まれます。内容が更新された場合は「ナレッジを更新」で再読み込みできます。
           </p>
         </div>
 
@@ -2136,7 +2139,7 @@ export function HostedConfigEditor({
               {(addFileLoading || isAddingFile) ? (
                 <div className="flex items-center gap-2 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs text-cyan-800 dark:border-cyan-800/60 dark:bg-cyan-950/30 dark:text-cyan-200">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ファイルをアップロードし、ナレッジに同期しています。完了までこのままお待ちください。
+                  ファイルをアップロードし、同期しています。完了までこのままお待ちください。
                 </div>
               ) : null}
               {addFileError ? <p className="text-[11px] text-destructive">{addFileError}</p> : null}
@@ -2166,15 +2169,15 @@ export function HostedConfigEditor({
                 <div className="min-w-0 grid gap-1">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-                      {source.type === "url" ? "URL" : "PDF"}
+                      {source.type === "url" ? "URL" : source.type === "pdf" ? "PDF" : "FILE"}
                     </span>
                     <SourceStatusBadge status={source.status} />
-                    {source.index_mode === "llm" ? (
+                    {source.type === "url" && source.index_mode === "llm" ? (
                       <span className="inline-flex items-center gap-0.5 rounded-full bg-cyan-100 px-1.5 py-0.5 text-[10px] font-medium text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400">
                         <Sparkles className="h-2.5 w-2.5" />
                         AI要約
                       </span>
-                    ) : source.index_mode === "raw" ? (
+                    ) : source.type === "url" && source.index_mode === "raw" ? (
                       <span className="inline-flex items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                         標準
                       </span>
@@ -2231,7 +2234,7 @@ export function HostedConfigEditor({
                             type="button"
                             size="sm"
                             variant="outline"
-                            onClick={() => { setConfirmReindexId(null); void handleReindex(source.id, indexMode) }}
+                            onClick={() => { setConfirmReindexId(null); void handleReindex(source, indexMode) }}
                           >
                             実行
                           </Button>
@@ -2245,36 +2248,42 @@ export function HostedConfigEditor({
                           </Button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <span className="text-[10px] text-muted-foreground">方式:</span>
-                        <div className="inline-flex rounded bg-slate-100 p-0.5 dark:bg-slate-800">
-                          <button
-                            type="button"
-                            onClick={() => setIndexMode("raw")}
-                            className={cn(
-                              "rounded px-2 py-0.5 text-[10px] font-medium transition-all",
-                              indexMode === "raw"
-                                ? "bg-white text-slate-900 shadow-sm dark:bg-slate-950 dark:text-slate-100"
-                                : "text-slate-400 hover:text-slate-600 dark:text-slate-500"
-                            )}
-                          >
-                            Raw
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setIndexMode("llm")}
-                            className={cn(
-                              "inline-flex items-center gap-0.5 rounded px-2 py-0.5 text-[10px] font-medium transition-all",
-                              indexMode === "llm"
-                                ? "bg-white text-slate-900 shadow-sm dark:bg-slate-950 dark:text-slate-100"
-                                : "text-slate-400 hover:text-slate-600 dark:text-slate-500"
-                            )}
-                          >
-                            <Sparkles className="h-2 w-2" />
-                            AI
-                          </button>
+                      {source.type === "url" ? (
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] text-muted-foreground">方式:</span>
+                          <div className="inline-flex rounded bg-slate-100 p-0.5 dark:bg-slate-800">
+                            <button
+                              type="button"
+                              onClick={() => setIndexMode("raw")}
+                              className={cn(
+                                "rounded px-2 py-0.5 text-[10px] font-medium transition-all",
+                                indexMode === "raw"
+                                  ? "bg-white text-slate-900 shadow-sm dark:bg-slate-950 dark:text-slate-100"
+                                  : "text-slate-400 hover:text-slate-600 dark:text-slate-500"
+                              )}
+                            >
+                              Raw
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setIndexMode("llm")}
+                              className={cn(
+                                "inline-flex items-center gap-0.5 rounded px-2 py-0.5 text-[10px] font-medium transition-all",
+                                indexMode === "llm"
+                                  ? "bg-white text-slate-900 shadow-sm dark:bg-slate-950 dark:text-slate-100"
+                                  : "text-slate-400 hover:text-slate-600 dark:text-slate-500"
+                              )}
+                            >
+                              <Sparkles className="h-2 w-2" />
+                              AI
+                            </button>
+                          </div>
                         </div>
-                      </div>
+                      ) : (
+                        <p className="max-w-[280px] text-[10px] leading-4 text-muted-foreground">
+                          ファイルは追加時と同じ抽出処理でMarkdown化して再同期します。URL用のAI要約モードは使用しません。
+                        </p>
+                      )}
                     </div>
                   ) : (
                     <div className="flex items-center gap-1.5">
@@ -2297,7 +2306,7 @@ export function HostedConfigEditor({
                         variant="ghost"
                         onClick={() => void handleOpenSourceDetail(source)}
                         className="text-slate-400 hover:text-cyan-600 dark:text-slate-500 dark:hover:text-cyan-400"
-                        title="インデックス内容を確認"
+                        title="内容を確認"
                       >
                         <FileText className="h-3.5 w-3.5" />
                       </Button>
@@ -2388,34 +2397,6 @@ export function HostedConfigEditor({
             </div>
           ) : sourceDetail?.error ? (
             <p className="text-sm text-rose-600 dark:text-rose-400 py-4">{sourceDetail.error}</p>
-          ) : sourceDetail?.source && sourceDetail.source.type !== "url" ? (
-            <div className="grid gap-3 rounded-lg border border-black/10 bg-slate-50 p-4 text-sm dark:border-white/10 dark:bg-slate-900/50">
-              <div className="flex flex-wrap items-center gap-2">
-                <SourceStatusBadge status={sourceDetail.source.status} />
-                {sourceDetail.source.file_size_bytes ? (
-                  <span className="text-xs text-muted-foreground">{formatMbFromBytes(sourceDetail.source.file_size_bytes)}</span>
-                ) : null}
-              </div>
-              <div className="min-w-0">
-                <p className="truncate font-medium">{sourceDetail.source.file_name ?? "ファイルソース"}</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  最終同期: {formatDateTime(sourceDetail.source.file_search_last_synced_at)}
-                </p>
-              </div>
-              {sourceDetail.source.file_search_error ? (
-                <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-800/60 dark:bg-rose-950/30 dark:text-rose-300">
-                  エラー: {sourceDetail.source.file_search_error}
-                </p>
-              ) : sourceDetail.source.status === "ready" ? (
-                <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-950/30 dark:text-emerald-200">
-                  このファイルは OpenAI File Search に同期済みです。PDF・Word・PowerPoint などのファイル本文は確認用テキストとして保存していないため、この画面では本文プレビューを表示しません。
-                </p>
-              ) : (
-                <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-200">
-                  ファイルの同期が完了していません。状態が「同期済み」になるまでお待ちください。
-                </p>
-              )}
-            </div>
           ) : sourceDetail?.viewingPage ? (
             /* ページ本文ビュー */
             <div className="flex flex-col gap-3 min-h-0">
@@ -2457,10 +2438,46 @@ export function HostedConfigEditor({
           ) : (
             /* ページ一覧ビュー */
             <div className="flex flex-col gap-3 min-h-0">
+              {sourceDetail?.source && sourceDetail.source.type !== "url" ? (
+                <div className="grid gap-2 rounded-lg border border-black/10 bg-slate-50 p-3 text-sm dark:border-white/10 dark:bg-slate-900/50">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <SourceStatusBadge status={sourceDetail.source.status} />
+                    {sourceDetail.source.file_size_bytes ? (
+                      <span className="text-xs text-muted-foreground">{formatMbFromBytes(sourceDetail.source.file_size_bytes)}</span>
+                    ) : null}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{sourceDetail.source.file_name ?? "ファイルソース"}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      最終同期: {formatDateTime(sourceDetail.source.file_search_last_synced_at)}
+                    </p>
+                  </div>
+                  {sourceDetail.source.file_search_error ? (
+                    <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-800/60 dark:bg-rose-950/30 dark:text-rose-300">
+                      エラー: {sourceDetail.source.file_search_error}
+                    </p>
+                  ) : sourceDetail.pages.length > 0 ? (
+                    <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-950/30 dark:text-emerald-200">
+                      このファイルはナレッジ化済みです。下の項目から、AIに同期した確認用Markdownを表示できます。
+                    </p>
+                  ) : sourceDetail.source.status === "ready" ? (
+                    <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-200">
+                      このファイルは同期済みですが、確認用テキストがまだ保存されていません。再度ファイルを追加するか、「ナレッジを更新」を実行してください。
+                    </p>
+                  ) : (
+                    <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-200">
+                      ファイルの同期が完了していません。状態が「同期済み」になるまでお待ちください。
+                    </p>
+                  )}
+                </div>
+              ) : null}
+
               {sourceDetail && sourceDetail.pages.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4 text-center">
                   読み込み済みページが見つかりません。<br />
-                  URLソースは「ナレッジを更新」を実行してください。
+                  {sourceDetail.source?.type === "url"
+                    ? "URLソースは「ナレッジを更新」を実行してください。"
+                    : "確認用テキストは新しいファイル追加または「ナレッジを更新」後に表示されます。"}
                 </p>
               ) : (
                 <>

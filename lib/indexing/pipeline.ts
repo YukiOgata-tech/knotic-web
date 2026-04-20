@@ -7,6 +7,7 @@ import {
   MAX_CRAWL_PAGES_PER_JOB,
   STORAGE_BUCKET_ARTIFACTS,
 } from "@/lib/indexing/config"
+import { storeFileKnowledgeMarkdown } from "@/lib/indexing/file-artifacts"
 import { fetchPage, fetchWithRetry, filterUrlsByHost, parseSitemapUrls, USER_AGENT } from "@/lib/indexing/html"
 import { pdfToStructuredMarkdown } from "@/lib/indexing/pdf"
 import { spreadsheetToMarkdown } from "@/lib/indexing/spreadsheet"
@@ -255,6 +256,14 @@ async function processFileSource(job: IndexingJob, source: SourceRow) {
 
   if (ext === "pdf") {
     const markdown = await pdfToStructuredMarkdown(fileBuffer, filename)
+    await storeFileKnowledgeMarkdown({
+      tenantId: job.tenant_id,
+      botId: source.bot_id,
+      sourceId: source.id,
+      title: filename,
+      markdown,
+      rawBytes: fileBuffer.length,
+    })
     await syncSourceTextToOpenAiFileSearch({
       botId: source.bot_id,
       botPublicId: String(bot.public_id),
@@ -265,6 +274,14 @@ async function processFileSource(job: IndexingJob, source: SourceRow) {
     })
   } else if (SPREADSHEET_EXTENSIONS.has(ext)) {
     const markdown = spreadsheetToMarkdown(fileBuffer, filename)
+    await storeFileKnowledgeMarkdown({
+      tenantId: job.tenant_id,
+      botId: source.bot_id,
+      sourceId: source.id,
+      title: filename,
+      markdown,
+      rawBytes: fileBuffer.length,
+    })
     await syncSourceTextToOpenAiFileSearch({
       botId: source.bot_id,
       botPublicId: String(bot.public_id),

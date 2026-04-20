@@ -17,6 +17,7 @@ import { requireConsoleContext } from "@/app/console/_lib/data"
 import { getAppUrl } from "@/lib/env"
 import { sendMemberInviteEmail } from "@/lib/email/resend"
 import { ALLOWED_FILE_EXTENSIONS, SPREADSHEET_EXTENSIONS, cleanupSourceFromOpenAiFileSearch, syncBinaryFileToOpenAiFileSearch, syncSourceTextToOpenAiFileSearch } from "@/lib/filesearch/openai"
+import { storeFileKnowledgeMarkdown } from "@/lib/indexing/file-artifacts"
 import { pdfToStructuredMarkdown } from "@/lib/indexing/pdf"
 import { spreadsheetToMarkdown } from "@/lib/indexing/spreadsheet"
 
@@ -362,6 +363,14 @@ export async function addFileSourceAction(formData: FormData) {
     if (bot?.public_id) {
       if (ext === "pdf") {
         const markdown = await pdfToStructuredMarkdown(bytes, fileName)
+        await storeFileKnowledgeMarkdown({
+          tenantId,
+          botId,
+          sourceId: insertedSource.id,
+          title: fileName,
+          markdown,
+          rawBytes: bytes.length,
+        })
         await syncSourceTextToOpenAiFileSearch({
           botId,
           botPublicId: String(bot.public_id),
@@ -372,6 +381,14 @@ export async function addFileSourceAction(formData: FormData) {
         })
       } else if (SPREADSHEET_EXTENSIONS.has(ext)) {
         const markdown = spreadsheetToMarkdown(bytes, fileName)
+        await storeFileKnowledgeMarkdown({
+          tenantId,
+          botId,
+          sourceId: insertedSource.id,
+          title: fileName,
+          markdown,
+          rawBytes: bytes.length,
+        })
         await syncSourceTextToOpenAiFileSearch({
           botId,
           botPublicId: String(bot.public_id),

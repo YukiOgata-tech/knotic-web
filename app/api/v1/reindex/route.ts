@@ -4,6 +4,7 @@ import { type NextRequest } from "next/server"
 import { writeAuditLog } from "@/app/console/_lib/audit"
 import { requireConsoleContext } from "@/app/console/_lib/data"
 import { assertTenantCanIndexData } from "@/lib/billing/limits"
+import { processIndexingJob } from "@/lib/indexing/pipeline"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 // Queues a re-index job for an existing source and returns { jobId }.
@@ -37,7 +38,6 @@ export async function POST(request: NextRequest) {
   }
 
   const { sourceId, botId, mode } = body
-  const indexMode = mode === "llm" ? "llm" : "raw"
   if (!sourceId) {
     return Response.json({ error: "sourceId は必須です。" }, { status: 400 })
   }
@@ -54,9 +54,15 @@ export async function POST(request: NextRequest) {
   if (!source) {
     return Response.json({ error: "ソースが見つかりません。" }, { status: 404 })
   }
+  const sourceType = String((source as { type?: string | null }).type ?? "")
+  const indexMode = sourceType === "url" && mode === "llm" ? "llm" : "raw"
 
-  // Verify bot belongs to this tenant
-  const resolvedBotId = botId ?? (source.bot_id as string | null) ?? ""
+  // Verify the source is attached to a bot in this tenant. Do not let a request
+  // override source ownership by passing an unrelated botId.
+  const resolvedBotId = (source.bot_id as string | null) ?? ""
+  if (botId && botId !== resolvedBotId) {
+    return Response.json({ error: "ソースとBotの組み合わせが正しくありません。" }, { status: 400 })
+  }
   if (resolvedBotId) {
     const { data: bot } = await admin
       .from("bots")
@@ -106,8 +112,20 @@ export async function POST(request: NextRequest) {
     action: "indexing.queue",
     targetType: "source",
     targetId: sourceId,
-    after: { bot_id: resolvedBotId || null, embedding_model: "text-embedding-3-small" },
+    after: { bot_id: resolvedBotId || null, embedding_model: "text-embedding-3-small", source_type: sourceType, index_mode: indexMode },
   })
 
-  return Response.json({ jobId })
+  if (sourceType !== "url") {
+    try {
+      await processIndexingJob(jobId)
+      return Response.json({ jobId, sourceType, completed: true })
+    } catch (error) {
+      return Response.json(
+        { error: error instanceof Error ? error.message : "ファイルのナレッジ更新に失敗しました。" },
+        { status: 500 }
+      )
+    }
+  }
+
+  return Response.json({ jobId, sourceType, completed: false })
 }
